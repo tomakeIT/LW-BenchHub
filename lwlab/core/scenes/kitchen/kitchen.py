@@ -124,7 +124,8 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         import time
         start_time = time.time()
         print(f"load usd", end="...")
-        self.usd_path = str(floorplan_loader.wait_for_result())
+        self.usd_path = str(self._usd_future.result())
+        del self._usd_future
         print(f" done in {time.time() - start_time:.2f}s")
 
         # run robocasa fixture initialization ahead of everything else
@@ -172,9 +173,9 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             self.style_id = self._ep_meta["style_id"]
         else:
             layout_id, style_id = self.rng.choice(self.layout_and_style_ids)
-            self.layout_id = layout_id
-            self.style_id = style_id
-        floorplan_loader.acquire_usd(self.layout_id, self.style_id)
+            self.layout_id = int(layout_id)
+            self.style_id = int(style_id)
+        self._usd_future = floorplan_loader.acquire_usd(self.layout_id, self.style_id, cancel_previous_download=True)
 
         self._curr_gen_fixtures = self._ep_meta.get("gen_textures")
 

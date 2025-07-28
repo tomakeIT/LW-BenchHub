@@ -12,46 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import grpc
-import json
-from . import bundle_pb2 as bundle_pb2
-from . import bundle_pb2_grpc as bundle_pb2_grpc
+
 from pathlib import Path
 import zipfile
-from tqdm import tqdm
 import threading
 import shutil
+import time
+from concurrent.futures import Future, ThreadPoolExecutor
+import requests
+from tqdm import tqdm
 
 CACHE_PATH = Path("~/.cache/lwlab/floorplan/").expanduser()
 CACHE_PATH.mkdir(parents=True, exist_ok=True)
 
 
 class FloorplanLoader:
-    def __init__(self, host):
+    _latest_future: Future = None
+
+    def __init__(self, host, max_workers=4):
         self.host = host
         self.lock = threading.Lock()
-        self._args = None
         self.check_version()
+        self.executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._should_stop_downloading = False
 
-    def acquire_usd(self, layout_id: int, style_id: int, scene: str = None):
-        if self._args is not None:
-            raise RuntimeError("Downloading floorplan is already in progress")
-        with self.lock:
-            self._t = threading.Thread(target=self.get_usd, args=(layout_id, style_id, scene))
-            self._t.start()
-        return self
-
-    def wait_for_result(self):
-        """wait for the floorplan to be downloaded and return the path"""
-        with self.lock:
-            return self._usd_file_path
-
-    def get_usd(self, layout_id: int, style_id: int, scene: str = None):
-        with self.lock:
-            self._args = (layout_id, style_id, scene)
-            self._usd_file_path = self._get_usd()
-            self._args = None
-            return self._usd_file_path
+    def acquire_usd(self, layout_id: int, style_id: int, scene: str = None, cancel_previous_download: bool = True):
+        if cancel_previous_download and self._latest_future and self._latest_future.running():
+            self._should_stop_downloading = True
+            # self._latest_future.cancel()
+            while self._latest_future.running():
+                time.sleep(0.1)
+                print(f"waiting for cancel")
+        self._latest_future = self.executor.submit(self.get_usd, layout_id, style_id, scene)
+        return self._latest_future
 
     def check_version(self):
         version = self._get_version()
@@ -66,9 +59,15 @@ class FloorplanLoader:
             self._clear_usd_cache()
             self._update_usd_cache_version(version)
 
-    def _get_usd(self):
+    def get_usd(self, layout_id: int, style_id: int, scene: str = None):
+        try:
+            return self._get_usd(layout_id, style_id, scene)
+        finally:
+            pass
+
+    def _get_usd(self, layout_id: int, style_id: int, scene: str = None):
         """
-        Make a Get RPC call to retrieve a bundle stream.
+        Make a Get HTTP call to retrieve a bundle stream.
 
         Args:
             layout_id (int): The layout ID
@@ -76,32 +75,41 @@ class FloorplanLoader:
             scene (str, optional): The scene identifier
 
         Returns:
-            iterator: Stream of GetBundleReply messages
+            str: The path to the downloaded USD file
         """
-        layout_id, style_id, scene = self._args
         cache_dir_path = self._usd_cache_dir_path(dict(layout_id=layout_id, style_id=style_id))
-        # cache_dir_path.mkdir(parents=True, exist_ok=True)
         package_file_path = cache_dir_path.with_suffix(".zip")
         usd_file_path = cache_dir_path / "scene.usda"
         if usd_file_path.exists():
             return usd_file_path
-
-        with grpc.insecure_channel(self.host) as channel:
-            stub = bundle_pb2_grpc.BundleStub(channel)
-            request = bundle_pb2.GetBundleRequest(layout_id=layout_id, style_id=style_id, scene=scene if scene else None)
-            try:
-                with open(package_file_path, "wb") as f:
-                    total_size = 0
-                    for reply in tqdm(stub.Get(request), desc="Downloading Floorplan Package"):
-                        f.write(reply.data)
-                        total_size += len(reply.data)
-                    print(f"dowloaded {total_size/1024/1024:.2f}MB")
-            except grpc.RpcError as e:
-                raise e
+        try:
+            with open(package_file_path, "wb") as f:
+                response = requests.post(
+                    f"{self.host}/floorplan/v1/usd/get",
+                    json={"layout_id": layout_id, "style_id": style_id, "scene": scene},
+                    timeout=60,
+                )
+                response.raise_for_status()
+                s3_url = response.json()["fileUrl"]
+                total_size = 0
+                response = requests.get(s3_url, stream=True, timeout=60)
+                response.raise_for_status()
+                for chunk in tqdm(response.iter_content(chunk_size=1024), desc="Downloading Floorplan Package"):
+                    if self._should_stop_downloading:
+                        response.close()
+                        print(f"stop downloading {layout_id}-{style_id}")
+                        break
+                    f.write(chunk)
+                    total_size += len(chunk)
+                print(f"dowloaded {total_size/1024/1024:.2f}MB")
+        except Exception as e:
+            raise e
         # decompress the package.zip to the cache_dir_path
-        with zipfile.ZipFile(package_file_path, "r") as zip_ref:
-            zip_ref.extractall(CACHE_PATH)
-            package_file_path.unlink()
+        if not self._should_stop_downloading:
+            with zipfile.ZipFile(package_file_path, "r") as zip_ref:
+                zip_ref.extractall(CACHE_PATH)
+        package_file_path.unlink()
+        self._should_stop_downloading = False
         return usd_file_path
 
     def _usd_cache_dir_path(self, cache_key_args: dict):
@@ -129,16 +137,14 @@ class FloorplanLoader:
 
     def _get_version(self):
         """
-        Make a GetVersion RPC call to retrieve the version of the floorplan.
+        Make a GetVersion HTTP call to retrieve the version of the floorplan.
 
         Returns:
-            dict: The version of the floorplan, including image, svn, and worker_version
+            str: The version of the floorplan
         """
-        with grpc.insecure_channel(self.host) as channel:
-            stub = bundle_pb2_grpc.BundleStub(channel)
-            request = bundle_pb2.GetVersionRequest()
-            reply = stub.GetVersion(request)
-            return reply.version
+        response = requests.post(f"{self.host}/floorplan/v1/version/get", json={}, timeout=60)
+        response.raise_for_status()
+        return response.json()["version"]
 
 
-floorplan_loader = FloorplanLoader("usdcache.lightwheel.net:30905")
+floorplan_loader = FloorplanLoader("https://api.lightwheel.net")
