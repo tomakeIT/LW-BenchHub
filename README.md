@@ -6,7 +6,7 @@ For detail documentation, please refer to https://lwlab-docs.lightwheel.net/
 
 # Installation
 
-For detailed installation instructions, please refer to the official documentation: https://lwlab-docs.lightwheel.net/usage/install.html
+For detailed installation instructions, please refer to the official documentation: https://lwlab-docs.lightwheel.net/Overview/Installation.html
 
 # Project Structure and Development Guidelines
 
