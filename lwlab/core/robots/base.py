@@ -125,6 +125,8 @@ class BaseRobotCfg(LwBaseCfg):
     """robot_ori is in wxyz format quaternion"""
     offset_config: Optional[dict] = OFFSET_CONFIG
     robot_to_fixture_dist: float = 0.20
+    robot_base_link: str = None
+    observation_cameras: dict = {}
 
     def __post_init__(self):
         super().__post_init__()
@@ -140,7 +142,7 @@ class BaseRobotCfg(LwBaseCfg):
             "offset": [-0.4, 0.0, 0.8],
             "lookat": [1.0, 0.0, -0.85]
         }
-        if self.execute_mode in (ExecuteMode.TELEOP, ExecuteMode.EVAL, ExecuteMode.EVAL_JOINT_TARGETS):
+        if self.execute_mode == ExecuteMode.TELEOP:
             self.recorders = RecorderManagerCfg()
 
     def set_replay_joint_targets_action(self):

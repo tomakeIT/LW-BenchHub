@@ -1,7 +1,7 @@
 import numpy as np
 import torch
 import robosuite.utils.transform_utils as T
-
+import os
 
 from robocasa.models.objects.objects import MJCFObject
 
@@ -347,21 +347,31 @@ def check_obj_in_receptacle(env, obj_name, receptacle_name, th=None):
     """
     obj = env.cfg.objects[obj_name]
     recep = env.cfg.objects[receptacle_name]
-    obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
-    recep_pos = env.scene.rigid_objects[receptacle_name].data.body_com_pos_w[:, 0, :]
-    if th is None:
-        th = recep.horizontal_radius * 0.7
-
     obj_contact_path = env.scene.sensors[f"{obj_name}_contact"].contact_physx_view.sensor_paths
     recep_contact_path = env.scene.sensors[f"{receptacle_name}_contact"].contact_physx_view.sensor_paths
-    check = []
-    for i in range(env.scene.num_envs):
-        obj_in_recep = (
-            torch.abs(torch.max(env.sim.physics_sim_view.create_rigid_contact_view(obj_contact_path[i], [recep_contact_path[i]], max_contact_data_count=1000).get_contact_data(env.physics_dt)[0])) > 0
-            and torch.norm(obj_pos[i, :2] - recep_pos[i, :2]) < th
-        )
-        check.append(obj_in_recep)
-    return torch.tensor(check, dtype=torch.bool, device=env.device)
+    if env.common_step_counter > 1:
+        contact_views = [env.cfg.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
+        is_contact = torch.tensor(
+            [max(abs(view.get_contact_data(env.physics_dt)[0])) > 0 for view in contact_views],
+            device=env.device,
+        )  # (env_num, )
+    else:
+        for env_id in range(env.scene.num_envs):
+            env.cfg.contact_queues[env_id].add(
+                env.sim.physics_sim_view.create_rigid_contact_view(
+                    obj_contact_path[env_id],
+                    [recep_contact_path[env_id]],
+                    max_contact_data_count=200,
+                )
+            )
+        is_contact = torch.tensor([False], device=env.device).repeat(env.scene.num_envs)  # (env_num, )
+
+    obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    if th is None:
+        th = recep.horizontal_radius * 0.7
+    is_closed = torch.norm(obj_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
+    return is_contact & is_closed
 
 
 def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
@@ -463,3 +473,8 @@ def quat2mat(quaternion):
     return torch.where(mask.unsqueeze(-1).unsqueeze(-1),
                        torch.eye(3, dtype=torch.float32, device=q.device).expand(q.shape[0], -1, -1),
                        mat)
+
+
+def construct_full_env_path(env_regex_ns_template: str, env_index: int, fixture_name: str) -> str:
+
+    return os.path.join(f"{env_regex_ns_template.rstrip('.*')}{env_index}", "Scene", fixture_name)

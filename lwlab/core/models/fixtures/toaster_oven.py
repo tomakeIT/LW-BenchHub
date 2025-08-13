@@ -154,7 +154,7 @@ class ToasterOven(Fixture, RoboCasaToasterOven):
             desired_min = joint_min + (joint_max - joint_min) * min
             desired_max = joint_min + (joint_max - joint_min) * max
             env.scene.articulations[self.name].write_joint_position_to_sim(
-                torch.tensor([[rng.uniform(desired_min.cpu(), desired_max.cpu())]]).to(env.device),
+                torch.tensor([[rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
                 torch.tensor([joint_idx]).to(env.device),
                 torch.tensor(env_ids).to(env.device) if env_ids is not None else None
             )
@@ -245,7 +245,7 @@ class ToasterOven(Fixture, RoboCasaToasterOven):
             contact_path = self.tray_infos[contact_name][0].GetPrimPath()
         else:
             raise ValueError(f"Invalid contact name: {contact_name}")
-        return env.check_contact(obj_name, str(contact_path), has_sensor=False)
+        return env.check_contact(obj_name, str(contact_path))
 
     def get_state(self, env, rack_level=0):
         """

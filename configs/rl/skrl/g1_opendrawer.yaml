@@ -1,0 +1,4 @@
+_base_: [rl_base]
+task: OpenDrawer          # Task name
+robot: G1-RL                 # Robot type
+layout: robocasakitchen-1-8  # Scene layout

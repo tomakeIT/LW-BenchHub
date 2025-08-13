@@ -75,7 +75,7 @@ class Dishwasher(Fixture, RoboCasaDishwasher):
         Args:
             obj_name (rigid body): object to check
         """
-        return env.check_contact(obj, str(self.rack_infos[self._joint_names["rack"]][0].GetPrimPath()), has_sensor=False)
+        return env.check_contact(obj, str(self.rack_infos[self._joint_names["rack"]][0].GetPrimPath()))
 
     def get_state(self, env):
         """

@@ -41,7 +41,7 @@ class USDSceneCfg(InteractiveSceneCfg):
         self.main_scene = GeneralAssetCfg(
             prim_path="{ENV_REGEX_NS}/Scene",
             # Make sure to set the correct path to the generated scene
-            spawn=sim_utils.UsdFileCfg(usd_path=self._usd_path, activate_contact_sensors=True),
+            spawn=sim_utils.UsdFileCfg(usd_path=self._usd_path, activate_contact_sensors=False),
         )
 
     # robots, Will be populated by agent env cfg
@@ -66,6 +66,7 @@ class BaseSceneEnvCfg(LwBaseCfg):
     # Scene settings
     scene: USDSceneCfg = MISSING
     usd_path: str = MISSING
+    warmup_steps: int = 3
 
     def __post_init__(self):
         """Post initialization."""
@@ -75,11 +76,13 @@ class BaseSceneEnvCfg(LwBaseCfg):
             env_spacing=10.0,
             _usd_path=self.usd_path
         )
-        if hasattr(self, "enable_cameras") and self.enable_cameras == True and hasattr(self, "render_cfgs"):
+        if hasattr(self, "enable_cameras") and self.enable_cameras == True:
             render_resolution = None
             if hasattr(self, "replay_cfgs") and self.replay_cfgs.get("render_resolution", None) is not None:
                 render_resolution = self.replay_cfgs["render_resolution"]
-            for name, camera_cfg in self.render_cfgs.items():
+            task_obs_cameras = [(n, c) for n, c in self.observation_cameras.items() if self.task_type in c["tags"]]
+            for name, camera_infos in task_obs_cameras:
+                camera_cfg = camera_infos["camera_cfg"]
                 if render_resolution is not None:
                     camera_cfg.width = render_resolution[0]
                     camera_cfg.height = render_resolution[1]

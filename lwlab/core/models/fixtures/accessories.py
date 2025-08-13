@@ -19,8 +19,8 @@ import platform
 from .fixture import Fixture
 from isaaclab.sensors import ContactSensorCfg
 from isaaclab.envs import ManagerBasedRLEnvCfg
-from robocasa.models.fixtures.accessories import Accessory as RoboCasaAccessory
+from robocasa.models.fixtures.accessories import Stool as RoboCasaStool
 
 
-class Stool(Fixture, RoboCasaAccessory):
+class Stool(Fixture, RoboCasaStool):
     pass

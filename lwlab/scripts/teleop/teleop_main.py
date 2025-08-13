@@ -24,18 +24,14 @@ import argparse
 import os
 import time
 import yaml
+import json
+from datetime import datetime
+from lwlab.utils.log_utils import log_scene_rigid_objects, handle_exception_and_log
 
 from isaaclab.app import AppLauncher
 
 from lwlab.utils.func import trace_profile
-from lwlab import CONFIGS_PATH
-
-
-def load_yaml_to_namespace(yaml_path):
-    with open(yaml_path, 'r') as f:
-        config_dict = yaml.safe_load(f)
-    return argparse.Namespace(**config_dict)
-
+from lwlab.utils.config_loader import config_loader
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
@@ -45,10 +41,8 @@ parser.add_argument("--task_config", type=str, default=None, help="task config")
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-task_config_path = CONFIGS_PATH / 'data_collection' / 'teleop' / f'{args_cli.task_config}.yml'
-yaml_args = load_yaml_to_namespace(task_config_path)
+yaml_args = config_loader.load(args_cli.task_config)
 args_cli.__dict__.update(yaml_args.__dict__)
-
 
 app_launcher_args = vars(args_cli)
 if args_cli.teleop_device.lower() == "handtracking":
@@ -56,6 +50,8 @@ if args_cli.teleop_device.lower() == "handtracking":
 
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
+
+if args_cli.enable_pinocchio:
     import pinocchio
 
 
@@ -100,9 +96,9 @@ def main():
 
     """Rest everything follows."""
     import gymnasium as gym
-    from lwlab.utils.devices import LwOpenXRDevice
-    from lwlab.utils.devices.keyboard.se3_keyboard import KEYCONTROLLER_MAP
-    if args_cli.enable_pinocchio:
+    from lwlab.core.devices import LwOpenXRDevice, KEYCONTROLLER_MAP
+    from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
+    if app_launcher_args.get("xr"):
         from isaacsim.xr.openxr import OpenXRSpec
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab.envs.ui import ViewportCameraController
@@ -131,7 +127,8 @@ def main():
                 device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
                 first_person_view=args_cli.first_person_view,
                 enable_cameras=app_launcher._enable_cameras,
-                execute_mode=ExecuteMode.TELEOP
+                execute_mode=ExecuteMode.TELEOP,
+                usd_simplify=args_cli.usd_simplify,
             )
         env_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
         gym.register(
@@ -158,7 +155,20 @@ def main():
             pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity,
             base_sensitivity=0.5 * args_cli.sensitivity, base_yaw_sensitivity=0.8 * args_cli.sensitivity
         )
-
+    elif args_cli.teleop_device.lower() == "spacemouse":
+        teleop_interface = Se3SpaceMouse(env,
+                                         pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.2 * args_cli.sensitivity
+                                         )
+    # elif args_cli.teleop_device.lower() == "gamepad":
+    #     teleop_interface = Se3Gamepad(
+    #         pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
+    #     )
+    elif args_cli.teleop_device.lower() == "so101leader":
+        from lwlab.core.devices.lerobot import SO101Leader
+        teleop_interface = SO101Leader(env, port=args_cli.port, recalibrate=args_cli.recalibrate)
+    elif args_cli.teleop_device.lower() == "bi_so101leader":
+        from lwlab.core.devices.lerobot import BiSO101Leader
+        teleop_interface = BiSO101Leader(env, left_port=args_cli.left_port, right_port=args_cli.right_port, recalibrate=args_cli.recalibrate)
     elif args_cli.teleop_device.lower() == "handtracking":
         from isaacsim.xr.openxr import OpenXRSpec
 
@@ -214,14 +224,14 @@ def main():
 
         from lwlab.utils.env import setup_cameras, setup_task_description_ui
 
-        if env_cfg.enable_cameras:
+        if env_cfg.enable_cameras and args_cli.enable_multiple_viewports:
             viewports = setup_cameras(env)
             for key, v_p in viewports.items():
                 res = v_p.viewport_api.get_texture_resolution()
                 sca = v_p.viewport_api.get_texture_resolution_scale()
                 print(f"Viewport {key} resolution: {res}, scale: {sca}")
 
-        overlay_window = setup_task_description_ui("Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.layout_id, env_cfg.style_id, env_cfg.get_ep_meta()["lang"]), env)
+        overlay_window = setup_task_description_ui(env_cfg, env)
 
         current_recorded_demo_count = 0
         success_step_count = 0
@@ -232,13 +242,24 @@ def main():
         if args_cli.save_video:
             video_recorder = VideoRecorder(args_cli.video_save_dir, args_cli.video_fps, args_cli.task, args_cli.robot, args_cli.layout)
 
+        if args_cli.enable_log:
+            log_path = log_scene_rigid_objects(env)
+
         # simulate environment
         while simulation_app.is_running():
+
             # run everything in inference mode
             # with torch.inference_mode():
             actions = teleop_interface.advance()
             if actions is None or should_reset_recording_instance:
-                env.reset()
+                if args_cli.enable_log:
+                    try:
+                        env.reset()
+                    except Exception as e:
+                        handle_exception_and_log(e, log_path)
+                        break
+                else:
+                    env.reset()
                 should_reset_recording_instance = False
                 if start_record_state == True:
                     print("Stop Recording!!!")
@@ -260,7 +281,20 @@ def main():
                             image_shape = (camera_data.shape[0], camera_data.shape[1])  # (height, width)
                             video_recorder.start_recording(camera_name, image_shape)
 
-                env.step(actions)
+                # warmup rendering
+                if env.common_step_counter <= 1:
+                    for _ in range(env.cfg.warmup_steps):
+                        env.sim.step()
+                        env.scene.update(env.physics_dt)
+
+                if args_cli.enable_log:
+                    try:
+                        env.step(actions)
+                    except Exception as e:
+                        handle_exception_and_log(e, log_path)
+                        break
+                else:
+                    env.step(actions)
 
                 # Recorded
                 if start_record_state and video_recorder is not None:

@@ -198,6 +198,51 @@ class OpenDrawer(ManipulateDrawer):
     task_name: str = "OpenDrawer"
     behavior: str = "open"
 
+    def _get_obj_cfgs(self):
+        """
+        Get the object configurations for the drawer tasks. This includes the object placement configurations.
+        Place the object inside the drawer and 1-4 distractors on the counter.
+
+        Returns:
+            list: List of object configurations.
+        """
+        cfgs = []
+
+        cfgs.append(
+            dict(
+                name="drawer_obj",
+                obj_groups="all",
+                graspable=True,
+                max_size=(None, None, 0.10),
+                placement=dict(
+                    fixture=self.drawer,
+                    size=(0.30, 0.30),
+                    pos=(None, -0.75),
+                ),
+            )
+        )
+
+        # distractors
+        num_distr = self.rng.integers(1, 4)
+        for i in range(num_distr):
+            cfgs.append(
+                dict(
+                    name=f"distr_counter_{i+1}",
+                    obj_groups="all",
+                    placement=dict(
+                        fixture=self.get_fixture(FixtureType.COUNTER, ref=self.drawer),
+                        sample_region_kwargs=dict(
+                            ref=self.drawer,
+                        ),
+                        size=(1.0, 0.50),
+                        pos=(None, -1.0),
+                        offset=(0.0, 0.10),
+                    ),
+                )
+            )
+
+        return cfgs
+
 
 class CloseDrawer(ManipulateDrawer):
     """
@@ -206,3 +251,49 @@ class CloseDrawer(ManipulateDrawer):
 
     task_name: str = "CloseDrawer"
     behavior: str = "close"
+
+    def _get_obj_cfgs(self):
+        """
+        Get the object configurations for the drawer tasks. This includes the object placement configurations.
+        Place the object inside the drawer and 1-4 distractors on the counter.
+
+        Returns:
+            list: List of object configurations.
+        """
+        cfgs = []
+
+        cfgs.append(
+            dict(
+                name="drawer_obj",
+                obj_groups="all",
+                graspable=True,
+                max_size=(None, None, 0.10),
+                placement=dict(
+                    fixture=self.drawer,
+                    size=(0.30, 0.30),
+                    pos=(None, -0.75),
+                    offset=(0, -self.drawer.size[1] * 0.55),
+                ),
+            )
+        )
+
+        # distractors
+        num_distr = self.rng.integers(1, 4)
+        for i in range(num_distr):
+            cfgs.append(
+                dict(
+                    name=f"distr_counter_{i+1}",
+                    obj_groups="all",
+                    placement=dict(
+                        fixture=self.get_fixture(FixtureType.COUNTER, ref=self.drawer),
+                        sample_region_kwargs=dict(
+                            ref=self.drawer,
+                        ),
+                        size=(1.0, 0.50),
+                        pos=(None, -1.0),
+                        offset=(0.0, 0.10),
+                    ),
+                )
+            )
+
+        return cfgs

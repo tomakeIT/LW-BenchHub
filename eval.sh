@@ -6,9 +6,9 @@ export CUDA_VISIBLE_DEVICES=${gpu_id}
 export ENV_GPU=${gpu_id}
 export POLICY_GPU=${gpu_id}
 
-task_config=default
+task_config=g1_liftobj_state
 
 python ./lwlab/scripts/rl/play.py \
     --task_config="$task_config" \
-    --enable_camera \
+    # --enable_cameras \
     # --headless \

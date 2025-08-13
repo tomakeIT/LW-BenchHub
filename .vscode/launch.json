@@ -14,13 +14,16 @@
             "type": "python",
             "request": "launch",
             "args": [
-                "--task_config=default", // policy/skrl/task_config/default.yml
+                "--task_config=g1_liftobj_visual", // policy/skrl/task_config/default.yml
                 "--headless",
-                "--enable_camera" 
             ],
             "program": "${workspaceFolder}/lwlab/scripts/rl/train.py",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
+            "env": {
+                "ENV_GPU": "0",
+                "POLICY_GPU": "0",
+            },
         },
         {
             "name": "teleop-pandaomron",

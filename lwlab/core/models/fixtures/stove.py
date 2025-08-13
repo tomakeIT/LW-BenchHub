@@ -44,25 +44,50 @@ class Stove(Fixture, RoboCasaStove):
         super().setup_cfg(cfg, root_prim)
         self.valid_knob_joint_names = [j for j in self._joint_infos.keys() if "knob_" in j]
         self.valid_locations = [l for l in STOVE_LOCATIONS if any(f"knob_{l}_joint" == j for j in self.valid_knob_joint_names)]
+        self._knob_joint_ranges = {}  # store the range of each knob joint
 
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
         self._env = env
 
     def update_state(self, env):
+        knobs_state = self.get_knobs_state(env)
         for location in self.valid_locations:
             burner_site = self.burner_sites[location]
             place_site = self.place_sites[location]
-            joint = self.knob_joints[location]
-            joint_qpos = joint % (2 * torch.pi)
+
+            if burner_site is None or any(site is None for site in burner_site):
+                continue
+
+            joint_qpos = knobs_state[location]
+            joint_qpos = joint_qpos % (2 * torch.pi)
             joint_qpos[joint_qpos < 0] += 2 * torch.pi
+
             for env_idx, qpos in enumerate(joint_qpos):
-                if 0.35 <= torch.abs(qpos) <= 2 * torch.pi - 0.35:
-                    burner_site[env_idx].GetParent().GetAttribute("visibility").Set("inherited")
-                    place_site[env_idx].GetParent().GetAttribute("visibility").Set("inherited")
+                # calculate flame intensity ratio (0-1)
+                flame_scale = (qpos - 0.35) / (torch.pi - 0.35)
+                flame_scale = torch.where(qpos >= 0.35, flame_scale, torch.tensor(0.0, device=qpos.device))
+                flame_scale = torch.clamp(flame_scale, 0.0, 1.0)
+
+                if 0.35 <= qpos <= 2 * torch.pi - 0.35:
+                    if burner_site[env_idx] is not None:
+                        burner_site[env_idx].GetAttribute("visibility").Set("inherited")
+                        if hasattr(self, 'original_flame_sizes') and location in self.original_flame_sizes:
+                            # get original radius and height
+                            original_radius = self.original_flame_sizes[location][env_idx]["radius"]
+                            original_height = self.original_flame_sizes[location][env_idx]["height"]
+
+                            # scale radius and height
+                            current_radius = float(flame_scale.item()) * original_radius
+                            current_height = float(flame_scale.item()) * original_height
+
+                            # set new radius and height
+                            burner_site[env_idx].GetAttribute("radius").Set(current_radius)
+                            burner_site[env_idx].GetAttribute("height").Set(current_height)
                 else:
-                    burner_site[env_idx].GetParent().GetAttribute("visibility").Set("invisible")
-                    place_site[env_idx].GetParent().GetAttribute("visibility").Set("invisible")
+                    if burner_site[env_idx] is not None:
+                        burner_site[env_idx].GetAttribute("visibility").Set("invisible")
+
 
     def set_knob_state(self, env, rng, knob, mode="on"):
         """
@@ -87,6 +112,8 @@ class Stove(Fixture, RoboCasaStove):
                 else:
                     joint_val = rng.uniform(2 * np.pi - np.pi / 2, 2 * np.pi - 0.50)
             knob_joint_id = env.scene.articulations[self.name].data.joint_names.index(f"knob_{knob}_joint")
+            if knob not in self._knob_joint_ranges:
+                self._knob_joint_ranges[knob] = env.scene.articulations[self.name].data.joint_limits[:, knob_joint_id]
             env.scene.articulations[self.name].write_joint_position_to_sim(
                 torch.tensor([[joint_val]]).to(env.device),
                 torch.tensor([knob_joint_id]).to(env.device),
@@ -109,7 +136,24 @@ class Stove(Fixture, RoboCasaStove):
             joint_qpos = joint % (2 * torch.pi)
             joint_qpos[joint_qpos < 0] += 2 * torch.pi
             knobs_state[location] = joint_qpos
+
         return knobs_state
+
+    @cached_property
+    def original_flame_sizes(self):
+        """store the original flame sizes (including radius and height)"""
+        sizes = {}
+        for location in self.valid_locations:
+            sizes[location] = []
+            for burner_site in self.burner_sites[location]:
+                if burner_site is not None and burner_site.IsValid():
+                    sizes[location].append({
+                        "radius": burner_site.GetAttribute("radius").Get(),
+                        "height": burner_site.GetAttribute("height").Get()
+                    })
+                else:
+                    sizes[location].append({"radius": 0.0, "height": 0.0})
+        return sizes
 
     @property
     def knob_joints(self):

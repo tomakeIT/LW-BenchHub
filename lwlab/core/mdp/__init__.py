@@ -26,3 +26,5 @@ _reset_scene_to_default = reset_scene_to_default
 def reset_scene_to_default(env, env_ids):
     _reset_scene_to_default(env, env_ids)
     env.cfg._reset_internal(env_ids)
+    if hasattr(env.cfg, 'reset_robot_cfg_state'):
+        env.cfg.reset_robot_cfg_state()

@@ -19,7 +19,7 @@
 import argparse
 import os
 import json
-import cv2
+
 import mediapy as media
 import tqdm
 from itertools import count
@@ -35,6 +35,7 @@ parser.add_argument("--num_envs", type=int, default=1, help="Number of environme
 parser.add_argument("--task", type=str, default=None, help="Force to use the specified task.")
 parser.add_argument("--width", type=int, default=1920, help="Width of the rendered image.")
 parser.add_argument("--height", type=int, default=1080, help="Height of the rendered image.")
+parser.add_argument("--without_image", action="store_true", default=False, help="without image")
 parser.add_argument(
     "--select_episodes",
     type=int,
@@ -47,12 +48,13 @@ parser.add_argument("--robot_scale", type=float, default=1.0, help="robot scale"
 parser.add_argument("--first_person_view", action="store_true", default=False, help="first person view")
 parser.add_argument("--only_last_clips", action="store_true", default=True, help="only replay the last clips")
 
-
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
 # args_cli.headless = True
+if not args_cli.without_image:
+    import cv2
 
 
 def main():
@@ -99,7 +101,7 @@ def main():
     num_envs = args_cli.num_envs
 
     env_args = json.loads(dataset_file_handler._hdf5_data_group.attrs["env_args"])
-
+    usd_simplify = env_args["usd_simplify"] if 'usd_simplify' in env_args else False
     if "-" in env_args["env_name"] and not env_args["env_name"].startswith("Robocasa"):
         env_cfg = parse_env_cfg(
             args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
@@ -117,7 +119,8 @@ def main():
             replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height)},
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
-            execute_mode=ExecuteMode.EVAL
+            execute_mode=ExecuteMode.REPLAY_STATE,
+            usd_simplify=usd_simplify,
         )
         env_name = f"Robocasa-{task_name}-{env_args['robot_name']}-v0"
         gym.register(
@@ -149,9 +152,21 @@ def main():
         episode_names = [episode_names[i] for i in args_cli.select_episodes]
     replayed_episode_count = 0
 
+    # calculate the shape of the video recorder
+    num_cameras = sum(env.cfg.task_type in c["tags"] for c in env.cfg.observation_cameras.values())
+    if num_cameras > 4:
+        # two rows layout: height is twice the original, width is the maximum width of each row
+        cameras_per_row = (num_cameras + 1) // 2
+        video_height = args_cli.height * 2
+        video_width = max(cameras_per_row, num_cameras - cameras_per_row) * args_cli.width
+    else:
+        # single row layout: original calculation
+        video_height = args_cli.height
+        video_width = num_cameras * args_cli.width
+
     with (
-        contextlib.suppress(KeyboardInterrupt) and torch.inference_mode(),
-        media.VideoWriter(path=replay_mp4_path, shape=(args_cli.height, len(env.cfg.render_cfgs) * args_cli.width), fps=30) as v,
+        contextlib.suppress(KeyboardInterrupt),
+        media.VideoWriter(path=replay_mp4_path, shape=(video_height, video_width), fps=30) as v,
         h5py.File(replay_mp4_path.parent / f"replay_state_ee_poses.hdf5", "w") as ee_poses_hdf5_f,
     ):
         ee_poses_hdf5_f.create_group("data")
@@ -173,11 +188,37 @@ def main():
                 next_state = env_episode_data_map[env_id].get_next_state()
                 ee_poses.append(obs['policy']['ee_pose'].cpu().numpy())
                 if app_launcher._enable_cameras:
-                    full_image = np.concatenate([obs['policy'][name].cpu().numpy() for name in env.cfg.render_cfgs.keys()], axis=0).transpose(0, 2, 1, 3)
-                    full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
+                    # get all camera images
+                    camera_images = [obs['policy'][name].cpu().numpy() for name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]]
+                    num_cameras = len(camera_images)
+
+                    # if camera number is more than 4, split into two rows
+                    if num_cameras > 4:
+                        # get the number of cameras per row
+                        cameras_per_row = (num_cameras + 1) // 2
+
+                        # first row of cameras
+                        first_row = camera_images[:cameras_per_row]
+                        first_row_images = np.concatenate(first_row, axis=0).transpose(0, 2, 1, 3)
+                        first_row_reshaped = first_row_images.reshape(-1, *first_row_images.shape[2:]).transpose(1, 0, 2)
+
+                        # second row of cameras
+                        second_row = camera_images[cameras_per_row:]
+                        if second_row:  # ensure second row has cameras
+                            second_row_images = np.concatenate(second_row, axis=0).transpose(0, 2, 1, 3)
+                            second_row_reshaped = second_row_images.reshape(-1, *second_row_images.shape[2:]).transpose(1, 0, 2)
+
+                            # vertically concatenate two rows of images
+                            full_image = np.concatenate([first_row_reshaped, second_row_reshaped], axis=0)
+                        else:
+                            full_image = first_row_reshaped
+                    else:
+                        full_image = np.concatenate(camera_images, axis=0).transpose(0, 2, 1, 3)
+                        full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
                     v.add_image(full_image)
-                    cv2.imshow("replay", full_image[..., ::-1])
-                    cv2.waitKey(1)
+                    if not args_cli.without_image:
+                        cv2.imshow("replay", full_image[..., ::-1])
+                        cv2.waitKey(1)
             if ee_poses:
                 ee_poses = np.concatenate(ee_poses, axis=0)
                 # save ee poses to hdf5 file
@@ -186,7 +227,8 @@ def main():
     print(f"Finished replaying {len(episode_names)} episode{'s' if replayed_episode_count > 1 else ''}.")
     env.close()
     simulation_app.close()
-    cv2.destroyAllWindows()
+    if not args_cli.without_image:
+        cv2.destroyAllWindows()
     return
 
 

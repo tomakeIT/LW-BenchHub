@@ -30,6 +30,9 @@ class CoffeeMachine(Fixture, RoboCasaCoffeeMachine):
         self._turned_on = torch.tensor([False], dtype=torch.bool, device=cfg.device).repeat(cfg.num_envs)
         self.force_threshold = 0.1
         self.pos_threshold = 0.05
+        self._activation_time = torch.zeros(cfg.num_envs, device=cfg.device)
+        self._active = torch.tensor([False], dtype=torch.bool, device=cfg.device).repeat(cfg.num_envs)
+        self._display_duration = 10.0
 
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
@@ -54,17 +57,28 @@ class CoffeeMachine(Fixture, RoboCasaCoffeeMachine):
         """
         start_button_pressed = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for _, button in self.start_button_infos.items():
-            for gripper_name in ["left_gripper", "right_gripper"]:
-                start_button_pressed |= env.cfg.check_contact(gripper_name, str(button[0].GetPrimPath()), has_sensor=False)
+            for gripper_name in [name for name in list(self._env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
+                start_button_pressed |= env.cfg.check_contact(gripper_name.replace("_contact", ""), str(button[0].GetPrimPath()))
+
+        # detect button press (only when False to True)
         self._turned_on = ~self._turned_on & start_button_pressed
 
+        # if turned_on is True, accumulate time
+        if torch.any(self._turned_on):
+            self._activation_time[self._turned_on] += 1 / 50
+
+        # judge if the coffee machine is active
+        self._active = self._turned_on & (self._activation_time < self._display_duration)
+
+        # update coffee liquid sites visibility
         for site_name in self.coffee_liquid_site_names:
             sites_for_name = self.coffee_liquid_sites[site_name]
             for i, site in enumerate(sites_for_name):
-                if self._turned_on[i]:
-                    site.GetAttribute("visibility").Set("inherited")
-                else:
-                    site.GetAttribute("visibility").Set("invisible")
+                if site is not None and site.IsValid():
+                    if self._active[i]:
+                        site.GetAttribute("visibility").Set("inherited")
+                    else:
+                        site.GetAttribute("visibility").Set("invisible")
 
     def check_receptacle_placement_for_pouring(self, env, obj_name, xy_thresh=0.04):
         """

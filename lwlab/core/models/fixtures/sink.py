@@ -40,9 +40,15 @@ class Sink(Fixture, RoboCasaSink):
         state = self.get_handle_state(env)
         water_on = state["water_on"]
 
-        for env_id, site in enumerate(self.water_sites):
+        for env_id, (site, origin_radius) in enumerate(self.water_sites):
+            if site is None or not site.IsValid():
+                continue
+
             if water_on[env_id]:
                 site.GetAttribute("visibility").Set("inherited")
+                # set radius scale
+                radius = float(state["water_scale"][env_id]) * origin_radius
+                site.GetAttribute("radius").Set(radius)
             else:
                 site.GetAttribute("visibility").Set("invisible")
 
@@ -91,14 +97,18 @@ class Sink(Fixture, RoboCasaSink):
 
         joint_names = env.scene.articulations[self.name].data.joint_names
         joint_names = [j.lower() for j in joint_names]
-        handle_joint_idx = joint_names.index("handle_joint")
+        handle_joint_idx = next(i for i, name in enumerate(joint_names) if "handle_joint" in name.lower())
+        handle_joint_range = env.scene.articulations[self.name].data.joint_pos_limits[:, handle_joint_idx]
         handle_joint_qpos = env.scene.articulations[self.name].data.joint_pos[:, handle_joint_idx]
+
         handle_joint_qpos = handle_joint_qpos % (2 * torch.pi)
         handle_joint_qpos[handle_joint_qpos < 0] += 2 * torch.pi
         handle_state["handle_joint"] = handle_joint_qpos
         handle_state["water_on"] = (0.40 < handle_joint_qpos) & (handle_joint_qpos < torch.pi)
+        handle_state["water_on"] = torch.logical_and(0.1 < handle_joint_qpos, handle_joint_qpos < torch.pi)
+        handle_state["water_scale"] = (handle_joint_qpos - handle_joint_range[:, 0]) / (handle_joint_range[:, 1] - handle_joint_range[:, 0])
 
-        spout_joint_idx = joint_names.index("spout_joint")
+        spout_joint_idx = next(i for i, name in enumerate(joint_names) if "spout_joint" in name.lower())
         spout_joint_qpos = env.scene.articulations[self.name].data.joint_pos[:, spout_joint_idx]
         spout_joint_qpos = spout_joint_qpos % (2 * torch.pi)
         spout_joint_qpos[spout_joint_qpos < 0] += 2 * torch.pi
@@ -147,7 +157,8 @@ class Sink(Fixture, RoboCasaSink):
             sites_prim = usd.get_prim_by_name(self._env.sim.stage.GetObjectAtPath(prim_path), "water", only_xform=False)
             for site_prim in sites_prim:
                 if site_prim is not None and site_prim.IsValid():
-                    sites.append(site_prim)
+                    origin_radius = site_prim.GetAttribute("radius").Get()
+                    sites.append((site_prim, origin_radius))
         assert len(sites) == len(self.prim_paths), f"Water site not found!"
         return sites
 

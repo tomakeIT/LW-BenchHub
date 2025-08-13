@@ -130,7 +130,7 @@ class Oven(Fixture, RoboCasaOven):
                 break
         else:
             raise RuntimeError(f"No rack found for level {rack_level}")
-        return env.check_contact(object_name, str(self.rack_infos[contact_name][0].GetPrimPath()), has_sensor=False)
+        return env.check_contact(object_name, str(self.rack_infos[contact_name][0].GetPrimPath()))
 
     def get_state(self, rack_level=0):
         state = {}

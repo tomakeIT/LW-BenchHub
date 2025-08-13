@@ -1,0 +1,8 @@
+_base_: [rl_base]
+# Environment Configuration
+task: OpenDrawerRl           # Task name
+layout: robocasakitchen-2-2  # Scene layout
+robot: G1-RL                 # Robot type
+
+# Reinforcement Learning Settings
+max_iterations: 2         # Max RL policy training iterations

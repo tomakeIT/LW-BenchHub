@@ -22,7 +22,8 @@ from pathlib import Path
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
-import omni.ui as ui
+
+from lwlab.utils.usd_utils import OpenUsd as usd_utils
 
 
 class ExecuteMode(enum.Enum):
@@ -31,7 +32,10 @@ class ExecuteMode(enum.Enum):
     TRAIN = 0
     EVAL = 1
     TELEOP = 2
-    EVAL_JOINT_TARGETS = 3
+    REPLAY_JOINT_TARGETS = 3
+    REPLAY_ACTION = 4
+    REPLAY_STATE = 5
+
 
 
 import numpy as np
@@ -106,7 +110,7 @@ def load_robocasa_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_poin
     # obtain the configuration entry point
     if not cfg_name:
         return None
-    assert cfg_type in ["scene", "task", "robot"]
+    assert cfg_type in ["scene", "task", "robot", "rl"]
     cfg_name = f"Robocasa-{cfg_type.capitalize()}-{cfg_name}"
     cfg_entry_point = gym.spec(cfg_name).kwargs.get(entry_point_key)
     # check if entry point exists
@@ -156,10 +160,13 @@ def parse_env_cfg(
     task_name: str,
     robot_scale: float,
     execute_mode: ExecuteMode,
+    for_rl: bool = False,
+    rl_variant: str = None,
     device: str = "cuda:0", num_envs: int | None = None, use_fabric: bool | None = None,
     replay_cfgs: dict | None = None,
     first_person_view: bool = False,
-    enable_cameras: bool = False
+    enable_cameras: bool = False,
+    usd_simplify: bool = False,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -180,35 +187,50 @@ def parse_env_cfg(
     """
     # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
     from isaaclab_tasks.utils import import_packages
-    # The blacklist is used to prevent importing configs from sub-packages
-    _BLACKLIST_PKGS = ["utils", ".mdp"]
     # Import all configs in this package
-    import_packages("tasks", _BLACKLIST_PKGS)
-    import_packages("lwlab.core", _BLACKLIST_PKGS)
+    import_packages(
+        "lwlab.core",
+        # The blacklist is used to prevent importing configs from sub-packages
+        blacklist_pkgs=["utils", ".mdp", ".devices"]
+    )
+    import_packages("tasks")
+    if for_rl:
+        import_packages("lwlab_rl")
     if scene_name.endswith(".usda") or scene_name.endswith(".usd"):
         scene_type = "USD"
     else:
         scene_type, *_ = scene_name.split("-", 1)
-    # load the default configuration
-    if scene_type == "USD":
-        task_env_cfg = load_robocasa_cfg_cls_from_registry("task", "Usd", "env_cfg_entry_point")
+    scene_env_cfg = load_robocasa_cfg_cls_from_registry("scene", scene_type.capitalize(), "env_cfg_entry_point")
+
+    if not for_rl:
+        if scene_type == "USD":
+            task_env_cfg = load_robocasa_cfg_cls_from_registry("task", "Usd", "env_cfg_entry_point")
+        else:
+            task_env_cfg = load_robocasa_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point")
+        robot_env_cfg = load_robocasa_cfg_cls_from_registry("robot", robot_name, "env_cfg_entry_point")
+
+        @configclass
+        class RobocasaEnvCfg(robot_env_cfg, task_env_cfg, scene_env_cfg):
+            pass
     else:
-        task_env_cfg = load_robocasa_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point")
+        if rl_variant:
+            task_name = f"{task_name}-{rl_variant}"
+        rl_robot_task_cfg = load_robocasa_cfg_cls_from_registry("rl", f"{robot_name}-{task_name}", "env_cfg_entry_point")
+
+        @configclass
+        class RobocasaEnvCfg(rl_robot_task_cfg, scene_env_cfg):
+            pass
+
     # set num_envs in task_env_cfg
     if num_envs is not None:
-        setattr(task_env_cfg, "num_envs", num_envs)
-    setattr(task_env_cfg, "device", device)
-    scene_env_cfg = load_robocasa_cfg_cls_from_registry("scene", scene_type.capitalize(), "env_cfg_entry_point")
-    robot_env_cfg = load_robocasa_cfg_cls_from_registry("robot", robot_name, "env_cfg_entry_point")
+        RobocasaEnvCfg.num_envs = num_envs
+    RobocasaEnvCfg.device = device
 
     if replay_cfgs is not None:
-        setattr(task_env_cfg, "replay_cfgs", replay_cfgs)
-    setattr(task_env_cfg, "first_person_view", first_person_view)
-    setattr(robot_env_cfg, "enable_cameras", enable_cameras)
-
-    @configclass
-    class RobocasaEnvCfg(robot_env_cfg, task_env_cfg, scene_env_cfg):
-        pass
+        RobocasaEnvCfg.replay_cfgs = replay_cfgs
+    RobocasaEnvCfg.first_person_view = first_person_view
+    RobocasaEnvCfg.usd_simplify = usd_simplify
+    RobocasaEnvCfg.enable_cameras = enable_cameras
 
     if scene_type == "USD":
         cfg = RobocasaEnvCfg(
@@ -228,7 +250,7 @@ def parse_env_cfg(
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
 
-    if execute_mode == ExecuteMode.EVAL_JOINT_TARGETS:
+    if execute_mode == ExecuteMode.REPLAY_JOINT_TARGETS:
         cfg.set_replay_joint_targets_action()
     # simulation device
     cfg.sim.device = device
@@ -247,10 +269,18 @@ def parse_env_cfg(
 
 
 def set_camera_follow_pose(env, offset, lookat):
-    robot_mat = quat2mat(env.scene.articulations["robot"].data.body_com_quat_w[..., 0, :][0].cpu().numpy()[[1, 2, 3, 0]])
-    robot_pos = env.scene.articulations["robot"].data.body_com_pos_w[..., 0, :][0].cpu().numpy()
-    robot_pos += (robot_mat @ np.array(offset).reshape(3, 1))[:, 0]
-    robot_lookat = robot_pos + (robot_mat @ np.array(lookat).reshape(3, 1))[:, 0]
+    if env.cfg.robot_base_link is not None:
+        robot_base_link_idx = env.scene.articulations["robot"].data.body_names.index(env.cfg.robot_base_link)
+        robot_mat = quat2mat(env.scene.articulations["robot"].data.body_com_quat_w[..., robot_base_link_idx, :][0].cpu().numpy()[[1, 2, 3, 0]])
+        robot_pos = env.scene.articulations["robot"].data.body_com_pos_w[..., robot_base_link_idx, :][0].cpu().numpy()
+        robot_pos += (robot_mat @ np.array(offset).reshape(3, 1))[:, 0]
+        robot_lookat = robot_pos + (robot_mat @ np.array(lookat).reshape(3, 1))[:, 0]
+    else:
+        robot_mat = quat2mat(env.scene.articulations["robot"].data.body_com_quat_w[..., 0, :][0].cpu().numpy()[[1, 2, 3, 0]])
+        robot_pos = env.scene.articulations["robot"].data.body_com_pos_w[..., 0, :][0].cpu().numpy()
+        robot_pos += (robot_mat @ np.array(offset).reshape(3, 1))[:, 0]
+        robot_lookat = robot_pos + (robot_mat @ np.array(lookat).reshape(3, 1))[:, 0]
+
     env.sim.set_camera_view(robot_pos, robot_lookat)
 
 
@@ -263,6 +293,9 @@ def set_robot_to_position(env, global_pos, undo_pos=[0.0, 0.0, 0.0], env_ids=Non
     #     T.matrix_inverse(T.euler2mat(env.cfg.init_robot_base_ori_anchor)),
     #     undo_pos,
     # )
+    if env_ids is None:
+        # default to all environments
+        env_ids = torch.arange(env.scene.num_envs, device=env.device, dtype=torch.int64)
     robot_curr_z = env.scene.articulations["robot"].data.root_pos_w[0, 2]
     robot_curr_pos = torch.tensor([[undo_pos[0] + global_pos[0], undo_pos[1] + global_pos[1], robot_curr_z]], dtype=torch.float32, device=env.device) + env.scene.env_origins[env_ids]
     robot_ori = T.convert_quat(T.mat2quat(T.euler2mat(env.cfg.init_robot_base_ori_anchor)), "wxyz")
@@ -272,7 +305,7 @@ def set_robot_to_position(env, global_pos, undo_pos=[0.0, 0.0, 0.0], env_ids=Non
     env.sim.forward()
 
 
-def setup_task_description_ui(desc, env):
+def setup_task_description_ui(env_cfg, env):
     """
     Set up UI for displaying task description in the overlay window.
 
@@ -283,8 +316,17 @@ def setup_task_description_ui(desc, env):
     Returns:
         overlay_window
     """
+    desc = None
+
+    if hasattr(env_cfg, 'task_name') and hasattr(env_cfg, 'layout_id') and hasattr(env_cfg, 'style_id') and hasattr(env_cfg, 'get_ep_meta'):
+        desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.layout_id, env_cfg.style_id, env_cfg.get_ep_meta()["lang"])
+    elif hasattr(env_cfg, 'task_name') and hasattr(env_cfg, 'usd_path') and hasattr(env_cfg, 'get_ep_meta'):
+        desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.usd_path, env_cfg.get_ep_meta()["lang"])
+
     if desc is None:
         return None
+
+    import omni.ui as ui
 
     # Setup overlay window
     main_viewport = env.sim._viewport_window
@@ -332,6 +374,7 @@ def dock_window(space, name, location, ratio):
         location: The docking position.
         ratio: Size ratio for the docked window.
     """
+    import omni.ui as ui
     window = ui.Workspace.get_window(name)
     if window and space:
         window.dock_in(space, location, ratio=ratio)
@@ -352,6 +395,7 @@ def create_and_dock_viewport(env, parent_window_name, position, ratio, camera_pa
         The created viewport window
     """
     from omni.kit.viewport.utility import create_viewport_window
+    import omni.ui as ui
     viewport = create_viewport_window()
     env.sim.render()
 
@@ -380,61 +424,65 @@ def setup_cameras(env):
         viewports: Dictionary of created viewports with their names as keys
     """
     from pxr import UsdGeom
+    import omni.ui as ui
     viewports = {}
     camera_prims = []
     for prim in env.sim.stage.Traverse():
         if prim.IsA(UsdGeom.Camera):
             camera_prims.append(prim)
-    left_hand_camera_prim, right_hand_camera_prim, left_shoulder_prim, right_shoulder_pri, link_camera = None, None, None, None, None
+    left_hand_camera, right_hand_camera, left_shoulder_camera, right_shoulder_camera, eye_in_hand_camera = None, None, None, None, None
     for camera_prim in camera_prims:
         name = camera_prim.GetName().lower()
         if camera_prim.GetName().lower() == "left_hand_camera":
-            left_hand_camera_prim = camera_prim
+            left_hand_camera = camera_prim
         elif camera_prim.GetName().lower() == "right_hand_camera":
-            right_hand_camera_prim = camera_prim
+            right_hand_camera = camera_prim
         elif camera_prim.GetName().lower() == "left_shoulder_camera":
-            left_shoulder_prim = camera_prim
+            left_shoulder_camera = camera_prim
         elif camera_prim.GetName().lower() == "right_shoulder_camera":
-            right_shoulder_prim = camera_prim
-        elif camera_prim.GetName().lower() == "camera_link":
-            link_camera = camera_prim
-    if link_camera is not None:
-        viewport_link = create_and_dock_viewport(
+            right_shoulder_camera = camera_prim
+        elif camera_prim.GetName().lower() == "eye_in_hand_camera":
+            eye_in_hand_camera = camera_prim
+    if eye_in_hand_camera is not None:
+        viewport_eye_in_hand = create_and_dock_viewport(
+            env,
+            "DockSpace",
+            ui.DockPosition.BOTTOM,
+            0.25,
+            eye_in_hand_camera.GetPath()
+        )
+        viewports["eye_in_hand"] = viewport_eye_in_hand
+        viewport_left_hand = create_and_dock_viewport(
             env,
             "DockSpace",
             ui.DockPosition.LEFT,
             0.25,
-            link_camera.GetPath()
+            left_hand_camera.GetPath()
         )
-        viewports["link_camera"] = viewport_link
-    # viewport_left_shoulder = create_and_dock_viewport(
-    #     env,
-    #     "DockSpace",
-    #     ui.DockPosition.LEFT,
-    #     0.25,
-    #     left_shoulder_prim.GetPath()
-    # )
-    # viewport_left_hand = create_and_dock_viewport(
-    #     env,
-    #     viewport_left_shoulder.name,
-    #     ui.DockPosition.BOTTOM,
-    #     0.5,
-    #     left_hand_camera_prim.GetPath()
-    # )
-    # viewport_right_shoulder = create_and_dock_viewport(
-    #     env,
-    #     "DockSpace",
-    #     ui.DockPosition.RIGHT,
-    #     0.2,
-    #     right_shoulder_prim.GetPath()
-    # )
-    # viewport_right_hand = create_and_dock_viewport(
-    #     env,
-    #     viewport_right_shoulder.name,
-    #     ui.DockPosition.BOTTOM,
-    #     0.5,
-    #     right_hand_camera_prim.GetPath())
-
+        viewports["left_hand"] = viewport_left_hand
+        viewport_right_hand = create_and_dock_viewport(
+            env,
+            "DockSpace",
+            ui.DockPosition.RIGHT,
+            0.25,
+            right_hand_camera.GetPath()
+        )
+        viewports["right_hand"] = viewport_right_hand
+        # viewport_left_shoulder = create_and_dock_viewport(
+        #     env,
+        #     viewport_left_hand.name,
+        #     ui.DockPosition.BOTTOM,
+        #     0.5,
+        #     left_shoulder_camera.GetPath()
+        # )
+        # viewports["left_shoulder"] = viewport_left_shoulder
+        # viewport_right_shoulder = create_and_dock_viewport(
+        #     env,
+        #     viewport_right_hand.name,
+        #     ui.DockPosition.BOTTOM,
+        #     0.5,
+        #     right_shoulder_camera.GetPath())
+        # viewports["right_shoulder"] = viewport_right_shoulder
     return viewports
 
 
@@ -495,13 +543,148 @@ def get_safe_robot_anchor(env, unsafe_anchor_pos, unsafe_anchor_ori):
     return safe_anchor_pos, unsafe_anchor_ori
 
 
+def check_overlap(bbox1, bbox2):
+    min1 = bbox1.GetMin()
+    max1 = bbox1.GetMax()
+    min2 = bbox2.GetMin()
+    max2 = bbox2.GetMax()
+
+    # check overlap along x axis
+    overlaps_x = (min1[0] < max2[0]) and (max1[0] > min2[0])
+    # check overlap along y axis
+    overlaps_y = (min1[1] < max2[1]) and (max1[1] > min2[1])
+    # check overlap along z axis
+    overlaps_z = (min1[2] < max2[2]) and (max1[2] > min2[2])
+
+    # return True if all three axes overlap
+    return overlaps_x and overlaps_y and overlaps_z
+
+
+def calculate_robot_bbox(env, robot_pos, arm_margin=0.1, floor_margin=0.1, env_ids=None):
+    """
+    Calculate the bounding box of the robot in the environment.
+
+    Args:
+        env: The environment object.
+        robot_pos: The robot position.
+        arm_margin: The margin for the robot's arm.
+        floor_margin: The margin for the floor.
+        env_ids: The environment IDs to calculate the bounding box for.
+
+    Returns:
+        overall_robot_bbox: The overall bounding box of the robot.
+    """
+    from pxr import Gf, UsdGeom, Usd
+
+    # convert margin to the abs value
+    arm_margin = abs(arm_margin)
+    floor_margin = abs(floor_margin)
+
+    robot_prim = None
+
+    for prim in env.sim.stage.Traverse():
+        if prim.GetName().lower() == "robot":
+            robot_prim = prim
+
+    robot_bbox = usd_utils.get_prim_aabb_bounding_box(robot_prim)
+    min_point = robot_bbox.GetMidpoint()
+
+    new_center = Gf.Vec3d(*robot_pos)
+
+    diff = new_center - min_point
+    new_min = robot_bbox.GetMin() + Gf.Vec3d(diff[0], diff[1], 0)
+    new_max = robot_bbox.GetMax() + Gf.Vec3d(diff[0], diff[1], 0)
+
+    floor_margin_vec = Gf.Vec3d(0, 0, floor_margin)  # floor margin in the z-axis
+    arm_margin_vec = Gf.Vec3d(arm_margin, arm_margin, 0)  # arm margin in the x and y-axis
+    new_bbox = Gf.Range3d(new_min + floor_margin_vec - arm_margin_vec, new_max + arm_margin_vec)
+
+    return new_bbox
+
+
+def detect_robot_out_of_scene(robot_bbox, scene_bbox):
+    """
+    Detect if the robot is out of the scene.
+
+    Args:
+        robot_bbox: The robot bounding box.
+        scene_bbox: The scene bounding box.
+
+    Returns:
+        bool: True if the robot is out of the scene, False otherwise.
+    """
+
+    # Check if the robot bounding box is outside the scene bounding box, ignore the z-axis
+    # since the robot can be above the scene
+    robot_bbox_min = robot_bbox.GetMin()
+    robot_bbox_max = robot_bbox.GetMax()
+    scene_bbox_min = scene_bbox.GetMin()
+    scene_bbox_max = scene_bbox.GetMax()
+
+    return not (scene_bbox_min[0] < robot_bbox_min[0] and
+                scene_bbox_max[0] > robot_bbox_max[0] and
+                scene_bbox_min[1] < robot_bbox_min[1] and
+                scene_bbox_max[1] > robot_bbox_max[1])
+
+
+def check_valid_robot_pose(env, robot_pos, env_ids=None):
+    """
+    Check if the robot pose is valid.
+
+    Args:
+        env: The environment object.
+        robot_pos: The robot position.
+        env_ids: The environment IDs to check the robot pose for.
+
+    Returns:
+        bool: True if the robot pose is valid, False otherwise.
+    """
+    # TODO: disable collision check
+    # 1. check if the robot is in collision with the environment
+    # if detect_robot_collision(env, env_ids=env_ids):
+    #     print(f"Robot pose: {robot_pos} is in collision with the environment")
+    #     return False
+
+    # 2. check if the robot is out of the scene
+    robot_bbox = calculate_robot_bbox(env, robot_pos)
+    scene_prim = None
+    for prim in env.sim.stage.Traverse():
+        if prim.IsValid() and prim.GetName().lower() == "scene":
+            scene_prim = prim
+    scene_bbox = usd_utils.get_prim_aabb_bounding_box(scene_prim) if scene_prim else None
+
+    if scene_bbox is not None:
+        if detect_robot_out_of_scene(robot_bbox, scene_bbox):
+            print(f"Robot pose: {robot_pos} is out of the scene bounds: {scene_bbox.GetMin()} - {scene_bbox.GetMax()}")
+            return False
+
+    # 3. check if the robot is in overlap with the objects in the scene
+    # all rigid prim in the scene except the robot
+    for obs_prim in scene_prim.GetChildren():
+        if not obs_prim.IsValid():
+            continue
+        # Compute the world-space bounding box for prim
+        obs_bbox = usd_utils.get_prim_aabb_bounding_box(obs_prim)
+
+        # Check if the robot bounding box overlaps with the current object bounding box
+        if check_overlap(robot_bbox, obs_bbox):
+            print(f"Collision detected between robot and object: {obs_prim.GetPath()}")
+            print(f"Robot BBox: {robot_bbox.GetMin()} - {robot_bbox.GetMax()}")
+            print(f"Robot Size: {robot_bbox.GetSize()}")
+            print(f"Object BBox: {obs_bbox.GetMin()} - {obs_bbox.GetMax()}")
+            print(f"Object Prim Size: {obs_bbox.GetSize()}")
+            return False
+
+    return True
+
+
 def detect_robot_collision(env, env_ids=None):
-    robot_contact = env.scene.sensors["base_contact"].data.net_forces_w[env_ids]
-    if "left_gripper_contact" in env.scene.sensors:
-        robot_contact += env.scene.sensors["left_gripper_contact"].data.net_forces_w[env_ids]
-    if "right_gripper_contact" in env.scene.sensors:
-        robot_contact += env.scene.sensors["right_gripper_contact"].data.net_forces_w[env_ids]
-    return torch.all(torch.max(robot_contact, dim=-1).values > 0.0)
+    # check if base contact is available
+    if "base_contact" in env.scene.sensors:
+        robot_contact = env.scene.sensors["base_contact"].data.net_forces_w[env_ids]
+        return torch.all(torch.max(robot_contact, dim=-1).values > 0.0)
+    else:
+        return False
 
 
 def set_robot_base(
@@ -512,6 +695,7 @@ def set_robot_base(
     pos_dev_x,
     pos_dev_y,
     env_ids=None,
+    execute_mode=ExecuteMode.TELEOP,
 ):
     import robosuite.utils.transform_utils as T
     # random_rot = env.rng.uniform(-rot_dev, rot_dev)
@@ -519,6 +703,9 @@ def set_robot_base(
     # init_pose_copy = env.scene.articulations["robot"].data.root_state_w[:, :7]
 
     found_valid = False
+
+    if execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL):
+        return anchor_pos
 
     cur_dev_pos_x = pos_dev_x
     cur_dev_pos_y = pos_dev_y
@@ -531,7 +718,7 @@ def set_robot_base(
                 pos_dev_y=cur_dev_pos_y,
             )
             set_robot_to_position(env, robot_pos, env_ids=env_ids)
-            if not detect_robot_collision(env, env_ids=env_ids):
+            if check_valid_robot_pose(env, robot_pos, env_ids=env_ids):
                 found_valid = True
                 break
             # env.scene.articulations["robot"].write_root_pose_to_sim(init_pose_copy)
@@ -539,6 +726,30 @@ def set_robot_base(
         cur_dev_pos_x += 0.10
         cur_dev_pos_y += 0.05
     return robot_pos
+
+
+from collections import deque
+
+
+class ContactQueue:
+    def __init__(self):
+        self.queue = deque()
+
+    def is_empty(self):
+        return len(self.queue) == 0
+
+    def add(self, contact_view):
+        self.queue.append(contact_view)
+
+    def pop(self):
+        if self.is_empty():
+            return None
+        contact_view = self.queue.popleft()
+        self.queue.append(contact_view)
+        return contact_view
+
+    def clear(self):
+        self.queue.clear()
 
 
 from . import monkey_patch

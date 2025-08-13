@@ -73,7 +73,7 @@ class HingeCabinet(Cabinet, RoboCasaHingeCabinet):
         desired_min = joint_min + (joint_max - joint_min) * min
         desired_max = joint_min + (joint_max - joint_min) * max
 
-        uniform_values = [rng.uniform(desired_min.cpu(), desired_max.cpu()) for _ in self._joint_infos.keys()]
+        uniform_values = [rng.uniform(float(desired_min), float(desired_max)) for _ in self._joint_infos.keys()]
 
         env.scene.articulations[self.name].write_joint_position_to_sim(
             torch.tensor([uniform_values]).to(env.device),
@@ -154,7 +154,7 @@ class Drawer(Cabinet, RoboCasaDrawer):
         joint_idx = env.scene.articulations[self.name].joint_names.index("drawer_door_joint")
 
         env.scene.articulations[self.name].write_joint_position_to_sim(
-            torch.tensor([[self.rng.uniform(desired_min.cpu(), desired_max.cpu())]]).to(env.device),
+            torch.tensor([[self.rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
             joint_id=torch.tensor([joint_idx]).to(env.device),
             env_ids=env_ids.to(env.device) if env_ids is not None else None
         )

@@ -18,7 +18,7 @@ from collections import defaultdict
 
 from robocasa.models.fixtures.fixture import Fixture as RoboCasaFixture
 from robocasa.models.fixtures.fixture_stack import STACKABLE
-from robocasa.models.scenes.scene_builder import FIXTURES
+from robocasa.models.scenes.scene_builder import FIXTURES, FIXTURES_INTERIOR
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 from isaaclab.sensors import ContactSensorCfg
 
@@ -50,6 +50,8 @@ class Fixture:
                     FIXTURES[name] = cls
                     if name in STACKABLE:
                         STACKABLE[name] = cls
+                    if name in FIXTURES_INTERIOR:
+                        FIXTURES_INTERIOR[name] = cls
                 break
             else:
                 # no robocasa fixture found
@@ -69,6 +71,17 @@ class Fixture:
 
         assert len(prim) == 1
         prim = prim[0]
+
+        # reset joint infos
+        self._joint_infos = {}
+        unfix_joints = usd.get_all_joints_without_fixed(prim)
+        for joint in unfix_joints:
+            self._joint_infos[joint.GetName()] = {} if joint.GetAttribute("physics:lowerLimit").Get() is None \
+                else {"range": torch.tensor([joint.GetAttribute("physics:lowerLimit").Get() * torch.pi / 180,
+                                             joint.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
+
+        if not usd.has_contact_reporter(prim):
+            return
 
         if not usd.has_contact_reporter(prim) and not usd.is_articulation_root(prim) and not usd.is_rigidbody(prim):
             self.fixture_name = self.name
@@ -105,14 +118,6 @@ class Fixture:
                 setattr(cfg.scene, f"{self.name}_contact", fixture_contact_sensor)
             else:
                 print("error: not regular asset")
-
-        # reset joint infos
-        self._joint_infos = {}
-        unfix_joints = usd.get_all_joints_without_fixed(prim)
-        for joint in unfix_joints:
-            self._joint_infos[joint.GetName()] = {} if joint.GetAttribute("physics:lowerLimit").Get() is None \
-                else {"range": torch.tensor([joint.GetAttribute("physics:lowerLimit").Get() * torch.pi / 180,
-                                             joint.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
 
     def setup_env(self, env: ManagerBasedRLEnv):
         if self.name in env.scene.extras.keys():
@@ -172,7 +177,7 @@ class Fixture:
                 desired_min = joint_min + (joint_max - joint_min) * (1 - max)
                 desired_max = joint_min + (joint_max - joint_min) * (1 - min)
             env.scene.articulations[self.name].write_joint_position_to_sim(
-                torch.tensor([[rng.uniform(desired_min.cpu(), desired_max.cpu())]]).to(env.device),
+                torch.tensor([[rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
                 torch.tensor([joint_idx]).to(env.device),
                 torch.as_tensor(env_ids).to(env.device) if env_ids is not None else None
             )

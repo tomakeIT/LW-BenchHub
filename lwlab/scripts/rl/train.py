@@ -16,37 +16,31 @@
 
 """Launch Isaac Sim Simulator first."""
 import random
-from pathlib import Path
 import argparse
-import yaml
 import os
-import platform
 
 from isaaclab.app import AppLauncher
 
-from lwlab import CONFIGS_PATH
-
-
-def load_yaml_to_namespace(yaml_path):
-    with open(yaml_path, 'r') as f:
-        config_dict = yaml.safe_load(f)
-    return argparse.Namespace(**config_dict)
+from lwlab.utils.config_loader import config_loader
 
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
 parser.add_argument("--task_config", type=str, default="default", help="task config")
 
-
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-task_config_path = CONFIGS_PATH / 'rl' / 'skrl' / f'{args_cli.task_config}.yml'
-yaml_args = load_yaml_to_namespace(task_config_path)
+yaml_args = config_loader.load(args_cli.task_config)
 args_cli.__dict__.update(yaml_args.__dict__)
 
+# always enable cameras to record video
+if args_cli.video:
+    args_cli.enable_cameras = True
+
 app_launcher_args = vars(args_cli)
+
 # launch omniverse app
 app_launcher = AppLauncher(app_launcher_args)
 
@@ -77,6 +71,8 @@ from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 
 from datetime import datetime
+from isaaclab.utils.dict import print_dict
+
 
 from policy.skrl.env_wrapper import SkrlVecEnvWrapper
 
@@ -111,7 +107,10 @@ def main():
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
-            execute_mode=ExecuteMode.TRAIN
+            execute_mode=ExecuteMode.TRAIN,
+            usd_simplify=args_cli.usd_simplify,
+            for_rl=True,
+            rl_variant=args_cli.variant,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 
@@ -125,12 +124,15 @@ def main():
         from lwlab.utils.env import load_robocasa_cfg_cls_from_registry
         agent_cfg = None
         if agent_cfg_entry_point:
-            agent_cfg = load_robocasa_cfg_cls_from_registry('task', args_cli.task, agent_cfg_entry_point)
+            if args_cli.variant:
+                agent_cfg = load_robocasa_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}-{args_cli.variant}", agent_cfg_entry_point)
+            else:
+                agent_cfg = load_robocasa_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}", agent_cfg_entry_point)
 
     # modify configuration
     env_cfg.terminations.time_out = None
     # create environment
-    env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
+    env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)  # .unwrapped
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
@@ -180,7 +182,17 @@ def main():
     # dump_yaml(os.path.join(log_dir, "params", "agent.yaml"), agent_cfg)
     # dump_pickle(os.path.join(log_dir, "params", "env.pkl"), env_cfg)
     # dump_pickle(os.path.join(log_dir, "params", "agent.pkl"), agent_cfg)
-
+    # wrap for video recording
+    if args_cli.video:
+        video_kwargs = {
+            "video_folder": os.path.join(log_dir, "videos", "train"),
+            "step_trigger": lambda step: step % args_cli.video_interval == 0,
+            "video_length": args_cli.video_length,
+            "disable_logger": True,
+        }
+        print("[INFO] Recording videos during training.")
+        print_dict(video_kwargs, nesting=4)
+        env = gym.wrappers.RecordVideo(env, **video_kwargs)
     # wrap around environment for skrl
     env = SkrlVecEnvWrapper(env, ml_framework=args_cli.ml_framework)  # same as: `wrap_env(env, wrapper="auto")`
 

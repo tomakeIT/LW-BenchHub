@@ -88,11 +88,10 @@ def get_camera_images(env):
     try:
         # get camera images from observation manager
         obs = env.observation_manager.compute()
-        if hasattr(env.cfg, 'render_cfgs'):
-            for camera_name in env.cfg.render_cfgs.keys():
-                if camera_name in obs.get('policy', {}):
-                    camera_data.append(obs['policy'][camera_name][0] if len(obs['policy'][camera_name].shape) == 4 else obs['policy'][camera_name])
-                    camera_names.append(camera_name)
+        for camera_name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]:
+            if camera_name in obs.get('policy', {}):
+                camera_data.append(obs['policy'][camera_name][0] if len(obs['policy'][camera_name].shape) == 4 else obs['policy'][camera_name])
+                camera_names.append(camera_name)
         if len(camera_data) > 1:
             combined_image = _combine_camera_images(camera_data, camera_names)
             combined_name = "__".join(camera_names)

@@ -53,7 +53,7 @@ class Toaster(Fixture, RoboCasaToaster):
             else:
                 desired_min = joint_min + (joint_max - joint_min) * (1 - max)
                 desired_max = joint_min + (joint_max - joint_min) * (1 - min)
-            joint_qpos_all[:, joint_idx] = self.rng.uniform(desired_min.cpu(), desired_max.cpu())
+            joint_qpos_all[:, joint_idx] = self.rng.uniform(float(desired_min), float(desired_max))
         env.scene.articulations[self.name].write_joint_position_to_sim(joint_qpos_all, env_ids=[env_id])
 
     def set_doneness_knob(self, env: ManagerBasedRLEnv, env_id: int, slot_pair: int, value: float):
@@ -201,7 +201,7 @@ class Toaster(Fixture, RoboCasaToaster):
         # check contact
         for slot_floor_name in final_floor_names:
             floor_geom_path = self.floor_geoms[slot_floor_name][0].GetPrimPath()
-            is_contact |= env.check_contact(obj_name, str(floor_geom_path), has_sensor=False)
+            is_contact |= env.check_contact(obj_name, str(floor_geom_path))
 
         return is_contact
 

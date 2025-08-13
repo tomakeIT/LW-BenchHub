@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import re
+import os
 from typing import Dict, List, Any, Optional
 import numpy as np
 import torch
@@ -35,7 +36,7 @@ from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 from lwlab.utils.env import set_camera_follow_pose
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.utils.env import ExecuteMode
-from ..loader.floorplan import floorplan_loader
+from ..loader import floorplan_loader, object_loader, ENV_MODE
 
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
@@ -48,8 +49,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
     layout_id: int = None
 
     EXCLUDE_LAYOUTS = []
-
-    TOASTEN_OVEN_EXCLUDED_LAYOUTS = [1, 2, 11, 32, 37, 40, 41, 44, 45, 52, 55, 57, 58]  # LIGHTWHEEL DEFINE
 
     OVEN_EXCLUDED_LAYOUTS = [1, 3, 5, 6, 8, 10, 11, 13, 14, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 33, 36, 38, 40, 41, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
 
@@ -130,12 +129,25 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
         self._load_model()
 
-        import time
-        start_time = time.time()
-        print(f"load usd", end="...")
-        self.usd_path = str(self._usd_future.result())
-        del self._usd_future
-        print(f" done in {time.time() - start_time:.2f}s")
+        # activate enable_fixtures in USD
+        if self.enable_fixtures is not None:
+            for fixture in self.enable_fixtures:
+                usd.activate_prim(self.stage, fixture)
+            dir_name = os.path.dirname(self.usd_path)
+            base_name = os.path.basename(self.usd_path)
+            new_path = os.path.join(dir_name, base_name.replace(".usd", "_enabled.usd"))
+            self.stage.GetRootLayer().Export(new_path)
+            self.usd_path = new_path
+
+        if self.usd_simplify:
+            new_stage = usd.usd_simplify(self.stage, self.usd_path, self.fixture_refs)
+            dir_name = os.path.dirname(self.usd_path)
+            base_name = os.path.basename(self.usd_path)
+            new_path = os.path.join(dir_name, base_name.replace(".usd", "_simplified.usd"))
+            new_stage.GetRootLayer().Export(new_path)
+            self.usd_path = new_path
+            self.fixtures = self.fixture_refs
+        del self.stage
 
         # run robocasa fixture initialization ahead of everything else
         super().__post_init__()
@@ -157,11 +169,11 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             self.update_state()
             try:
                 check_result = self._check_success()
-                self.success_flag &= (self.success_cache <= self.success_count)
-                self.success_cache *= (self.success_cache <= self.success_count)
+                self.success_flag &= (self.success_cache < self.success_count)
+                self.success_cache *= (self.success_cache < self.success_count)
                 self.success_flag |= check_result
                 self.success_cache += self.success_flag.int()
-                return self.success_cache > self.success_count
+                return self.success_cache >= self.success_count
             except Exception as e:
                 print(f"Error checking success: {e}")
                 return torch.tensor([False], device=self.device, dtype=torch.bool).repeat(self.num_envs)
@@ -224,33 +236,16 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     break
                 self._setup_model()
 
-        try:
-            fxtr_placement_initializer = EnvUtils._get_placement_initializer(
-                self, self.fixture_cfgs, z_offset=0.0
-            )
-        except PlacementError as e:
-            if macros.VERBOSE:
-                print(
-                    "Could not create placement initializer for objects. Trying again with self._load_model()"
-                )
-            self._load_model()
-            return
-        fxtr_placements = None
-        for attempt in range(3):
-            try:
-                fxtr_placements = fxtr_placement_initializer.sample()
-            except PlacementError as e:
-                if macros.VERBOSE:
-                    print("Placement error for fixtures")
-                continue
-            break
-        if fxtr_placements is None:
-            if macros.VERBOSE:
-                print("Could not place fixtures. Trying again with self._load_model()")
-            self._load_model()
-            return
-        self.fxtr_placements = fxtr_placements
-        for obj_pos, obj_quat, obj in fxtr_placements.values():
+        import time
+        start_time = time.time()
+        print(f"load usd", end="...")
+        self.usd_path = str(self._usd_future.result())
+        del self._usd_future
+        print(f" done in {time.time() - start_time:.2f}s")
+        self.stage = usd.get_stage(self.usd_path)
+
+        self.fxtr_placements = usd.get_fixture_placements(self.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
+        for obj_pos, obj_quat, obj in self.fxtr_placements.values():
             assert isinstance(obj, Fixture)
             obj.set_pos(obj_pos)
             # hacky code to set orientation
@@ -300,6 +295,18 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                 print("Could not place objects. Trying again with self._load_model()")
             self._load_model()
             return
+
+        if self.fix_object_pose_cfg is not None:
+            for obj_name, obj_placement in object_placements.items():
+                if obj_name in self.fix_object_pose_cfg:
+                    obj_pos = obj_placement[0]
+                    obj_rot = obj_placement[1]
+                    if "pos" in self.fix_object_pose_cfg[obj_name]:
+                        obj_pos = self.fix_object_pose_cfg[obj_name]["pos"]
+                    if "rot" in self.fix_object_pose_cfg[obj_name]:
+                        obj_rot = self.fix_object_pose_cfg[obj_name]["rot"]
+                    object_placements[obj_name] = (obj_pos, obj_rot, obj_placement[2])
+
         self.object_placements = object_placements
 
         (
@@ -457,6 +464,8 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         ep_meta["fixture_refs"] = dict(
             {k: v.name for (k, v) in self.fixture_refs.items()}
         )
+        ep_meta["usd_simplify"] = self.usd_simplify
+        ep_meta["LWLAB_ENV_MODE"] = ENV_MODE
         # ep_meta["init_robot_base_pos"] = list(self.init_robot_base_pos)
         # ep_meta["init_robot_base_ori"] = list(self.init_robot_base_ori)
         return ep_meta
@@ -658,7 +667,37 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         return torch.tensor([[False]], device=self.env.device).repeat(self.env.num_envs, 1)
 
     def _spawn_objects(self):
-        pass
+        for pos, rot, obj in self.object_placements.values():
+            xml_path = obj.folder
+            path_attr = "robocasa/models/assets/"
+            if platform.system() == "Windows":
+                path_attr = path_attr.replace("/", "\\")
+            xml_path = Path(xml_path[xml_path.rfind(path_attr) + len(path_attr):])
+            usd_name = xml_path.stem
+            usd_cache_path = object_loader.acquire_object(str(xml_path), "USD")
+            obj_cfg = RigidObjectCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Scene/{obj.name}",
+                init_state=RigidObjectCfg.InitialStateCfg(pos=pos, rot=rot),
+                spawn=sim_utils.UsdFileCfg(
+                    usd_path=usd_cache_path,
+                    scale=obj._scale,
+                    activate_contact_sensors=True,
+                    rigid_props=sim_utils.RigidBodyPropertiesCfg(
+                        sleep_threshold=0.0,  # disable sleep in CPU mode
+                        stabilization_threshold=0.0,
+                    ),
+                ),
+            )
+            setattr(self.scene, obj.name, obj_cfg)
+            obj_concact = ContactSensorCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/Scene/{obj.name}/{usd_name}",
+                update_period=0.0,
+                history_length=6,
+                debug_vis=False,
+                force_threshold=10.0,
+                filter_prim_paths_expr=[],
+            )
+            setattr(self.scene, f"{obj.name}_contact", obj_concact)
 
     def _reset_internal(self, env_ids=None):
         """
@@ -668,65 +707,115 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
         # set up the scene (fixtures, variables, etc)
         self._setup_scene(env_ids)
+        self.reset_root_state(env=self.env, env_ids=env_ids)
 
-        # set the robot here
-        from lwlab.utils.env import set_robot_to_position, set_robot_base, get_safe_robot_anchor
-        if "init_robot_base_pos" in self._ep_meta:
-            self.init_robot_base_pos = self._ep_meta["init_robot_base_pos"]
-            self.init_robot_base_ori = self._ep_meta["init_robot_base_ori"]
-            set_robot_to_position(self.env, self.init_robot_base_pos)
-        else:
-            # Intercept the unsafe anchor and make it safe
-            safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
-                env=self.env,
-                unsafe_anchor_pos=self.init_robot_base_pos_anchor,
-                unsafe_anchor_ori=self.init_robot_base_ori_anchor
-            )
-
-            robot_pos = set_robot_base(
-                env=self.env,
-                anchor_pos=safe_anchor_pos,
-                anchor_ori=safe_anchor_ori,
-                rot_dev=self.robot_spawn_deviation_rot,
-                pos_dev_x=self.robot_spawn_deviation_pos_x,
-                pos_dev_y=self.robot_spawn_deviation_pos_y,
-                env_ids=env_ids,
-            )
-            self.init_robot_base_pos = robot_pos
-            self.init_robot_base_ori = self.init_robot_base_ori_anchor
-
-    def check_contact(self, geoms_1, geoms_2, has_sensor=True) -> torch.Tensor:
+    def check_contact(self, geoms_1, geoms_2) -> torch.Tensor:
         """
         check if the two geoms are in contact
         """
+        if self.env.common_step_counter > 1:
+            contact_views = [self.env.cfg.contact_queues[env_id].pop() for env_id in range(self.env.num_envs)]
+            return torch.tensor(
+                [max(abs(view.get_contact_data(self.env.physics_dt)[0])) > 0 for view in contact_views],
+                device=self.env.device,
+            )
         if isinstance(geoms_1, str):
             geoms_1_sensor_path = f"{geoms_1}_contact"
         else:
             geoms_1_sensor_path = f"{geoms_1.name}_contact"
 
-        if has_sensor:
-            if isinstance(geoms_2, str):
-                geoms_2_sensor_path = f"{geoms_2}_contact"
-            else:
-                geoms_2_sensor_path = f"{geoms_2.name}_contact"
-            filter_prim_paths_expr = self.env.scene.sensors[geoms_2_sensor_path].contact_physx_view.sensor_paths
+        if isinstance(geoms_2, str):
+            geoms_2_sensor_path = geoms_2
         else:
-            filter_prim_paths_expr = [geoms_2]
+            geoms_2_sensor_path = []
+            geoms_2_prims = usd.get_prim_by_name(self.env.scene.stage.GetPseudoRoot(), geoms_2.name)
+            for prim in geoms_2_prims:
+                prim_children = prim.GetAllChildren()
+                prim_children_paths = [str(child.GetPrimPath()) for child in prim_children]
+                geoms_2_sensor_path.append(prim_children_paths)
 
         geoms_1_contact_paths = self.env.scene.sensors[geoms_1_sensor_path].contact_physx_view.sensor_paths
-        contacts = []
-        for env_id in range(len(geoms_1_contact_paths)):
-            if has_sensor:
-                filter_prim_paths_expr = [filter_prim_paths_expr[env_id]]
+
+        for env_id in range(self.env.num_envs):
+            if isinstance(geoms_2, str):
+                filter_prim_paths_expr = [re.sub(r'env_\d+', f'env_{env_id}', geoms_2_sensor_path)]
             else:
-                filter_prim_paths_expr = [re.sub(r'env_\d+', f"env_{env_id}", expr) for expr in filter_prim_paths_expr]
-            contacts.append(
-                abs(max(self.env.sim.physics_sim_view.create_rigid_contact_view(geoms_1_contact_paths[env_id], filter_patterns=filter_prim_paths_expr, max_contact_data_count=1000).get_contact_data(self.env.physics_dt)[0])) > 0
+                filter_prim_paths_expr = geoms_2_sensor_path[env_id]
+            self.env.cfg.contact_queues[env_id].add(
+                self.env.sim.physics_sim_view.create_rigid_contact_view(
+                    geoms_1_contact_paths[env_id],
+                    filter_patterns=filter_prim_paths_expr,
+                    max_contact_data_count=200
+                )
             )
-        return torch.tensor(contacts, device=self.env.device)
+        return torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
 
     def get_obj_lang(self, obj_name="obj", get_preposition=False):
         """
         gets a formatted language string for the object (replaces underscores with spaces)
         """
         return OU.get_obj_lang(self, obj_name=obj_name, get_preposition=get_preposition)
+
+    def reset_root_state(self, env, env_ids=None):
+        """
+        reset the root state of objects and robot in the environment
+        """
+        from robocasa.utils.errors import PlacementError
+
+        def place_objects(self):
+            object_placements = None
+            if self.placement_initializer is not None:
+                try:
+                    object_placements = self.placement_initializer.sample(
+                        placed_objects=self.fxtr_placements
+                    )
+                except PlacementError as e:
+                    print("Placement error for objects")
+                    place_objects(self)
+            return object_placements
+
+        def place_robot(self):
+            # set the robot here
+            from lwlab.utils.env import set_robot_to_position, set_robot_base, get_safe_robot_anchor
+            if "init_robot_base_pos" in self._ep_meta:
+                self.init_robot_base_pos = self._ep_meta["init_robot_base_pos"]
+                self.init_robot_base_ori = self._ep_meta["init_robot_base_ori"]
+                set_robot_to_position(self.env, self.init_robot_base_pos)
+            else:
+                # Intercept the unsafe anchor and make it safe
+                safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
+                    env=self.env,
+                    unsafe_anchor_pos=self.init_robot_base_pos_anchor,
+                    unsafe_anchor_ori=self.init_robot_base_ori_anchor
+                )
+
+                robot_pos = set_robot_base(
+                    env=self.env,
+                    anchor_pos=safe_anchor_pos,
+                    anchor_ori=safe_anchor_ori,
+                    rot_dev=self.robot_spawn_deviation_rot,
+                    pos_dev_x=self.robot_spawn_deviation_pos_x,
+                    pos_dev_y=self.robot_spawn_deviation_pos_y,
+                    env_ids=env_ids,
+                    execute_mode=self.execute_mode,
+                )
+                self.init_robot_base_pos = robot_pos
+                self.init_robot_base_ori = self.init_robot_base_ori_anchor
+
+        if env.cfg.reset_objects_enabled and self.fix_object_pose_cfg is None:
+            if env_ids is None:
+                env_ids = torch.arange(env.num_envs, device=self.device, dtype=torch.int64)
+            for env_id in env_ids:
+                object_placements = place_objects(self)
+                for obj_name, obj_placement in object_placements.items():
+                    obj_pos = torch.tensor(obj_placement[0], device=self.device, dtype=torch.float32) + env.scene.env_origins[env_id]
+                    obj_rot = torch.tensor(obj_placement[1], device=self.device, dtype=torch.float32)
+                    root_pos = torch.concatenate([obj_pos, obj_rot], dim=-1)
+                    env.scene.rigid_objects[obj_name].write_root_pose_to_sim(
+                        root_pos,
+                        env_ids=torch.tensor([env_id], device=self.device, dtype=torch.int64)
+                    )
+            env.sim.forward()
+
+        if env.cfg.reset_robot_enabled:
+            place_robot(self)

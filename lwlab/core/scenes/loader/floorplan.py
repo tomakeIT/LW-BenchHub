@@ -21,29 +21,46 @@ import time
 from concurrent.futures import Future, ThreadPoolExecutor
 import requests
 from tqdm import tqdm
-
+from .exception import ApiException
 CACHE_PATH = Path("~/.cache/lwlab/floorplan/").expanduser()
 CACHE_PATH.mkdir(parents=True, exist_ok=True)
+from . import ENV_MODE, login_client
 
 
 class FloorplanLoader:
+    """
+    Loader for floorplan USD files.
+
+    Args:
+        host (str): The host of the API
+        max_workers (int, optional): The maximum number of workers for downloading USD files. Defaults to 4.
+    """
     _latest_future: Future = None
 
     def __init__(self, host, max_workers=4):
         self.host = host
+        self.headers = login_client.get_headers()
         self.lock = threading.Lock()
-        self.check_version()
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._should_stop_downloading = False
+        self.usd_suffix = ".usda" if ENV_MODE == "prod" else ".usd"
 
     def acquire_usd(self, layout_id: int, style_id: int, scene: str = None, cancel_previous_download: bool = True):
-        if cancel_previous_download and self._latest_future and self._latest_future.running():
-            self._should_stop_downloading = True
-            # self._latest_future.cancel()
-            while self._latest_future.running():
-                time.sleep(0.1)
-                print(f"waiting for cancel")
-        self._latest_future = self.executor.submit(self.get_usd, layout_id, style_id, scene)
+        try:
+            self.check_version()
+            if cancel_previous_download and self._latest_future and self._latest_future.running():
+                self._should_stop_downloading = True
+                # self._latest_future.cancel()
+                while self._latest_future.running():
+                    time.sleep(0.1)
+                    print(f"waiting for cancel")
+            self._latest_future = self.executor.submit(self.get_usd, layout_id, style_id, scene)
+        except Exception as e:
+            if e.authenticated_failed():
+                # login and retry
+                self.headers = login_client.login(force_login=True)
+                return self.acquire_usd(layout_id, style_id, scene, cancel_previous_download)
+            print(e)
         return self._latest_future
 
     def check_version(self):
@@ -60,8 +77,14 @@ class FloorplanLoader:
             self._update_usd_cache_version(version)
 
     def get_usd(self, layout_id: int, style_id: int, scene: str = None):
+        from . import login_client
         try:
             return self._get_usd(layout_id, style_id, scene)
+        except ApiException as e:
+            if e.authenticated_failed():
+                self.headers = login_client.login(force_login=True)
+                return self._get_usd(layout_id, style_id, scene)
+            print(e)
         finally:
             pass
 
@@ -79,7 +102,7 @@ class FloorplanLoader:
         """
         cache_dir_path = self._usd_cache_dir_path(dict(layout_id=layout_id, style_id=style_id))
         package_file_path = cache_dir_path.with_suffix(".zip")
-        usd_file_path = cache_dir_path / "scene.usda"
+        usd_file_path = cache_dir_path / f"scene{self.usd_suffix}"
         if usd_file_path.exists():
             return usd_file_path
         try:
@@ -88,12 +111,15 @@ class FloorplanLoader:
                     f"{self.host}/floorplan/v1/usd/get",
                     json={"layout_id": layout_id, "style_id": style_id, "scene": scene},
                     timeout=60,
+                    headers=self.headers
                 )
-                response.raise_for_status()
+                if response.status_code != 200:
+                    raise ApiException(response)
                 s3_url = response.json()["fileUrl"]
                 total_size = 0
                 response = requests.get(s3_url, stream=True, timeout=60)
-                response.raise_for_status()
+                if response.status_code != 200:
+                    raise ApiException(response)
                 for chunk in tqdm(response.iter_content(chunk_size=1024), desc="Downloading Floorplan Package"):
                     if self._should_stop_downloading:
                         response.close()
@@ -142,9 +168,7 @@ class FloorplanLoader:
         Returns:
             str: The version of the floorplan
         """
-        response = requests.post(f"{self.host}/floorplan/v1/version/get", json={}, timeout=60)
-        response.raise_for_status()
+        response = requests.post(f"{self.host}/floorplan/v1/version/get", json={}, timeout=60, headers=self.headers)
+        if response.status_code != 200:
+            raise ApiException(response)
         return response.json()["version"]
-
-
-floorplan_loader = FloorplanLoader("https://api.lightwheel.net")

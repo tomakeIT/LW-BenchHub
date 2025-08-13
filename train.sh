@@ -1,5 +1,5 @@
 #!/bin/bash
-task_config=default
+task_config=g1_liftobj_state
 env_gpu=0
 policy_gpu=0
 
@@ -19,4 +19,4 @@ fi
 python ./lwlab/scripts/rl/train.py \
     --task_config="$task_config" \
     --headless \
-    --enable_camera 
+    # --enable_cameras

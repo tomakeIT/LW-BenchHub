@@ -17,22 +17,12 @@
 
 """Launch Isaac Sim Simulator first."""
 
-from pathlib import Path
 import argparse
 import os
-import platform
-import yaml
 
 from isaaclab.app import AppLauncher
 
-from lwlab import CONFIGS_PATH
-
-
-def load_yaml_to_namespace(yaml_path):
-    with open(yaml_path, 'r') as f:
-        config_dict = yaml.safe_load(f)
-    return argparse.Namespace(**config_dict)
-
+from lwlab.utils.config_loader import config_loader
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Play a checkpoint of an RL agent from skrl for Robocasa tasks.")
@@ -40,12 +30,11 @@ parser.add_argument("--task", type=str, default=None, help="Name of the task.")
 parser.add_argument("--robot", type=str, default="G1-Hand", help="Robot type")
 parser.add_argument("--layout", type=str, default=None, help="layout name of the scene, or USD file path")
 parser.add_argument("--task_config", type=str, default=None, help="task config")
-
+parser.add_argument("--check_success", action='store_true', default=True, help="Enable or disable success checking.")
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 args_cli = parser.parse_args()
-task_config_path = CONFIGS_PATH / 'rl' / 'skrl' / f'{args_cli.task_config}.yml'
-yaml_args = load_yaml_to_namespace(task_config_path)
+yaml_args = config_loader.load(args_cli.task_config)
 args_cli.__dict__.update(yaml_args.__dict__)
 
 app_launcher_args = vars(args_cli)
@@ -90,14 +79,6 @@ def main():
     if args_cli.ml_framework.startswith("jax"):
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
-    # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
-    from isaaclab_tasks.utils import import_packages
-    # The blacklist is used to prevent importing configs from sub-packages
-    _BLACKLIST_PKGS = ["utils", ".mdp"]
-    # Import all configs in this package
-    import_packages("lwlab.core", _BLACKLIST_PKGS)
-    import_packages("tasks", [])
-
     # Parse environment configuration for Robocasa
     from lwlab.utils.env import parse_env_cfg, ExecuteMode
 
@@ -111,7 +92,9 @@ def main():
         use_fabric=not args_cli.disable_fabric,
         first_person_view=args_cli.first_person_view,
         enable_cameras=app_launcher._enable_cameras,
-        execute_mode=ExecuteMode.EVAL
+        execute_mode=ExecuteMode.EVAL,
+        for_rl=True,
+        rl_variant=args_cli.variant,
     )
     task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 
@@ -126,7 +109,10 @@ def main():
     # Load agent configuration
     from lwlab.utils.env import load_robocasa_cfg_cls_from_registry
     agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
-    agent_cfg = load_robocasa_cfg_cls_from_registry('task', args_cli.task, agent_cfg_entry_point)
+    if args_cli.variant:
+        agent_cfg = load_robocasa_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}-{args_cli.variant}", agent_cfg_entry_point)
+    else:
+        agent_cfg = load_robocasa_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}", agent_cfg_entry_point)
 
     # specify directory for logging experiments (load checkpoint)
     log_root_path = os.path.join("policy/skrl/logs", agent_cfg["agent"]["experiment"]["directory"])
@@ -190,6 +176,8 @@ def main():
     # reset environment
     obs, _ = env.reset()
     timestep = 0
+    success_count = 0
+    episode_count = 0
     # simulate environment
     while simulation_app.is_running():
         start_time = time.time()
@@ -205,13 +193,18 @@ def main():
             else:
                 actions = outputs[-1].get("mean_actions", outputs[0])
             # env stepping
-            obs, _, _, _, _ = env.step(actions)
+            obs, _, terminated, truncated, _ = env.step(actions)
         if args_cli.video:
             timestep += 1
             # exit the play loop after recording one video
             if timestep == args_cli.video_length:
                 break
-
+        # get success rate
+        if args_cli.check_success:
+            success_count += terminated.sum().item()
+            episode_count += (terminated | truncated).sum().item()
+            print(f"episode_count: {episode_count}")
+            print(f"Success rate: {success_count / (episode_count + 1e-8):.2%}")
         # time delay for real-time evaluation
         sleep_time = dt - (time.time() - start_time)
         if args_cli.real_time and sleep_time > 0:

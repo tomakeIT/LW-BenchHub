@@ -24,7 +24,7 @@ class ElectricKettle(Fixture, RoboCasaElectricKettle):
         super().setup_cfg(cfg, root_prim)
         joint_names = list(self._joint_infos.keys())
         self._joint_names = {
-            "lid": next(iter([name for name in joint_names if "lid_joint" in name.lower()]), None),
+            "lid": next(iter([name for name in joint_names if "lid_joint" in name.lower() and "button" not in name.lower()]), None),
             "switch": next(iter([name for name in joint_names if "switch_joint" in name.lower()]), None),
             "lid_button": next(iter([name for name in joint_names if "button_lid_joint" in name.lower()]), None),
         }

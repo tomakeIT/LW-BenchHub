@@ -59,9 +59,9 @@ class Microwave(Fixture, RoboCasaMicrowave):
     def update_state(self, env: ManagerBasedRLEnv):
         start_button_pressed = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
         stop_button_pressed = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
-        for gripper_name in ["left_gripper", "right_gripper"]:
-            start_button_pressed |= env.cfg.check_contact(gripper_name, str(self.button_infos["start_button"][0].GetPrimPath()), has_sensor=False)
-            stop_button_pressed |= env.cfg.check_contact(gripper_name, str(self.button_infos["stop_button"][0].GetPrimPath()), has_sensor=False)
+        for gripper_name in [name for name in list(self._env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
+            start_button_pressed |= env.cfg.check_contact(gripper_name.replace("_contact", ""), str(self.button_infos["start_button"][0].GetPrimPath()))
+            stop_button_pressed |= env.cfg.check_contact(gripper_name.replace("_contact", ""), str(self.button_infos["stop_button"][0].GetPrimPath()))
         door_open = self.is_open(env)
         self._turned_on = ~door_open & (
             (self._turned_on & ~stop_button_pressed) |
@@ -70,12 +70,15 @@ class Microwave(Fixture, RoboCasaMicrowave):
 
     def gripper_button_far(self, env: ManagerBasedRLEnv, button, th=0.3):
         assert button in ["start_button", "stop_button"]
-        button_idx = env.scene.articulations[self.name].body_names.index(button)
-        button_pos = env.scene.articulations[self.name].data.body_com_pos_w[:, button_idx:button_idx + 1, :]  # (env_num, 1, 3)
         ee_pos = env.scene["ee_frame"].data.target_pos_w  # (env_num, ee_num, 3)
+        button_prims = self.button_infos[button]
+        button_pos = []
+        for button_prim in button_prims:
+            button_pos.append(torch.tensor(button_prim.GetAttribute("xformOp:translate").Get(), dtype=torch.float32, device=env.device).reshape(-1, 3))
+        button_pos = torch.stack(button_pos, dim=0)  # (env_num, 1, 3)
 
         dist = torch.norm(button_pos - ee_pos, dim=-1)  # (env_num, ee_num)
-        dist = torch.min(dist, dim=-1)  # (env_num,)
+        dist = torch.min(dist, dim=-1).values  # (env_num, )
 
         return dist > th
 

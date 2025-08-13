@@ -103,3 +103,12 @@ gym.register(
     },
     disable_env_checker=True,
 )
+
+gym.register(
+    id="Robocasa-Task-LiftObj",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj:LiftObj",
+    },
+    disable_env_checker=True,
+)

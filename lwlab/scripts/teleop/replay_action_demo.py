@@ -22,7 +22,7 @@ from pathlib import Path
 import mediapy as media
 import tqdm
 from itertools import count
-import cv2
+
 import json
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
@@ -38,6 +38,7 @@ parser.add_argument("--num_envs", type=int, default=1, help="Number of environme
 parser.add_argument("--task", type=str, default=None, help="Force to use the specified task.")
 parser.add_argument("--width", type=int, default=1920, help="Width of the rendered image.")
 parser.add_argument("--height", type=int, default=1080, help="Height of the rendered image.")
+parser.add_argument("--without_image", action="store_true", default=False, help="without image")
 parser.add_argument(
     "--select_episodes",
     type=int,
@@ -66,7 +67,6 @@ parser.add_argument("--first_person_view", action="store_true", default=False, h
 parser.add_argument("--replay_mode", type=str, default="action", help="replay mode(action or joint_target)")
 parser.add_argument("--layout", type=str, default=None, help="layout name")
 parser.add_argument("--only_last_clips", action="store_true", default=True, help="only replay the last clips")
-
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -80,6 +80,9 @@ if args_cli.enable_pinocchio:
     # Import pinocchio before AppLauncher to force the use of the version installed by IsaacLab and not the one installed by Isaac Sim
     # pinocchio is required by the Pink IK controllers and the GR1T2 retargeter
     import pinocchio  # noqa: F401
+
+if not args_cli.without_image:
+    import cv2
 
 # launch the simulator
 app_launcher = AppLauncher(args_cli)
@@ -171,7 +174,7 @@ def main():
     num_envs = args_cli.num_envs
 
     env_args = json.loads(dataset_file_handler._hdf5_data_group.attrs["env_args"])
-
+    usd_simplify = env_args["usd_simplify"] if 'usd_simplify' in env_args else False
     if "-" in env_args["env_name"] and not env_args["env_name"].startswith("Robocasa"):
         env_cfg = parse_env_cfg(
             args_cli.task, device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric
@@ -189,7 +192,8 @@ def main():
             replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height)},
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
-            execute_mode=ExecuteMode.EVAL if args_cli.replay_mode == "action" else ExecuteMode.EVAL_JOINT_TARGETS,
+            execute_mode=ExecuteMode.REPLAY_ACTION if args_cli.replay_mode == "action" else ExecuteMode.REPLAY_JOINT_TARGETS,
+            usd_simplify=usd_simplify,
         )
         env_name = f"Robocasa-{task_name}-{env_args['robot_name']}-v0"
         gym.register(
@@ -259,8 +263,8 @@ def main():
     replayed_episode_count = 0
     pose_divergence_ep = []
     with (
-        contextlib.suppress(KeyboardInterrupt) and torch.inference_mode(),
-        media.VideoWriter(path=replay_mp4_path, shape=(args_cli.height, len(env.cfg.render_cfgs) * args_cli.width), fps=30) as v,
+        contextlib.suppress(KeyboardInterrupt),
+        media.VideoWriter(path=replay_mp4_path, shape=(args_cli.height, sum(env.cfg.task_type in c["tags"] for c in env.cfg.observation_cameras.values()) * args_cli.width), fps=30) as v,
         h5py.File(replay_mp4_path.parent / f"isaac_replay_action_{args_cli.replay_mode}_pose_divergence.hdf5", "w") as pose_divergence_f
     ):
         pose_divergence_f.create_group("data")
@@ -306,6 +310,10 @@ def main():
                                 pose_divergence_f.create_dataset(f"data/{episode_name}/ee_poses", data=ee_poses[:])
                                 pose_divergence_f.create_dataset(f"data/{episode_name}/pose_divergence", data=pose_divergence)
                                 pose_divergence_f.create_dataset(f"data/{episode_name}/pose_divergence_norm", data=pose_divergence_norm)
+                            else:
+                                success_info[episode_name] = {
+                                    "success": has_success
+                                }
 
                             # compare joint_pos_list with gt_joint_pos, calculate joint divergence
                             joint_pos_list = np.concatenate(joint_pos_list, axis=0)
@@ -335,6 +343,8 @@ def main():
                             env_episode_data_map[env_id] = episode_data
 
                             # if replayed_episode_count <= 1:
+                            if "states" not in episode_data._data:
+                                break
                             if args_cli.replay_mode == "action":
                                 gt_joint_pos = episode_data._data["states"]["articulation"]["robot"]["joint_position"]
                             elif args_cli.replay_mode == "joint_target":
@@ -382,7 +392,7 @@ def main():
                     joint_target_list.append(get_robot_joint_target_from_scene(env.scene)["joint_pos_target"].cpu().numpy())
                     gt_joint_target_list.append(actions.reshape(env.cfg.decimation, -1)[-1:, ...].cpu().numpy())
                 if app_launcher._enable_cameras:
-                    full_image = np.concatenate([obs['policy'][name].cpu().numpy() for name in env.cfg.render_cfgs.keys()], axis=0).transpose(0, 2, 1, 3)
+                    full_image = np.concatenate([obs['policy'][name].cpu().numpy() for name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]], axis=0).transpose(0, 2, 1, 3)
                     full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
                     # draw the frame number on the image
                     # cv2.putText(full_image, f"Frame: {env_episode_data_map[env_id].next_state_index - 1}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
@@ -392,8 +402,9 @@ def main():
                     full_image = np.array(pil_im)
 
                     v.add_image(full_image)
-                    cv2.imshow("replay", full_image[..., ::-1])
-                    cv2.waitKey(1)
+                    if not args_cli.without_image:
+                        cv2.imshow("replay", full_image[..., ::-1])
+                        cv2.waitKey(1)
                 if state_validation_enabled:
                     state_from_dataset = env_episode_data_map[0].get_next_state()
                     if state_from_dataset is not None:

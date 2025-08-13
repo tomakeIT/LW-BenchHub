@@ -9,6 +9,7 @@ from isaaclab.utils import configclass
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.managers.action_manager import ActionTerm, ActionTermCfg
 from isaaclab.assets.articulation import Articulation
+from lwlab.data import LWLAB_DATA_PATH
 
 
 class DexRetargetingAction(ActionTerm):
@@ -29,14 +30,15 @@ class DexRetargetingAction(ActionTerm):
 
     def process_actions(self, actions: torch.Tensor):
         self._raw_actions[:] = actions
+        self._processed_actions = self._raw_actions
         finger_pos = self.raw_actions.reshape([self.num_envs, -1, 3])
         if self.dex_retargeting_cfg.type != "dexpilot":
-            self._processed_actions[:, :] = finger_pos
+            self._fingers_actions[:, :] = finger_pos
         else:
-            self._processed_actions[:, -self.num_fingers:, :] = finger_pos
+            self._fingers_actions[:, -self.num_fingers:, :] = finger_pos
             for i in range(self.num_fingers - 1):
                 for j in range(i + 1, self.num_fingers):
-                    self._processed_actions[:, i, :] = finger_pos[:, j, :] - finger_pos[:, i, :]
+                    self._fingers_actions[:, i, :] = finger_pos[:, j, :] - finger_pos[:, i, :]
 
     def reset(self, env_ids: Sequence[int] | None = None) -> None:
         env_ids_ = list(env_ids) if env_ids is not None else list(range(self.num_envs))
@@ -44,17 +46,18 @@ class DexRetargetingAction(ActionTerm):
         for env_id in env_ids_:
             self.dex_retargetings[env_id] = self.dex_retargeting_cfg.build()
         self._raw_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
+        self._processed_actions = torch.zeros(self.num_envs, self.action_dim, device=self.device)
         if self.dex_retargeting_cfg.type == "dexpilot":
             processed_actions = torch.zeros(len(env_ids_), self.num_fingers + len(self.dex_retargetings[0].optimizer.projected), 3, device=self.device)
         else:
             processed_actions = torch.zeros(len(env_ids_), self.num_fingers, 3, device=self.device)
         if env_ids is None:
-            self._processed_actions = processed_actions
+            self._fingers_actions = processed_actions
         else:
-            self._processed_actions[env_ids, :] = processed_actions
+            self._fingers_actions[env_ids, :] = processed_actions
 
     def apply_actions(self):
-        processed_actions = self.processed_actions.cpu().numpy()
+        processed_actions = self._fingers_actions.cpu().numpy()
         if np.sum(abs(processed_actions)) > 0.01:
             retargeted_actions = np.array([
                 dex_retargeting.retarget(processed_actions[i])[self.cfg.retargeting_index]
@@ -97,7 +100,10 @@ class DexRetargetingAction(ActionTerm):
 @configclass
 class DexRetargetingActionCfg(ActionTermCfg):
     class_type: type[ActionTerm] = DexRetargetingAction
-    config_path: Path = MISSING
+    config_name: str = MISSING
     retargeting_index: list[int] = MISSING
     joint_names: list[str] = MISSING
     post_process_fn: Callable = lambda x, y: x
+
+    def __post_init__(self):
+        self.config_path = LWLAB_DATA_PATH / "dex_retargeting" / f"{self.config_name}.yaml"

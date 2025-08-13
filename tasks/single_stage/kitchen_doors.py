@@ -88,6 +88,50 @@ class ManipulateDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
         elif self.behavior == "close":
             return self.fxtr.is_closed(env=self.env)
 
+    def _get_obj_cfgs(self):
+        """
+        Get the object configurations for the door tasks. This includes the object placement configurations.
+        Place one object inside the door fixture and 1-4 distractors on the counter.
+        """
+        cfgs = []
+
+        if not fixture_is_type(self.fxtr, FixtureType.DISHWASHER):
+            cfg = dict(
+                name="door_obj",
+                obj_groups="all",
+                graspable=True,
+                placement=dict(
+                    fixture=self.fxtr,
+                    size=(0.30, 0.30),
+                    pos=(None, -1.0),
+                ),
+            )
+            if fixture_is_type(self.fxtr, FixtureType.OVEN):
+                cfg["placement"]["try_to_place_in"] = "oven_tray"
+                cfg["placement"]["size"] = (1.0, 0.45)
+            cfgs.append(cfg)
+
+        # distractors
+        num_distr = self.rng.integers(1, 4)
+        for i in range(num_distr):
+            cfgs.append(
+                dict(
+                    name=f"distr_counter_{i+1}",
+                    obj_groups="all",
+                    placement=dict(
+                        fixture=self.get_fixture(FixtureType.COUNTER, ref=self.fxtr),
+                        sample_region_kwargs=dict(
+                            ref=self.fxtr,
+                        ),
+                        size=(1.0, 0.50),
+                        pos=(None, -1.0),
+                        offset=(0.0, 0.10),
+                    ),
+                )
+            )
+
+        return cfgs
+
 
 class ManipulateLowerDoor(ManipulateDoor):
     X_OFS = 0.2
@@ -246,12 +290,7 @@ class OpenToasterOvenDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
             behavior for the task
     """
     task_name: str = "OpenToasterOvenDoor"
-    EXCLUDE_LAYOUTS = RobocasaKitchenEnvCfg.TOASTEN_OVEN_EXCLUDED_LAYOUTS
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.enable_fixtures = self.enable_fixtures or []
-        self.enable_fixtures = list(self.enable_fixtures) + ["toaster_oven"]
+    enable_fixtures = ["toaster_oven"]
 
     def _setup_kitchen_references(self):
         super()._setup_kitchen_references()
@@ -281,12 +320,7 @@ class CloseToasterOvenDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
             behavior for the task
     """
     task_name: str = "CloseToasterOvenDoor"
-    EXCLUDE_LAYOUTS = RobocasaKitchenEnvCfg.TOASTEN_OVEN_EXCLUDED_LAYOUTS
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.enable_fixtures = self.enable_fixtures or []
-        self.enable_fixtures = list(self.enable_fixtures) + ["toaster_oven"]
+    enable_fixtures = ["toaster_oven"]
 
     def _setup_kitchen_references(self):
         super()._setup_kitchen_references()

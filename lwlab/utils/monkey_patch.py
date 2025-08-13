@@ -14,6 +14,8 @@
 
 import torch
 from copy import deepcopy
+import numpy as np
+import time
 
 
 # monkey patch the configclass to allow validate dict with key is not a string
@@ -60,6 +62,10 @@ def patch_recorder_manager_ep_meta():
                 self._dataset_file_handler.add_env_args(ep_meta)
             if self._failed_episode_dataset_file_handler is not None:
                 self._failed_episode_dataset_file_handler.add_env_args(ep_meta)
+
+            for env_id in env_ids:
+                if env_id in self._episodes and not self._episodes[env_id].is_empty():
+                    self._episodes[env_id].pre_export()
         orig_export_episodes(self, env_ids)
 
     RecorderManager.export_episodes = export_episodes
@@ -140,7 +146,7 @@ def patch_recorder_manager_joint_targets():
             elif isinstance(states, torch.Tensor):
                 if state_index >= len(states):
                     return None
-                output_state = states[state_index, None]
+                output_state = states[state_index, None]  # fix here
             else:
                 raise ValueError(f"Invalid state type: {type(states)}")
             return output_state
@@ -149,6 +155,53 @@ def patch_recorder_manager_joint_targets():
         return output_state
 
     EpisodeData.get_state = get_state
+
+    def add(self, key: str, value: torch.Tensor | dict):
+        """Add a key-value pair to the dataset.
+
+        The key can be nested by using the "/" character.
+        For example: "obs/joint_pos".
+
+        Args:
+            key: The key name.
+            value: The corresponding value of tensor type or of dict type.
+        """
+        # check datatype
+        if isinstance(value, dict):
+            for sub_key, sub_value in value.items():
+                self.add(f"{key}/{sub_key}", sub_value)
+            return
+
+        sub_keys = key.split("/")
+        current_dataset_pointer = self._data
+        for sub_key_index in range(len(sub_keys)):
+            if sub_key_index == len(sub_keys) - 1:
+                # Add value to the final dict layer
+                if sub_keys[sub_key_index] not in current_dataset_pointer:
+                    current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone()]
+                else:
+                    current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone())
+
+                break
+            # key index
+            if sub_keys[sub_key_index] not in current_dataset_pointer:
+                current_dataset_pointer[sub_keys[sub_key_index]] = dict()
+            current_dataset_pointer = current_dataset_pointer[sub_keys[sub_key_index]]
+    EpisodeData.add = add
+
+    def pre_export(self):
+        def pre_export_helper(data):
+            for key, value in data.items():
+                if isinstance(value, list):
+                    data[key] = torch.stack(value)
+                elif isinstance(value, dict):
+                    pre_export_helper(value)
+        start_time = time.time()
+        pre_export_helper(self._data)
+        end_time = time.time()
+        print(f"pre_export time: {end_time - start_time:.2f}s")
+    EpisodeData.pre_export = pre_export
+
 
 def patch_step():
     from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
