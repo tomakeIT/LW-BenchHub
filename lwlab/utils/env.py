@@ -24,6 +24,7 @@ from isaaclab.utils.configclass import configclass
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 from lwlab.utils.usd_utils import OpenUsd as usd_utils
+from lwlab.utils.log_utils import get_default_logger
 
 
 class ExecuteMode(enum.Enum):
@@ -130,7 +131,7 @@ def load_robocasa_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_poin
             # obtain the configuration file path
             config_file = os.path.join(mod_path, file_name)
         # load the configuration
-        print(f"[INFO]: Parsing configuration from: {config_file}")
+        get_default_logger().info(f"[INFO]: Parsing configuration from: {config_file}")
         with open(config_file, encoding="utf-8") as f:
             cfg = yaml.full_load(f)
     else:
@@ -283,23 +284,30 @@ def set_camera_follow_pose(env, offset, lookat):
     env.sim.set_camera_view(robot_pos, robot_lookat)
 
 
-def set_robot_to_position(env, global_pos, undo_pos=[0.0, 0.0, 0.0], env_ids=None):
-    import robosuite.utils.transform_utils as T
-    # local_pos = np.matmul(
-    #     T.matrix_inverse(T.euler2mat(env.cfg.init_robot_base_ori_anchor)), global_pos
-    # )
-    # undo_pos = np.matmul(
-    #     T.matrix_inverse(T.euler2mat(env.cfg.init_robot_base_ori_anchor)),
-    #     undo_pos,
-    # )
+def set_robot_to_position(env, global_pos, global_ori=None, keep_z=True, env_ids=None):
+    """
+    Set robot root pose directly using position (x, y, z) and quaternion (w, x, y, z) in world coordinates.
+
+    Args:
+        env: The environment object.
+        global_pos: Sequence of 3 floats [x, y, z] in world frame.
+        global_ori: Sequence of 3 floats [roll, pitch, yaw] in world frame, if not provided, use the anchor orientation.
+        keep_z: Whether to keep the z-coordinate of the robot's current position.
+        env_ids: Tensor of environment indices, or None for all.
+    """
+    import lwlab.utils.math_utils.transform_utils as T
     if env_ids is None:
         # default to all environments
         env_ids = torch.arange(env.scene.num_envs, device=env.device, dtype=torch.int64)
-    robot_curr_z = env.scene.articulations["robot"].data.root_pos_w[0, 2]
-    robot_curr_pos = torch.tensor([[undo_pos[0] + global_pos[0], undo_pos[1] + global_pos[1], robot_curr_z]], dtype=torch.float32, device=env.device) + env.scene.env_origins[env_ids]
-    robot_ori = T.convert_quat(T.mat2quat(T.euler2mat(env.cfg.init_robot_base_ori_anchor)), "wxyz")
-    robot_ori = torch.tensor(robot_ori, dtype=torch.float32, device=env.device).unsqueeze(0).repeat(env_ids.shape[0], 1)
-    robot_pose = torch.concat([robot_curr_pos, robot_ori], dim=-1)
+    if keep_z:
+        robot_z = env.scene.articulations["robot"].data.root_pos_w[0, 2]
+    else:
+        robot_z = global_pos[2]
+    robot_pos = torch.tensor([[global_pos[0], global_pos[1], robot_z]], dtype=torch.float32, device=env.device) + env.scene.env_origins[env_ids]
+    robot_ori = global_ori if global_ori is not None else env.cfg.init_robot_base_ori_anchor
+    robot_quat = T.convert_quat(T.mat2quat(T.euler2mat(robot_ori)), "wxyz")
+    robot_quat = torch.tensor(robot_quat, dtype=torch.float32, device=env.device).unsqueeze(0).repeat(env_ids.shape[0], 1)
+    robot_pose = torch.concat([robot_pos, robot_quat], dim=-1)
     env.scene.articulations["robot"].write_root_pose_to_sim(robot_pose, env_ids=env_ids)
     env.sim.forward()
 
@@ -667,11 +675,11 @@ def check_valid_robot_pose(env, robot_pos, env_ids=None):
 
         # Check if the robot bounding box overlaps with the current object bounding box
         if check_overlap(robot_bbox, obs_bbox):
-            print(f"Collision detected between robot and object: {obs_prim.GetPath()}")
-            print(f"Robot BBox: {robot_bbox.GetMin()} - {robot_bbox.GetMax()}")
-            print(f"Robot Size: {robot_bbox.GetSize()}")
-            print(f"Object BBox: {obs_bbox.GetMin()} - {obs_bbox.GetMax()}")
-            print(f"Object Prim Size: {obs_bbox.GetSize()}")
+            get_default_logger().info(f"Collision detected between robot and object: {obs_prim.GetPath()}")
+            get_default_logger().info(f"Robot BBox: {robot_bbox.GetMin()} - {robot_bbox.GetMax()}")
+            get_default_logger().info(f"Robot Size: {robot_bbox.GetSize()}")
+            get_default_logger().info(f"Object BBox: {obs_bbox.GetMin()} - {obs_bbox.GetMax()}")
+            get_default_logger().info(f"Object Prim Size: {obs_bbox.GetSize()}")
             return False
 
     return True
@@ -686,7 +694,7 @@ def detect_robot_collision(env, env_ids=None):
         return False
 
 
-def set_robot_base(
+def sample_robot_base(
     env,
     anchor_pos,
     anchor_ori,
@@ -696,7 +704,6 @@ def set_robot_base(
     env_ids=None,
     execute_mode=ExecuteMode.TELEOP,
 ):
-    import robosuite.utils.transform_utils as T
     # random_rot = env.rng.uniform(-rot_dev, rot_dev)
     # random_quat = T.convert_quat(T.mat2quat(T.euler2mat(np.array([0, 0, random_rot]))), "wxyz")
     # init_pose_copy = env.scene.articulations["robot"].data.root_state_w[:, :7]

@@ -19,7 +19,7 @@ import requests
 from pathlib import Path
 from .exception import ApiException
 from termcolor import colored
-
+import os
 CACHE_PATH = Path("~/.cache/lwlab/login/").expanduser()
 CACHE_PATH.mkdir(parents=True, exist_ok=True)
 
@@ -63,6 +63,9 @@ class Login:
             return account_data["headers"]
 
     def get_headers(self):
+        if "LoaderUserName" in os.environ and "LoaderToken" in os.environ:
+            return {"Authorization": f"Bearer {os.environ['LoaderToken']}", 
+                    "UserName": os.environ['LoaderUserName']}
         if self.cache_path.exists() and self.cache_path.is_file():
             with open(self.cache_path, "r") as f:
                 account_data = json.load(f)

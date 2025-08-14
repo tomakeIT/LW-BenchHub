@@ -222,3 +222,268 @@ def handle_exception_and_log(e, final_filename):
 
     # 7. Close simulation_app
     print("Closing simulation application due to an error...")
+
+
+import logging
+import logging.handlers
+import queue
+
+
+LOG_ROOT_DIR = "lwlab_logs"
+CURRENT_DATE_DIR = None
+_log_listener = None
+_log_queue = None
+_backend_handlers = {}
+_is_initialized = False
+
+# Default logger configurations
+DEFAULT_LOG_CONFIG = {
+    'log': {'level': logging.DEBUG},
+    'vr': {'level': logging.DEBUG},
+    'error': {'level': logging.DEBUG}
+}
+
+
+class _LogDispatcher:
+    """
+    An internal class for QueueListener to receive log records and dispatch them to the correct Handler.
+    """
+
+    def __init__(self, handler_map):
+        self.handler_map = handler_map  # Stores mapping from Logger name to Handler
+
+    def handle(self, record):
+        """
+        Receives log records from the queue and passes them to the correct backend Handler.
+        """
+        # Try to find the Handler by Logger name
+        # If not found, try to find Handler for parent Logger
+        current_name = record.name
+        handler_found = False
+        while current_name:
+            if current_name in self.handler_map:
+                handler = self.handler_map[current_name]
+                if record.levelno >= handler.level:  # Ensure record level meets Handler's minimum level
+                    handler.handle(record)  # Pass record to dedicated Handler
+                handler_found = True
+                break
+            # Search for parent Logger name
+            if '.' in current_name:
+                current_name = current_name.rsplit('.', 1)[0]
+            else:
+                current_name = ''  # Reached root Logger
+
+        # If root Logger has a Handler (name is ''), ensure it also handles
+        if not handler_found and '' in self.handler_map:
+            root_handler = self.handler_map['']
+            if record.levelno >= root_handler.level:
+                root_handler.handle(record)
+
+
+def _ensure_initialized():
+    """Ensure the logging system is initialized."""
+    global _is_initialized
+    if not _is_initialized:
+        setup_async_module_logging()
+
+
+def _create_logger_config(logger_name, level=None, custom_config=None):
+    """Create configuration for a specific logger."""
+    global CURRENT_DATE_DIR
+
+    if CURRENT_DATE_DIR is None:
+        CURRENT_DATE_DIR = os.path.join(LOG_ROOT_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        os.makedirs(CURRENT_DATE_DIR, exist_ok=True)
+
+    # Use custom config if provided, otherwise use default
+    if custom_config and 'level' in custom_config:
+        log_level = custom_config['level']
+    elif level is not None:
+        log_level = level
+    else:
+        log_level = DEFAULT_LOG_CONFIG.get(logger_name, {}).get('level', logging.INFO)
+
+    # Generate filename
+    if logger_name == '':
+        filename = "root_general.log"
+    else:
+        filename = f"{logger_name}.log"
+
+    return {
+        'file': os.path.join(CURRENT_DATE_DIR, filename),
+        'level': log_level
+    }
+
+
+def setup_async_module_logging(custom_config=None):
+    """
+    Setup the async module logging system.
+
+    Args:
+        custom_config (dict, optional): Custom logger configurations.
+            Format: {'logger_name': {'level': logging.LEVEL}}
+    """
+    global _log_listener, _log_queue, _backend_handlers, _is_initialized, CURRENT_DATE_DIR
+
+    if _is_initialized:
+        print("Logging system already initialized.")
+        return _log_listener
+
+    # Initialize date directory
+    if CURRENT_DATE_DIR is None:
+        CURRENT_DATE_DIR = os.path.join(LOG_ROOT_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        os.makedirs(CURRENT_DATE_DIR, exist_ok=True)
+
+    # --- A. Create central queue ---
+    _log_queue = queue.Queue(-1)
+
+    # --- B. Define backend file Handlers and map to Logger names ---
+    formatter = logging.Formatter(
+        '%(asctime)s.%(msecs)03d - %(levelname)s - %(name)s - %(filename)s:%(lineno)d - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S'
+    )
+
+    # Merge default and custom configs
+    merged_config = DEFAULT_LOG_CONFIG.copy()
+    if custom_config:
+        merged_config.update(custom_config)
+
+    # Create handlers for all configured loggers
+    _backend_handlers = {}
+    for logger_name, config in merged_config.items():
+        logger_config = _create_logger_config(logger_name, custom_config=config)
+        file_handler = logging.FileHandler(logger_config['file'], mode='a', encoding='utf-8')
+        file_handler.setLevel(logger_config['level'])
+        file_handler.setFormatter(formatter)
+        _backend_handlers[logger_name] = file_handler
+
+    # Console Handler (not part of async queue, directly added to Logger)
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)
+    console_handler.setFormatter(formatter)
+
+    # --- C. Create and start QueueListener ---
+    dispatcher = _LogDispatcher(_backend_handlers)
+    _log_listener = logging.handlers.QueueListener(_log_queue, dispatcher)
+    _log_listener.start()
+
+    # --- D. Configure frontend Loggers ---
+    queue_handler_for_all_loggers = logging.handlers.QueueHandler(_log_queue)
+    queue_handler_for_all_loggers.setLevel(logging.DEBUG)
+
+    # Configure root Logger
+    root_logger = logging.getLogger()
+    root_logger.setLevel(logging.DEBUG)
+    root_logger.addHandler(console_handler)
+    root_logger.addHandler(queue_handler_for_all_loggers)
+
+    # Configure named Loggers
+    for logger_name, config in merged_config.items():
+        if logger_name == '':  # Root Logger already handled
+            continue
+        named_logger = logging.getLogger(logger_name)
+        named_logger.setLevel(config.get('level', logging.INFO))
+        named_logger.propagate = False
+        named_logger.addHandler(queue_handler_for_all_loggers)
+
+    _is_initialized = True
+    print(f"Async module logs will be saved to: {CURRENT_DATE_DIR}/")
+    return _log_listener
+
+
+def get_logger(name=None, level=None):
+    """
+    Get a logger for the specified module.
+
+    Args:
+        name (str, optional): Logger name. If None, returns root logger.
+        level (int, optional): Logging level. If None, uses default level.
+
+    Returns:
+        logging.Logger: Configured logger instance.
+    """
+    _ensure_initialized()
+
+    if name is None:
+        return logging.getLogger()
+
+    # Check if logger already exists and has handlers
+    logger = logging.getLogger(name)
+
+    # If logger doesn't have handlers, it means it wasn't configured yet
+    # Add it to the configuration and create handler
+    if not logger.handlers:
+        global _backend_handlers, _log_queue
+
+        # Create configuration for this logger
+        logger_config = _create_logger_config(name, level)
+
+        # Create file handler
+        formatter = logging.Formatter(
+            '%(asctime)s.%(msecs)03d - %(levelname)s - %(name)s - %(filename)s:%(lineno)d - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        file_handler = logging.FileHandler(logger_config['file'], mode='a', encoding='utf-8')
+        file_handler.setLevel(logger_config['level'])
+        file_handler.setFormatter(formatter)
+
+        # Add to backend handlers
+        _backend_handlers[name] = file_handler
+
+        # Configure logger
+        logger.setLevel(logger_config['level'])
+        logger.propagate = False
+
+        # Add queue handler
+        queue_handler = logging.handlers.QueueHandler(_log_queue)
+        queue_handler.setLevel(logging.DEBUG)
+        logger.addHandler(queue_handler)
+
+    return logger
+
+
+def add_logger(name, level=logging.INFO):
+    """
+    Add a new logger configuration.
+
+    Args:
+        name (str): Logger name
+        level (int): Logging level
+    """
+    global DEFAULT_LOG_CONFIG
+    DEFAULT_LOG_CONFIG[name] = {'level': level}
+
+
+def stop_logging():
+    """Stop the logging system and cleanup."""
+    global _log_listener, _is_initialized
+    if _log_listener and _is_initialized:
+        _log_listener.stop()
+        _is_initialized = False
+        print("Logging system stopped.")
+
+
+def get_default_logger():
+    """Get logger for robot control module."""
+    return get_logger('log')
+
+
+def get_general_logger():
+    """Get logger for general application logging."""
+    return get_logger('general')
+
+
+def get_vr_logger():
+    """Get logger for VR module."""
+    return get_logger('vr')
+
+
+def get_error_logger():
+    """Get logger for error module."""
+    return get_logger('error')
+
+
+def setup_async_module_logging_fixed():
+    """Legacy function for backward compatibility."""
+    return setup_async_module_logging()

@@ -404,7 +404,7 @@ def mat2quat(rmat):
     inds = torch.tensor([3, 0, 1, 2])
     q1 = V[inds, torch.argmax(w)]
     if q1[0] < 0.0:
-        torch.negative(q1, q1)
+        q1 = -q1
     inds = torch.tensor([1, 2, 3, 0])
     return q1[inds]
 

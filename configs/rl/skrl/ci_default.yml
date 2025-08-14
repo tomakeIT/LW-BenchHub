@@ -1,6 +1,6 @@
 _base_: [rl_base]
 # Environment Configuration
-task: OpenDrawerRl           # Task name
+task: OpenDrawer           # Task name
 layout: robocasakitchen-2-2  # Scene layout
 robot: G1-RL                 # Robot type
 

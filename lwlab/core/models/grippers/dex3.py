@@ -17,10 +17,9 @@ import lwlab.core.mdp as mdp
 from .base_gripper import BaseGripperCfg
 
 
-class Dex3GripperCfg:
+class Dex3GripperCfg(BaseGripperCfg):
     def __init__(self, left_retageting_file_name: str, right_retageting_file_name: str):
-        self.left_retageting_file_name = left_retageting_file_name
-        self.right_retageting_file_name = right_retageting_file_name
+        super().__init__(left_retageting_file_name, right_retageting_file_name)
         self.left_contact_body_name = "left_hand_thumb_2_link"
         self.right_contact_body_name = "right_hand_thumb_2_link"
 

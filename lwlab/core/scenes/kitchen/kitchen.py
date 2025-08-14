@@ -38,6 +38,8 @@ from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.utils.env import ExecuteMode
 from ..loader import floorplan_loader, object_loader, ENV_MODE
 
+from lwlab.utils.log_utils import get_error_logger
+
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
     """Configuration for the robocasa kitchen environment."""
@@ -468,6 +470,10 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         ep_meta["LWLAB_ENV_MODE"] = ENV_MODE
         # ep_meta["init_robot_base_pos"] = list(self.init_robot_base_pos)
         # ep_meta["init_robot_base_ori"] = list(self.init_robot_base_ori)
+        # export actual init pose if available in this episode, otherwise omit
+        if hasattr(self, "init_robot_base_pos") and hasattr(self, "init_robot_base_ori") and self.init_robot_base_pos is not None and self.init_robot_base_ori is not None:
+            ep_meta["init_robot_base_pos"] = list(self.init_robot_base_pos)
+            ep_meta["init_robot_base_ori"] = list(self.init_robot_base_ori)
         return ep_meta
 
     def sample_object(
@@ -661,7 +667,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                 try:
                     fixtr.update_state(self.env)
                 except Exception as e:
-                    print(f"Error updating state of {fixtr.folder.split('/')[-1]}: {str(e)}")
+                    get_error_logger().error(f"Error updating state of {fixtr.folder.split('/')[-1]}: {str(e)}")
 
     def _check_success(self):
         return torch.tensor([[False]], device=self.env.device).repeat(self.env.num_envs, 1)
@@ -776,11 +782,16 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
         def place_robot(self):
             # set the robot here
-            from lwlab.utils.env import set_robot_to_position, set_robot_base, get_safe_robot_anchor
+            from lwlab.utils.env import set_robot_to_position, sample_robot_base, get_safe_robot_anchor
             if "init_robot_base_pos" in self._ep_meta:
                 self.init_robot_base_pos = self._ep_meta["init_robot_base_pos"]
-                self.init_robot_base_ori = self._ep_meta["init_robot_base_ori"]
-                set_robot_to_position(self.env, self.init_robot_base_pos)
+                # if user provides orientation, use it; otherwise fallback to anchor orientation
+                if "init_robot_base_ori" in self._ep_meta and self._ep_meta["init_robot_base_ori"] is not None:
+                    self.init_robot_base_ori = self._ep_meta["init_robot_base_ori"]
+                else:
+                    self.init_robot_base_ori = self.init_robot_base_ori_anchor
+                # directly set pose using provided xyz (world) and wxyz (world)
+                set_robot_to_position(self.env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)
             else:
                 # Intercept the unsafe anchor and make it safe
                 safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
@@ -789,7 +800,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     unsafe_anchor_ori=self.init_robot_base_ori_anchor
                 )
 
-                robot_pos = set_robot_base(
+                robot_pos = sample_robot_base(
                     env=self.env,
                     anchor_pos=safe_anchor_pos,
                     anchor_ori=safe_anchor_ori,

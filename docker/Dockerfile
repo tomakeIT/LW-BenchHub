@@ -20,8 +20,9 @@ RUN pip install -e .
 WORKDIR /workspace/lwlab
 RUN pip install -e .
 
-RUN python3 -m pip install numpy==1.26.4
+RUN python3 -m pip install dex_retargeting==0.5.0
 RUN python3 -m pip install onnxruntime
+RUN python3 -m pip install numpy==1.26.4
 
 # 5. Final Setup
 WORKDIR /workspace/lwlab

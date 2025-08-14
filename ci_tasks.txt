@@ -1,4 +1,4 @@
-bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/CloseDrawer-2/CloseDrawer/CloseDrawer.hdf5 action
-bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/CloseDrawer-2/CloseDrawer/CloseDrawer.hdf5 joint_target
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/ci_task/OpenOven/OpenOven.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/ci_task/CloseOven/CloseOven.hdf5 action
 bash -i /workspace/lwlab/ci_run/train_ci.sh
 

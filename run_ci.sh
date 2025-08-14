@@ -45,7 +45,7 @@ fi
 # Reset to the specified commit (hard reset to ensure clean state)
 echo "Resetting to commit $COMMIT_ID..."
 git reset --hard "$COMMIT_ID"
-
+git submodule update
 # Clean any untracked files (optional, but good for CI)
 echo "Cleaning untracked files..."
 git clean -fd

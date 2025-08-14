@@ -28,9 +28,11 @@ import json
 from datetime import datetime
 from lwlab.utils.log_utils import log_scene_rigid_objects, handle_exception_and_log
 
+from lwlab.utils.log_utils import get_default_logger
+
 from isaaclab.app import AppLauncher
 
-from lwlab.utils.func import trace_profile
+from lwlab.utils.profile_utils import trace_profile, DEBUG_FRAME_ANALYZER, debug_print
 from lwlab.utils.config_loader import config_loader
 
 # add argparse arguments
@@ -55,6 +57,9 @@ if args_cli.enable_pinocchio:
     import pinocchio
 
 
+app_launcher_args["profiler_backend"] = ["tracy"]
+
+
 class RateLimiter:
     """Convenience class for enforcing rates in loops."""
 
@@ -70,17 +75,96 @@ class RateLimiter:
 
     def sleep(self, env):
         """Attempt to sleep at the specified rate in hz."""
+        current_time = time.time()
         next_wakeup_time = self.last_time + self.sleep_duration
-        while time.time() < next_wakeup_time:
-            time.sleep(self.render_period)
-            env.sim.render()
 
-        self.last_time = self.last_time + self.sleep_duration
-
-        # detect time jumping forwards (e.g. loop is too slow)
-        if self.last_time < time.time():
-            while self.last_time < time.time():
+        # if loop is too slow, jump to the next wakeup time
+        if current_time >= next_wakeup_time:
+            while self.last_time < current_time:
                 self.last_time += self.sleep_duration
+            return
+
+        # calculate the sleep time
+        sleep_time = next_wakeup_time - current_time
+
+        # if sleep time is too short (less than 5ms), return
+        if sleep_time < 0.005:
+            self.last_time = next_wakeup_time
+            return
+
+        # for longer sleep time, use shorter sleep interval to keep responsiveness
+        while time.time() < next_wakeup_time:
+            remaining = next_wakeup_time - time.time()
+            if remaining <= 0.001:  # if remaining time is less than 1ms, break
+                break
+            # use shorter sleep interval to avoid long blocking
+            time.sleep(min(0.001, remaining * 0.5))
+
+        self.last_time = next_wakeup_time
+
+
+def optimize_rendering(env):
+    import carb
+    settings = carb.settings.get_settings()
+    # enable async rendering
+    settings.set_bool("/app/asyncRendering", True)
+    settings.set_bool("/app/asyncRenderingLowLatency", True)
+    settings.set_bool("/app/asyncRendering", False)
+    settings.set_bool("/app/asyncRenderingLowLatency", False)
+    settings.set_bool("/app/asyncRendering", True)
+    settings.set_bool("/app/asyncRenderingLowLatency", True)
+
+    # use the USD / Fabric only for poses
+    if args_cli.use_fabric:
+        settings.set_bool("/physics/updateToUsd", False)
+        settings.set_bool("/physics/updateParticlesToUsd", True)
+        settings.set_bool("/physics/updateVelocitiesToUsd", False)
+        settings.set_bool("/physics/updateForceSensorsToUsd", False)
+        settings.set_bool("/physics/updateResidualsToUsd", False)
+        settings.set_bool("/physics/outputVelocitiesLocalSpace", False)
+        settings.set_bool("/physics/fabricUpdateTransformations", True)
+        settings.set_bool("/physics/fabricUpdateVelocities", False)
+        settings.set_bool("/physics/fabricUpdateForceSensors", False)
+        settings.set_bool("/physics/fabricUpdateJointStates", False)
+        settings.set_bool("/physics/fabricUpdateResiduals", False)
+        settings.set_bool("/physics/fabricUseGPUInterop", True)
+
+    # enable DLSS and performance optimization
+    settings.set_bool("/rtx-transient/dlssg/enabled", True)
+    settings.set_int("/rtx/post/dlss/execMode", 0)  # "Performance"
+    settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", False)
+
+    settings.set_bool("/app/renderer/skipMaterialLoading", True)
+    settings.set_bool("/app/renderer/skipTextureLoading", True)
+
+    # Setup timeline
+    import omni.timeline as timeline
+    timeline = timeline.get_timeline_interface()
+    # Configure Kit to not wait for wall clock time to catch up between updates
+    # This setting is effective only with Fixed time stepping
+    timeline.set_play_every_frame(True)
+
+    # enable fast mode and ensure fixed time stepping
+    settings.set_bool("/app/player/useFastMode", True)
+    settings.set_bool("/app/player/useFixedTimeStepping", True)
+
+    # configure all run loops, disable rate limiting
+    for run_loop in ["present", "main", "rendering_0"]:
+        settings.set_bool(f"/app/runLoops/{run_loop}/rateLimitEnabled", False)
+        settings.set_int(f"/app/runLoops/{run_loop}/rateLimitFrequency", 120)
+        settings.set_bool(f"/app/runLoops/{run_loop}/rateLimitUseBusyLoop", False)
+
+    # disable vertical sync to improve frame rate
+    settings.set_bool("/app/vsync", False)
+    settings.set_bool("/exts/omni.kit.renderer.core/present/enabled", False)
+
+    # enable gpu dynamics
+    if args_cli.device != "cpu":
+        physics_context = env.sim.get_physics_context()
+        physics_context.enable_gpu_dynamics(True)
+        physics_context.set_broadphase_type("GPU")
+
+    # settings.set_int("/persistent/physics/numThreads", 0)
 
 
 def main():
@@ -104,6 +188,8 @@ def main():
     from isaaclab.envs.ui import ViewportCameraController
     from lwlab.utils.video_recorder import VideoRecorder, get_camera_images
 
+    import carb
+
     # get directory path and file name (without extension) from cli arguments
     output_dir = os.path.dirname(args_cli.dataset_file)
     output_file_name = os.path.splitext(os.path.basename(args_cli.dataset_file))[0]
@@ -119,12 +205,32 @@ def main():
     else:  # isaac-robocasa
         from lwlab.utils.env import parse_env_cfg, ExecuteMode
         with trace_profile("parse_env_cfg"):
+            # Build replay_cfgs from YAML if initial pose is provided
+            ep_meta = {}
+            if hasattr(args_cli, "init_robot_base_pos") and args_cli.init_robot_base_pos is not None:
+                try:
+                    pos = [float(v) for v in args_cli.init_robot_base_pos]
+                    if len(pos) == 3:
+                        ep_meta["init_robot_base_pos"] = pos
+                except Exception:
+                    pass
+            if hasattr(args_cli, "init_robot_base_ori") and args_cli.init_robot_base_ori is not None:
+                try:
+                    ori = [float(v) for v in args_cli.init_robot_base_ori]
+                    if len(ori) == 3:
+                        ep_meta["init_robot_base_ori"] = ori
+                except Exception:
+                    pass
+            replay_cfgs = None
+            if len(ep_meta) > 0:
+                replay_cfgs = {"ep_meta": ep_meta}
             env_cfg = parse_env_cfg(
                 task_name=args_cli.task,
                 robot_name=args_cli.robot,
                 scene_name=args_cli.layout,
                 robot_scale=args_cli.robot_scale,
                 device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
+                replay_cfgs=replay_cfgs,
                 first_person_view=args_cli.first_person_view,
                 enable_cameras=app_launcher._enable_cameras,
                 execute_mode=ExecuteMode.TELEOP,
@@ -147,6 +253,11 @@ def main():
     # create environment
     with trace_profile("gymmake"):
         env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
+
+    if args_cli.enable_optimization:
+        optimize_rendering(env)
+
+    get_default_logger().info(f"env_cfg: {env_cfg}")
 
     # create controller
     if args_cli.teleop_device.lower() == "keyboard":
@@ -235,7 +346,7 @@ def main():
 
         current_recorded_demo_count = 0
         success_step_count = 0
-
+        frame_count = 0
         start_record_state = False
         # Initialize video recorder
         video_recorder = None
@@ -245,12 +356,22 @@ def main():
         if args_cli.enable_log:
             log_path = log_scene_rigid_objects(env)
 
+        # add frame rate analyzer (only in debug mode)
+        frame_analyzer = DEBUG_FRAME_ANALYZER
+        debug_print("Frame rate analyzer initialized in debug mode")
+
         # simulate environment
         while simulation_app.is_running():
 
+            # start frame analysis (debug mode only)
+            frame_analyzer.start_frame()
+
             # run everything in inference mode
             # with torch.inference_mode():
+            teleop_start = time.time()
             actions = teleop_interface.advance()
+            teleop_time = time.time() - teleop_start
+            frame_analyzer.record_stage('teleop_advance', teleop_time)
             if actions is None or should_reset_recording_instance:
                 if args_cli.enable_log:
                     try:
@@ -261,6 +382,7 @@ def main():
                 else:
                     env.reset()
                 should_reset_recording_instance = False
+                frame_count = 0
                 if start_record_state == True:
                     print("Stop Recording!!!")
                     start_record_state = False
@@ -274,6 +396,7 @@ def main():
                 if start_record_state == False:
                     print("Start Recording!!!")
                     start_record_state = True
+
                     # Initialize video recording
                     if video_recorder is not None:
                         camera_data, camera_name = get_camera_images(env)
@@ -294,10 +417,18 @@ def main():
                         handle_exception_and_log(e, log_path)
                         break
                 else:
-                    env.step(actions)
+                    frame_count += 1  # increase frame counter
+                    # measure env_step time
+                    step_start = time.time()
+                    with trace_profile(f"env_step_frame_{frame_count:06d}"):
+                        carb.profiler.begin(1, "evn_step")
+                        obs, *_ = env.step(actions)
+                        carb.profiler.end(1)
+                    step_time = time.time() - step_start
+                    frame_analyzer.record_stage('env_step', step_time)
 
                 # Recorded
-                if start_record_state and video_recorder is not None:
+                if env_cfg.enable_cameras and start_record_state and video_recorder is not None:
                     camera_data, camera_name = get_camera_images(env)
                     if camera_name is not None:
                         video_recorder.add_frame(camera_data)
@@ -311,15 +442,32 @@ def main():
                 if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
                     print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
                     break
-            if rate_limiter:
-                rate_limiter.sleep(env)
+
+            if teleoperation_active:
+                env.sim.render()
+
+            # only use rate_limiter when needed, don't let it limit rendering
+            if rate_limiter and teleoperation_active:
+                rate_start = time.time()
+                with trace_profile("rate_limiter"):
+                    rate_limiter.sleep(env)
+                rate_time = time.time() - rate_start
+                frame_analyzer.record_stage('rate_limiter', rate_time)
+
+            # end frame analysis (debug mode only)
+            frame_analyzer.end_frame()
 
         # ensure to stop recording before exiting
         if video_recorder is not None:
             video_recorder.stop_recording()
 
-    with trace_profile("mainloop"):
-        run_simulation()
+    try:
+        with trace_profile("mainloop"):
+            run_simulation()
+    except Exception as e:
+        print(f"Error during mainloop execution: {e}")
+        import traceback
+        traceback.print_exc()
 
     # close the simulator
     env.close()
