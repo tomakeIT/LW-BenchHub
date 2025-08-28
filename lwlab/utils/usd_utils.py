@@ -15,7 +15,7 @@
 import os
 from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema, Gf
 from lwlab.core.mdp.helpers.transformations import quaternion_from_euler
-import lwlab.utils.math_utils.transform_utils as T
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import math
 
 
@@ -132,18 +132,18 @@ class OpenUsd:
         """Get prim position, rotation and scale in world coordinates"""
         xformable = UsdGeom.Xformable(prim)
         if not xformable:
-            return None, None, None
+            return None, None
         matrix = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         try:
-            pos, rot, scale = UsdSkel.DecomposeTransform(matrix)
+            pos, rot, _ = UsdSkel.DecomposeTransform(matrix)
             # pos = matrix.ExtractTranslation()
             # rot = matrix.ExtractRotationQuat()
             pos_list = list(pos)
             quat_list = [rot.GetReal(), rot.GetImaginary()[0], rot.GetImaginary()[1], rot.GetImaginary()[2]]  # wxyz
-            return pos_list, quat_list, list(scale)
+            return pos_list, quat_list
         except Exception as e:
             print(f"Error decomposing transform for {prim.GetName()}: {e}")
-            return None, None, None
+            return None, None
 
     @staticmethod
     def get_articulation_joints(articulation_prim):
@@ -377,14 +377,12 @@ class OpenUsd:
     @staticmethod
     def get_fixture_placements(root_prim, fixture_cfgs, fixtures):
         valid_fixture_names = []
-        counter_fixture_names = []
         fixture_placements = {}
-        counter_fixture_placements = {}
         for fxr_cfg in fixture_cfgs:
-            if "ProcGenFixture" not in [cls.__name__ for cls in fxr_cfg["model"].__class__.mro()]:
+            if "ProcGenFixture" not in [cls.__name__ for cls in fxr_cfg["model"].__class__.mro()] and \
+               "room" not in fxr_cfg["name"].lower():
                 valid_fixture_names.append(fxr_cfg["name"])
-            elif fxr_cfg['model'].__class__.__name__ == "Counter":
-                counter_fixture_names.append(fxr_cfg["name"])
+
         for name in valid_fixture_names:
             prim = OpenUsd.get_prim_by_name(root_prim, name)
             if len(prim) == 0:
@@ -395,17 +393,7 @@ class OpenUsd:
             fixture_quat = T.mat2quat(T.euler2mat([math.radians(fixture_rot[0]), math.radians(fixture_rot[1]), math.radians(fixture_rot[2])]))
             fixture_placements[name] = (fixture_pos, fixture_quat, fixtures[name])
 
-        for name in counter_fixture_names:
-            prim = OpenUsd.get_prim_by_name(root_prim, name)
-            if len(prim) == 0:
-                raise ValueError(f"Fixture {name} not found in the scene")
-            prim = prim[0]
-            fixture_pos = tuple(prim.GetAttribute("xformOp:translate").Get())
-            fixture_rot = prim.GetAttribute("xformOp:rotateXYZ").Get()
-            fixture_quat = T.mat2quat(T.euler2mat([math.radians(fixture_rot[0]), math.radians(fixture_rot[1]), math.radians(fixture_rot[2])]))
-            counter_fixture_placements[name] = (fixture_pos, fixture_quat, fixtures[name])
-
-        return fixture_placements, counter_fixture_placements
+        return fixture_placements
 
 
 class OpenUsdWrapper:

@@ -1,6 +1,6 @@
 import numpy as np
 import torch
-import lwlab.utils.math_utils.transform_utils as T
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import os
 
 
@@ -272,7 +272,7 @@ def objs_intersect(
     other_obj_quat,
 ):
     """
-    check if two objects intersect
+    check if two objects intersect using Separating Axis Theorem (SAT)
     """
     from lwlab.core.models.fixtures import Fixture
 

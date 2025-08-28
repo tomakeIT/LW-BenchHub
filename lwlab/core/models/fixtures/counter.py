@@ -16,6 +16,7 @@ from .fixture import ProcGenFixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 import numpy as np
 import json
+from .fixture_types import FixtureType
 SIDES = ["left", "right", "front", "back"]
 
 from lwlab.utils.object_utils import (
@@ -27,6 +28,25 @@ from lwlab.utils.object_utils import (
 
 
 class Counter(ProcGenFixture):
+    fixture_types = [FixtureType.COUNTER, FixtureType.COUNTER_NON_CORNER, FixtureType.DINING_COUNTER, FixtureType.ISLAND]
+
+    def _is_fixture_type(self, fixture_type: FixtureType) -> bool:
+        """
+        check if the fixture is of the given type
+        this function is called by fixture_is_type in fixture_utils.py
+        """
+        if fixture_type == FixtureType.ISLAND:
+            return "island" in self.name
+        elif fixture_type in [FixtureType.COUNTER, FixtureType.COUNTER_NON_CORNER]:
+            return "corner" not in self.name
+        valid_dining_prefix = self.name.startswith("dining") or self.name.startswith("island")
+        is_dining = valid_dining_prefix or sum(self.base_opening) > 0
+        if fixture_type == FixtureType.DINING_COUNTER:
+            return is_dining
+        elif fixture_type == FixtureType.COUNTER_NON_DINING:
+            return not is_dining
+        return False
+
     def __init__(self, name="counter", prim=None, *args, **kwargs,):
 
         size = tuple(float(x) for x in prim.GetAttribute("size").Get().split(","))

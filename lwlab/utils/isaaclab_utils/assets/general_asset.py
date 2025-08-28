@@ -33,9 +33,9 @@ class GeneralAsset(AssetBase):
 
     def _make_articulation_cfg(self, prim):
         from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-        pos, quat, scale = usd.get_prim_pos_rot_in_world(prim)
+        pos, quat = usd.get_prim_pos_rot_in_world(prim)
         if pos is None or quat is None:
-            print(f"fuck {prim.GetName()} none pos or quat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
+            print(f"GeneralAsset: {prim.GetName()} none pos or quat")
             return None
         joints = usd.get_all_joints_without_fixed(prim)
         if not joints:
@@ -56,9 +56,9 @@ class GeneralAsset(AssetBase):
 
     def _make_rigidbody_cfg(self, prim):
         from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-        pos, quat, scale = usd.get_prim_pos_rot_in_world(prim)
+        pos, quat = usd.get_prim_pos_rot_in_world(prim)
         if pos is None or quat is None:
-            print(f"fuck {prim.GetName()} none pos or quat !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
+            print(f"GeneralAsset: {prim.GetName()} none pos or quat")
             return None
         orin_prim_path = prim.GetPath().pathString
         name = orin_prim_path.split("/")[-1]

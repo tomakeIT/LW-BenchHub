@@ -14,7 +14,7 @@
 
 import torch
 from functools import cached_property
-
+from .fixture_types import FixtureType
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
@@ -25,11 +25,13 @@ import re
 
 
 class Oven(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
-        self._door = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._timer = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._temperature = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
+    fixture_types = [FixtureType.OVEN]
+
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
+        self._door = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._timer = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._temperature = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
         self._rack = {}
 
         self._joint_names = {
@@ -147,6 +149,10 @@ class Oven(Fixture):
         state["timer"] = self._timer
         state["temperature"] = self._temperature
         return state
+
+    def has_multiple_rack_levels(self):
+        # TODO: need to be completed
+        return False
 
     @cached_property
     def rack_infos(self):

@@ -60,24 +60,74 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
 
         return cfgs
 
+    def quat_to_rotation_matrix(quat):
+        w, x, y, z = quat[..., 0], quat[..., 1], quat[..., 2], quat[..., 3]
+
+        xx, yy, zz = x * x, y * y, z * z
+        xy, xz, yz = x * y, x * z, y * z
+        wx, wy, wz = w * x, w * y, w * z
+
+        rot_matrix = torch.stack([
+            torch.stack([1 - 2 * (yy + zz), 2 * (xy - wz), 2 * (xz + wy)], dim=-1),
+            torch.stack([2 * (xy + wz), 1 - 2 * (xx + zz), 2 * (yz - wx)], dim=-1),
+            torch.stack([2 * (xz - wy), 2 * (yz + wx), 1 - 2 * (xx + yy)], dim=-1)
+        ], dim=-2)
+
+        return rot_matrix
+
+    def normalize_vector(x: torch.Tensor, eps=1e-6):
+        """normalizes a given torch tensor x and if the norm is less than eps, set the norm to 0"""
+        norm = torch.linalg.norm(x, axis=1)
+        norm[norm < eps] = 1
+        norm = 1 / norm
+        return torch.multiply(x, norm[:, None])
+
+    def compute_angle_between(self, x1: torch.Tensor, x2: torch.Tensor):
+        """Compute angle (radian) between two torch tensors"""
+        x1, x2 = self.normalize_vector(x1), self.normalize_vector(x2)
+        dot_prod = torch.clip(torch.einsum("ij,ij->i", x1, x2), -1, 1)
+        return torch.arccos(dot_prod)
+
     def _check_success(self):
         """
-        Check if the counter to cabinet pick and place task is successful.
-        Checks if the object is inside the cabinet and the gripper is far from the object.
+        Check if the cube is lifted.
 
         Returns:
             bool: True if the task is successful, False otherwise
         """
+        if self.env.cfg.execute_mode.value == 0:
+            return False
+        gripper_contact_force = self.env.scene.sensors["gripper_object_contact"]._data.force_matrix_w[:, 0, 0, :]
+        jaw_contact_force = self.env.scene.sensors["jaw_object_contact"]._data.force_matrix_w[:, 0, 0, :]
 
+        gripper_object_force = torch.linalg.norm(gripper_contact_force, dim=1)
+        jaw_object_force = torch.linalg.norm(jaw_contact_force, dim=1)
+
+        gripper_pose_w = self.env.scene._articulations['robot'].data.body_pose_w[..., -2, :]
+        jaw_pose_w = self.env.scene._articulations['robot'].data.body_pose_w[..., -1, :]
+        gripper_quat_w = gripper_pose_w[:, 3:7]  # [num_envs, 4]
+        jaw_quat_w = jaw_pose_w[:, 3:7]          # [num_envs, 4]
+
+        gripper_rot_matrix = self.quat_to_rotation_matrix(gripper_quat_w)
+        jaw_rot_matrix = self.quat_to_rotation_matrix(jaw_quat_w)
+
+        ldirection = -gripper_rot_matrix[..., :3, 0]  # [num_envs, 3]
+        rdirection = jaw_rot_matrix[..., :3, 0]     # [num_envs, 3]
+
+        langle = self.compute_angle_between(ldirection, gripper_contact_force)
+        rangle = self.compute_angle_between(rdirection, jaw_contact_force)
+
+        min_force = 0.5
+        max_angle = 110
+        lflag = torch.logical_and(
+            gripper_object_force >= min_force, torch.rad2deg(langle) <= max_angle
+        )
+        rflag = torch.logical_and(
+            jaw_object_force >= min_force, torch.rad2deg(rangle) <= max_angle
+        )
+        is_grasping = torch.logical_and(lflag, rflag)
         object_height = self.env.scene['object'].data.root_pos_w[:, 2]
-        is_height_sufficient = (object_height >= 1.0)
-        object_pos = self.env.scene['object'].data.root_pos_w                        # [N, 3]
-        ee_pos = self.env.scene["ee_frame"].data.target_pos_w[..., 0, :]  # [N, 3]
-        gripper_force = torch.linalg.norm(self.env.scene.sensors["right_gripper_contact"]._data.net_forces_w[:, 0, :], dim=1)
-        object_force = torch.linalg.norm(self.env.scene.sensors["object_contact"]._data.net_forces_w[:, 0, :], dim=1)
-        distance = torch.norm(object_pos - ee_pos, dim=1)
-        is_gripper_force = gripper_force > 0.1
-        is_object_force = object_force > 0.1
-        is_near_gripper = distance < 0.03
-        is_grasping = is_gripper_force & is_object_force & is_near_gripper
-        return is_grasping & is_height_sufficient
+        is_height_sufficient = (object_height >= 0.945)
+
+        success = is_grasping & is_height_sufficient
+        return success

@@ -5,7 +5,7 @@ from scipy.spatial.transform import Rotation as R
 import numpy as np
 from lwlab.utils.place_utils.usd_object import USDObject
 from lwlab.core.models.fixtures import Fixture
-from lwlab.utils.math_utils.transform_utils import (
+from lwlab.utils.math_utils.transform_utils.numpy_impl import (
     convert_quat,
     euler2mat,
     mat2quat,
@@ -192,13 +192,11 @@ class UniformRandomSampler(ObjectPositionSampler):
         z_offset=0.0,
         rng=None,
         side="all",
-        max_attempts=5000,
     ):
         self.x_ranges = x_ranges
         self.y_ranges = y_ranges
         self.rotation = rotation
         self.rotation_axis = rotation_axis
-        self.max_attempts = max_attempts
 
         if side not in self.valid_sides:
             raise ValueError(
@@ -295,7 +293,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 )
             )
 
-    def sample(self, placed_objects=None, reference=None, on_top=True):
+    def sample(self, placed_objects=None, reference=None, ref_fixture=None, on_top=True, max_attempts=None):
         """
         Uniformly sample relative to this sampler's reference_pos or @reference (if specified).
 
@@ -322,6 +320,12 @@ class UniformRandomSampler(ObjectPositionSampler):
         """
         # Standardize inputs
         placed_objects = {} if placed_objects is None else copy(placed_objects)
+
+        if ref_fixture is not None:
+            if self.reference_object is None:
+                self.reference_object = [ref_fixture.name]
+            else:
+                self.reference_object = [self.reference_object, ref_fixture.name]
 
         if reference is None:
             base_offset = self.reference_pos
@@ -369,7 +373,7 @@ class UniformRandomSampler(ObjectPositionSampler):
             else:
                 obj_size = None
 
-            for _ in range(self.max_attempts):  # 5000 retries
+            for _ in range(max_attempts):  # 5000 retries
                 sample_region_idx = self.rng.choice(len(self.x_ranges))
                 self.x_range = self.x_ranges[sample_region_idx]
                 self.y_range = self.y_ranges[sample_region_idx]
@@ -403,8 +407,9 @@ class UniformRandomSampler(ObjectPositionSampler):
                     y_proj = abs(x_vec[1]) + abs(y_vec[1])
                     rotated_obj_size = (x_proj, y_proj, obj_size[2] if len(obj_size) > 2 else 0)
 
-                if (self.x_range[1] - self.x_range[0]) < rotated_obj_size[0] or \
-                   (self.y_range[1] - self.y_range[0]) < rotated_obj_size[1]:
+                if self.ensure_object_boundary_in_range and \
+                   ((self.x_range[1] - self.x_range[0]) < rotated_obj_size[0] or
+                        (self.y_range[1] - self.y_range[0]) < rotated_obj_size[1]):
                     continue
 
                 # sample object coordinates
@@ -454,7 +459,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                         other_quat,
                         other_obj,
                     ) in placed_objects.items():
-                        if placed_obj_name == self.reference_object:
+                        if placed_obj_name in self.reference_object:
                             continue
                         if objs_intersect(
                             obj=obj,
@@ -475,7 +480,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                     break
 
             if not success:
-                debug_info = f"Failed to place object '{obj.task_name}' after {self.max_attempts} attempts\n"
+                debug_info = f"Failed to place object '{obj.task_name}' after {max_attempts} attempts\n"
                 debug_info += f"  Object size: {obj.size}\n"
                 debug_info += f"  X range: {self.x_range}\n"
                 debug_info += f"  Y range: {self.y_range}\n"
@@ -499,6 +504,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         # Samplers / args will be filled in later
         self.samplers = collections.OrderedDict()
         self.sample_args = collections.OrderedDict()
+        self.samplers_with_args = []
 
         super().__init__(name=name, rng=rng)
 
@@ -522,6 +528,10 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             self.mujoco_objects.append(obj)
         self.samplers[sampler.name] = sampler
         self.sample_args[sampler.name] = sample_args
+
+        # sort samplers by object size (large -> small)
+        self.samplers_with_args = list(zip(self.samplers.values(), self.sample_args.values()))
+        self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
 
     def hide(self, mujoco_objects):
         """
@@ -587,7 +597,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         for sampler in self.samplers.values():
             sampler.reset()
 
-    def sample(self, placed_objects=None, reference=None, on_top=True):
+    def sample(self, placed_objects=None, reference=None, ref_fixture=None, on_top=True, max_attempts=None):
         """
         Sample from each placement initializer sequentially, in the order
         that they were appended.
@@ -618,15 +628,15 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         placed_objects = {} if placed_objects is None else copy(placed_objects)
 
         # Iterate through all samplers to sample
-        for sampler, s_args in zip(self.samplers.values(), self.sample_args.values()):
+        for sampler, s_args in self.samplers_with_args:
             # Pre-process sampler args
             if s_args is None:
                 s_args = {}
-            for arg_name, arg in zip(("reference", "on_top"), (reference, on_top)):
+            for arg_name, arg in zip(("reference", "ref_fixture", "on_top"), (reference, ref_fixture, on_top)):
                 if arg_name not in s_args:
                     s_args[arg_name] = arg
             # Run sampler
-            new_placements = sampler.sample(placed_objects=placed_objects, **s_args)
+            new_placements = sampler.sample(placed_objects=placed_objects, max_attempts=max_attempts, **s_args)
             # Update placements
             placed_objects.update(new_placements)
 
@@ -637,6 +647,11 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             for obj in sampler.mujoco_objects
         ]
         return {k: v for (k, v) in placed_objects.items() if k in sampled_obj_names}
+
+    def get_obj_size(self, sampler):
+        if hasattr(sampler, "mujoco_objects") and len(sampler.mujoco_objects) > 0:
+            return np.array([o.size for o in sampler.mujoco_objects]).max()
+        return np.inf
 
 
 class MultiRegionSampler(ObjectPositionSampler):

@@ -17,16 +17,17 @@ from functools import cached_property
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
+from .fixture_types import FixtureType
 
 
 class Dishwasher(Fixture):
     """
     Dishwasher fixture class
     """
+    fixture_types = [FixtureType.DISHWASHER]
 
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
-
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
         self._door = 0.0
         self._rack = 0.0
 

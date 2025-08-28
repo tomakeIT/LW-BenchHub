@@ -15,6 +15,7 @@
 import numpy as np
 from pxr import UsdGeom, Gf
 
+from .fixture_types import FixtureType
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 
@@ -29,10 +30,11 @@ class Accessory(Fixture):
         pos (list): position of the object
     """
 
-    def __init__(self, name, prim, pos=None, *args, **kwargs):
+    def __init__(self, name, prim, num_envs, pos=None, *args, **kwargs):
         super().__init__(
             name=name,
             prim=prim,
+            num_envs=num_envs,
             pos=pos,
             *args,
             **kwargs
@@ -56,6 +58,7 @@ class WallAccessory(Fixture):
         self,
         name,
         prim,
+        num_envs,
         pos=None,
         attach_to=None,
         protrusion=0.02,
@@ -65,6 +68,7 @@ class WallAccessory(Fixture):
         super().__init__(
             name=name,
             prim=prim,
+            num_envs=num_envs,
             pos=pos,
             *args,
             **kwargs
@@ -140,11 +144,13 @@ class Stool(WallAccessory):
     """
     Stool accessory that can be placed on walls or floors
     """
+    fixture_types = [FixtureType.STOOL]
 
     def __init__(
         self,
         name,
         prim,
+        num_envs,
         pos=None,
         attach_to=None,
         protrusion=None,
@@ -155,6 +161,7 @@ class Stool(WallAccessory):
         super().__init__(
             name=name,
             prim=prim,
+            num_envs=num_envs,
             pos=pos,
             attach_to=attach_to,
             protrusion=protrusion,

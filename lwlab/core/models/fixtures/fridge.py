@@ -15,11 +15,14 @@
 from isaaclab.envs import ManagerBasedRLEnvCfg
 from .fixture import Fixture
 import numpy as np
+from .fixture_types import FixtureType
 
 
 class Fridge(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    fixture_types = [FixtureType.FRIDGE]
+
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
         self._fridge_door_joint_names = []
         self._freezer_door_joint_names = []
         for joint_name in self._joint_infos:

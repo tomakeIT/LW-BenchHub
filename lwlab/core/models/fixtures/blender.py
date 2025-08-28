@@ -13,7 +13,9 @@
 # limitations under the License.
 
 from .fixture import Fixture
+from .fixture_types import FixtureType
 
 
 class Blender(Fixture):
+    fixture_types = [FixtureType.BLENDER]
     pass

@@ -1,5 +1,6 @@
 from lwlab.core.models.fixtures.fixture import Fixture
+from .fixture_types import FixtureType
 
 
 class DishRack(Fixture):
-    pass
+    fixture_types = [FixtureType.DISH_RACK]

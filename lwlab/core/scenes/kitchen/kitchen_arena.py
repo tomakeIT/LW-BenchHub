@@ -17,7 +17,7 @@
 import os
 import time
 
-from ..loader import floorplan_loader
+from lightwheel_sdk.loader import floorplan_loader
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.core.models.scenes.scene_parser import parse_fixtures
 
@@ -43,7 +43,7 @@ class KitchenArena:
         self._usd_future = floorplan_loader.acquire_usd(layout_id, style_id, cancel_previous_download=True)
         start_time = time.time()
         print(f"load usd", end="...")
-        self.usd_path = str(self._usd_future.result())
+        self.usd_path = str(self._usd_future.result()[0])
         del self._usd_future
         print(f"done in {time.time() - start_time:.2f}s")
         self.stage = usd.get_stage(self.usd_path)
@@ -59,19 +59,7 @@ class KitchenArena:
             self.usd_path = new_path
 
         # load fixtures
-        self.scene_cfg.fixtures = parse_fixtures(self.stage)
-
-        # setup internal references related to fixtures
-        self.scene_cfg._setup_kitchen_references()
-
-        # usd simplify
-        if self.scene_cfg.usd_simplify:
-            new_stage = usd.usd_simplify(self.stage, self.usd_path, self.scene_cfg.fixture_refs)
-            dir_name = os.path.dirname(self.usd_path)
-            base_name = os.path.basename(self.usd_path)
-            new_path = os.path.join(dir_name, base_name.replace(".usd", "_simplified.usd"))
-            new_stage.GetRootLayer().Export(new_path)
-            self.usd_path = new_path
+        self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.device)
 
     def get_fixture_cfgs(self):
         """

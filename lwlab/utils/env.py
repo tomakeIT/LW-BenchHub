@@ -25,6 +25,7 @@ from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
 
 from lwlab.utils.usd_utils import OpenUsd as usd_utils
 from lwlab.utils.log_utils import get_default_logger
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
 class ExecuteMode(enum.Enum):
@@ -295,7 +296,6 @@ def set_robot_to_position(env, global_pos, global_ori=None, keep_z=True, env_ids
         keep_z: Whether to keep the z-coordinate of the robot's current position.
         env_ids: Tensor of environment indices, or None for all.
     """
-    import lwlab.utils.math_utils.transform_utils as T
     if env_ids is None:
         # default to all environments
         env_ids = torch.arange(env.scene.num_envs, device=env.device, dtype=torch.int64)
@@ -593,7 +593,6 @@ def destroy_robot_vis_helper(prim_list, env):
 
 
 def generate_random_robot_pos(anchor_pos, anchor_ori, pos_dev_x, pos_dev_y):
-    import lwlab.utils.math_utils.transform_utils as T
     local_deviation = np.random.uniform(
         low=(-pos_dev_x, -pos_dev_y),
         high=(pos_dev_x, 0.0),
@@ -618,8 +617,6 @@ def get_safe_robot_anchor(env, unsafe_anchor_pos, unsafe_anchor_ori):
     Returns:
         tuple(np.array, np.array): The new, safer anchor position and orientation.
     """
-    import lwlab.utils.math_utils.transform_utils as T
-
     # Calculate the required retreat distance based on arm reach
     try:
         left_offset = env.cfg.offset_config["left_offset"]

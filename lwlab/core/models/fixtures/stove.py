@@ -20,7 +20,8 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
-
+from .fixture_types import FixtureType
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 STOVE_LOCATIONS = [
     "rear_left",
@@ -37,16 +38,14 @@ STOVE_LOCATIONS = [
 
 class Stove(Fixture):
     _env = None
+    fixture_types = [FixtureType.STOVE]
 
-    def __init__(self, name="stove", prim=None, *args, **kwargs):
-        super().__init__(name, prim, *args, **kwargs)
-        self._reset_regions = self._get_reset_regions(prim)
-
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    def __init__(self, name="stove", prim=None, num_envs=1, *args, **kwargs):
+        super().__init__(name, prim, num_envs, *args, **kwargs)
         self.valid_knob_joint_names = [j for j in self._joint_infos.keys() if "knob_" in j]
         self.valid_locations = [l for l in STOVE_LOCATIONS if any(f"knob_{l}_joint" == j for j in self.valid_knob_joint_names)]
         self._knob_joint_ranges = {}  # store the range of each knob joint
+        self._reset_regions = self._init_reset_regions(prim)
 
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
@@ -216,16 +215,15 @@ class Stove(Fixture):
     def get_reset_regions(self, env, locs=None):
         regions = dict()
         if locs is None:
-            locs = STOVE_LOCATIONS
+            locs = self.valid_locations
         for location in locs:
             regions[location] = self._reset_regions[location]
         return regions
 
-    def _get_reset_regions(self, prim):
+    def _init_reset_regions(self, prim):
         regions = dict()
-        locs = STOVE_LOCATIONS
-        for location in locs:
-
+        prim_pos = np.array(list(prim.GetAttribute("xformOp:translate").Get()))
+        for location in self.valid_locations:
             site = usd.get_prim_by_name(prim, f"burner_{location}_place_site", only_xform=False)
             site = site[0] if site else None
             if site is None:
@@ -235,9 +233,12 @@ class Stove(Fixture):
             if site is None:
                 continue
 
-            pos, _, _ = usd.get_prim_pos_rot_in_world(site)
+            reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(site)
+            reg_pos = np.array(reg_pos)
+            reg_quat = np.array(reg_quat)
+            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - prim_pos)
             regions[location] = {
-                "offset": pos,
+                "offset": reg_rel_pos.tolist(),
                 "size": [0.10, 0.10],
             }
 

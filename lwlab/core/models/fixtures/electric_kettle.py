@@ -16,24 +16,27 @@ import torch
 import time
 from .fixture import Fixture
 from isaaclab.envs import ManagerBasedRLEnvCfg
+from .fixture_types import FixtureType
 
 
 class ElectricKettle(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    fixture_types = [FixtureType.ELECTRIC_KETTLE]
+
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
         joint_names = list(self._joint_infos.keys())
         self._joint_names = {
             "lid": next(iter([name for name in joint_names if "lid_joint" in name.lower() and "button" not in name.lower()]), None),
             "switch": next(iter([name for name in joint_names if "switch_joint" in name.lower()]), None),
             "lid_button": next(iter([name for name in joint_names if "button_lid_joint" in name.lower()]), None),
         }
-        self._turned_on = torch.tensor([False], device=cfg.device).repeat(cfg.num_envs)
-        self._num_steps_on = torch.tensor([0], device=cfg.device).repeat(cfg.num_envs)
-        self._cooldown_time = torch.tensor([0], device=cfg.device).repeat(cfg.num_envs)
-        self._last_lid_update = [None] * cfg.num_envs
-        self._target_lid_angle = [None] * cfg.num_envs
-        self._lid_speed = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._lid = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
+        self._turned_on = torch.tensor([False], device=self.device).repeat(self.num_envs)
+        self._num_steps_on = torch.tensor([0], device=self.device).repeat(self.num_envs)
+        self._cooldown_time = torch.tensor([0], device=self.device).repeat(self.num_envs)
+        self._last_lid_update = [None] * self.num_envs
+        self._target_lid_angle = [None] * self.num_envs
+        self._lid_speed = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._lid = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
 
     def init_state(self, env):
         self._turned_on = torch.tensor([False], device=env.device).repeat(env.num_envs)

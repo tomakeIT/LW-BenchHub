@@ -15,21 +15,23 @@
 import torch
 from .fixture import Fixture
 from functools import cached_property
-
+from .fixture_types import FixtureType
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from lwlab.utils.usd_utils import OpenUsd as usd
 
 
 class Microwave(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
-        self._turned_on = torch.tensor([False], dtype=torch.bool, device=cfg.device).repeat(cfg.num_envs)
-        self._door_open = torch.tensor([False], device=cfg.device).repeat(cfg.num_envs)
+    fixture_types = [FixtureType.MICROWAVE]
+
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
+        self._turned_on = torch.tensor([False], dtype=torch.bool, device=self.device).repeat(self.num_envs)
+        self._door_open = torch.tensor([False], device=self.device).repeat(self.num_envs)
         self.force_threshold = 0.1
         self.pos_threshold = 0.02
-        self.start_button_name = f"{self.fixture_name}_start_button"
-        self.stop_button_name = f"{self.fixture_name}_stop_button"
+        self.start_button_name = f"{self.name}_start_button"
+        self.stop_button_name = f"{self.name}_stop_button"
 
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)

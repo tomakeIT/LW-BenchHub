@@ -236,7 +236,7 @@ def quat_to_rotation_matrix(quat):
 def object_is_grasped_maniskill(
     env: ManagerBasedRLEnv,
     min_force: float = 0.5,
-    max_angle: float = 110
+    max_angle: float = 60
 ) -> torch.Tensor:
     # (num_envs, num_bodies, num_filter_shapes, 3)
     gripper_contact_force = env.scene.sensors["gripper_object_contact"]._data.force_matrix_w[:, 0, 0, :]
@@ -276,7 +276,7 @@ def object_is_grasped_maniskill(
 def object_is_grasped_and_placed_maniskill(
     env: ManagerBasedRLEnv,
     min_force: float = 0.5,
-    max_angel: float = 110
+    max_angel: float = 60
 ) -> torch.Tensor:
 
     is_grasp = object_is_grasped_maniskill(env, min_force, max_angel)

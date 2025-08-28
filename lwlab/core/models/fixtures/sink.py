@@ -19,11 +19,11 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
+from .fixture_types import FixtureType
 
 
 class Sink(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    fixture_types = [FixtureType.SINK]
 
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)

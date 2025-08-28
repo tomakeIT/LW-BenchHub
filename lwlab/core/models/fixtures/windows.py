@@ -1,5 +1,6 @@
 from .fixture import Fixture
 from .accessories import WallAccessory
+from .fixture_types import FixtureType
 
 
 class WindowProcBase(Fixture):
@@ -14,6 +15,7 @@ class WindowProc(WindowProcBase):
 
 
 class Window(WallAccessory):
+    fixture_types = [FixtureType.WINDOW]
 
     @property
     def nat_lang(self):

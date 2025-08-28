@@ -19,11 +19,14 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
+from .fixture_types import FixtureType
 
 
 class Toaster(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    fixture_types = [FixtureType.TOASTER]
+
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
         self._controls = {
             "button": "button_cancel",
             "knob": "knob_doneness",
@@ -39,7 +42,7 @@ class Toaster(Fixture):
             self._num_steps_on = {s: torch.tensor([0], device=env.device).repeat(env.num_envs) for s in self.slot_pairs}
             self._cooldown = {s: torch.tensor([0], device=env.device).repeat(env.num_envs) for s in self.slot_pairs}
         except:
-            print("fuck toaster!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! ")
+            print("toaster setup_env failed")
             return
 
     def set_joint_state(self, min: float, max: float, env: ManagerBasedRLEnv, env_id: int, joint_names: list[str]):
@@ -105,7 +108,6 @@ class Toaster(Fixture):
                 joint_names=[jn],
             )
 
-    # TODO: implement this
     def update_state(self, env: ManagerBasedRLEnv):
         """
         Update the state of the toaster

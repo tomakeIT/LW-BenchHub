@@ -14,73 +14,63 @@
 
 import torch
 import numpy as np
-from enum import IntEnum
 from pxr import UsdGeom, Gf
 from copy import deepcopy
+from collections import defaultdict
 from functools import cached_property
+from typing import List
 
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 from isaaclab.sensors import ContactSensorCfg
 
 import lwlab.utils.object_utils as OU
 from lwlab.utils.usd_utils import OpenUsd as usd
-import lwlab.utils.math_utils.transform_utils as T
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 from lwlab.utils.errors import SamplingError
+from .fixture_types import FixtureType
 
-FIXTURES = dict()
-
-
-class FixtureType(IntEnum):
-    """
-    Enum for fixture types in lwlab kitchen environments.
-    """
-
-    MICROWAVE = 1
-    STOVE = 2
-    OVEN = 3
-    SINK = 4
-    COFFEE_MACHINE = 5
-    TOASTER = 6
-    TOASTER_OVEN = 7
-    FRIDGE = 8
-    DISHWASHER = 9
-    BLENDER = 10
-    STAND_MIXER = 11
-    ELECTRIC_KETTLE = 12
-    STOOL = 13
-    COUNTER = 14
-    ISLAND = 15
-    COUNTER_NON_CORNER = 16
-    DINING_COUNTER = 17
-    CABINET = 18
-    CABINET_WITH_DOOR = 19
-    CABINET_SINGLE_DOOR = 20
-    CABINET_DOUBLE_DOOR = 21
-    SHELF = 22
-    DRAWER = 23
-    TOP_DRAWER = 24
-    WINDOW = 25
-    DISH_RACK = 26
+FIXTURES = {}
+FIXTURE_TYPES = defaultdict(list)
 
 
 class Fixture:
+    fixture_types: List[FixtureType] = []
+
     def __deepcopy__(self, memo):
         return self
 
     def __init_subclass__(cls) -> None:
         FIXTURES[cls.__name__] = cls
 
+    def _is_fixture_type(self, fixture_type: FixtureType) -> bool:
+        """
+        check if the fixture is of the given type
+        this function is called by fixture_is_type in fixture_utils.py
+
+        Args:
+            fixture_type (FixtureType): the type to check
+
+        Returns:
+            bool: True if the fixture is of the given type, False otherwise
+        """
+        return fixture_type in self.fixture_types
+
     def __init__(
             self,
             name,
             prim,
+            num_envs,
             pos=None,
             size=None,
             max_size=None,
             placement=None,
             rng=None,
+            device="cpu",
     ):
         self.name = name
+        self.prim = prim
+        self.num_envs = num_envs
+        self.device = device
         # if pos is not None:
         #     self.set_pos(pos)
 
@@ -88,25 +78,35 @@ class Fixture:
         if not hasattr(self, '_regions'):
             self._regions = dict()
 
-        geom_prim_list = usd.get_prim_by_type(prim, exclude_types=["Xform", "Scope"])
+        geom_prim_list = usd.get_prim_by_type(self.prim, exclude_types=["Xform", "Scope"])
+        prim_pos = np.array(list(prim.GetAttribute("xformOp:translate").Get()))
+
+        reg_geom_prims = []
         for geom_prim in geom_prim_list:
             g_name = geom_prim.GetName()
-            if not g_name.startswith("reg_"):
+            if g_name.startswith("reg_") and "bbox" not in g_name:
+                reg_geom_prims.append(geom_prim)
+
+        for geom_prim in reg_geom_prims:
+            if "main" in geom_prim.GetName():
                 continue
             reg_dict = {}
-
-            reg_pos, reg_quat, reg_scale = usd.get_prim_pos_rot_in_world(geom_prim)
-            if reg_pos is None or reg_quat is None or reg_scale is None:
+            g_name = geom_prim.GetName()
+            reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(geom_prim)
+            if reg_pos is None or reg_quat is None:
                 print(f"Error getting prim pos, rot, scale for {g_name} / {prim.GetName()}")
                 continue
             else:
-                reg_pos = np.array(reg_pos)
                 reg_quat = np.array(reg_quat)
-                reg_scale = np.array(reg_scale)
-                prim_pos = np.array(list(prim.GetAttribute("xformOp:translate").Get()))
-                reg_rel_pos = np.array(reg_pos) - prim_pos
+                reg_pos = np.array(reg_pos)
+                prim_scale = np.array(prim.GetAttribute("xformOp:scale").Get())
+                # TODO: fixture standard (extent or scale)
+                reg_extent = np.array(geom_prim.GetAttribute("extent").Get()[1])
+                reg_scale = np.array(geom_prim.GetAttribute("xformOp:scale").Get())
+                reg_halfsize = np.where(abs(reg_extent) > abs(reg_scale), reg_scale, reg_extent)
+                reg_halfsize = reg_halfsize * prim_scale
+                reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - prim_pos)
 
-            reg_halfsize = reg_scale / 2
             p0 = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             px = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             py = reg_rel_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
@@ -117,6 +117,22 @@ class Fixture:
             reg_dict["py"] = py
             reg_dict["pz"] = pz
             self._regions[g_name.replace("reg_", "")] = reg_dict
+
+        # add outer bounding box region(reg_main)
+        reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(prim)
+        if reg_pos is None or reg_quat is None:
+            print(f"Error getting prim pos, rot, scale for main / {prim.GetName()}")
+        else:
+            reg_pos = np.array(reg_pos)
+            reg_quat = np.array(reg_quat)
+            reg_halfsize = np.fromstring(prim.GetAttribute("size").Get(), sep=',') / 2
+            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - prim_pos)
+            reg_dict = {}
+            reg_dict["p0"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
+            reg_dict["px"] = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
+            reg_dict["py"] = reg_rel_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
+            reg_dict["pz"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], reg_halfsize[2]]
+            self._regions["main"] = reg_dict
 
         # if size is not None:
         #     self.set_scale_from_size(size, max_size=max_size)
@@ -143,7 +159,7 @@ class Fixture:
                         np.mean((p0[1], py[1])),
                         np.mean((p0[2], pz[2])),
                     ]
-                ) - np.array(prim.GetAttribute("xformOp:translate").Get())
+                ) - np.array(self.prim.GetAttribute("xformOp:translate").Get())
             except:
                 raise RuntimeError(f"The counter self._regions is None.")
         else:
@@ -166,6 +182,10 @@ class Fixture:
                                              jnt.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
 
         self._pos = np.array(prim.GetAttribute("xformOp:translate").Get())
+        euler_angles = prim.GetAttribute("xformOp:rotateXYZ").Get()
+        if euler_angles is not None:
+            euler_radians = np.radians(np.array(euler_angles))
+            self.set_euler(euler_radians)
 
     def get_reset_region_names(self):
         return ("int", )
@@ -241,34 +261,13 @@ class Fixture:
     #     xformable = UsdGeom.Xformable(prim)
     #     xformable.SetScale(Gf.Vec3f(scale[0], scale[1], scale[2]))
 
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-
-        prim = usd.get_prim_by_name(root_prim, self.name)
-
-        if not prim:
-            print(f"prim {self.name} not found")
-            self.fixture_name = self.name
+    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg):
+        if not usd.has_contact_reporter(self.prim) or \
+           (not usd.is_articulation_root(self.prim) and
+                not usd.is_rigidbody(self.prim)):
             return
 
-        assert len(prim) == 1
-        prim = prim[0]
-
-        # reset joint infos
-        self._joint_infos = {}
-        unfix_joints = usd.get_all_joints_without_fixed(prim)
-        for joint in unfix_joints:
-            self._joint_infos[joint.GetName()] = {} if joint.GetAttribute("physics:lowerLimit").Get() is None \
-                else {"range": torch.tensor([joint.GetAttribute("physics:lowerLimit").Get() * torch.pi / 180,
-                                             joint.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
-
-        if not usd.has_contact_reporter(prim):
-            return
-
-        if not usd.has_contact_reporter(prim) and not usd.is_articulation_root(prim) and not usd.is_rigidbody(prim):
-            self.fixture_name = self.name
-            return
-
-        if usd.has_contact_reporter(prim) and usd.is_rigidbody(prim):
+        if usd.is_rigidbody(self.prim) and not usd.is_articulation_root(self.prim):
             prim_path = f"{{ENV_REGEX_NS}}/Scene/{self.name}"
             fixture_contact_sensor = ContactSensorCfg(
                 prim_path=prim_path,
@@ -279,26 +278,23 @@ class Fixture:
             )
             setattr(cfg.scene, f"{self.name}_contact", fixture_contact_sensor)
             return
-        if not usd.is_articulation_root(prim) and not usd.is_rigidbody(prim):
-            return
-
-        corpus = usd.get_prim_by_name(prim, "corpus")
-
-        if not corpus:
-            print(f"corpus in {self.name} not found")
-            self.fixture_name = usd.get_child_commonprefix_name(prim)
-            if self.fixture_name:
-                prim_path = f"{{ENV_REGEX_NS}}/Scene/{self.name}/{self.fixture_name}"
-                fixture_contact_sensor = ContactSensorCfg(
-                    prim_path=prim_path,
-                    update_period=0.0,
-                    history_length=1,
-                    debug_vis=False,
-                    filter_prim_paths_expr=[],
-                )
-                setattr(cfg.scene, f"{self.name}_contact", fixture_contact_sensor)
-            else:
-                print("error: not regular asset")
+        else:
+            self.fixture_name = usd.get_child_commonprefix_name(self.prim)
+            corpus = usd.get_prim_by_name(self.prim, "corpus")
+            if not corpus:
+                print(f"corpus in {self.name} not found")
+                if self.fixture_name:
+                    prim_path = f"{{ENV_REGEX_NS}}/Scene/{self.name}/{self.fixture_name}"
+                    fixture_contact_sensor = ContactSensorCfg(
+                        prim_path=prim_path,
+                        update_period=0.0,
+                        history_length=1,
+                        debug_vis=False,
+                        filter_prim_paths_expr=[],
+                    )
+                    setattr(cfg.scene, f"{self.name}_contact", fixture_contact_sensor)
+                else:
+                    print("error: not regular asset")
 
     def setup_env(self, env: ManagerBasedRLEnv):
         if self.name in env.scene.extras.keys():
@@ -658,7 +654,7 @@ class Fixture:
             reg_height = reg_dict.get("height", None)
             reg_size = reg_dict["size"]
             if min_size is not None:
-                if min_size[0] > max(reg_size) and min_size[1] > max(reg_size):
+                if max(min_size[:2]) > max(reg_size[:2]):
                     # object cannot fit plane
                     continue
                 if (

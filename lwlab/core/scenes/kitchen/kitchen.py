@@ -36,8 +36,8 @@ from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 from lwlab.utils.env import set_camera_follow_pose
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.utils.env import ExecuteMode
-from ..loader import floorplan_loader, object_loader, ENV_MODE
-
+from lightwheel_sdk.loader import ENDPOINT
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 from lwlab.utils.log_utils import get_error_logger
 
 
@@ -113,7 +113,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         self.fixture_refs = {}
         self.init_robot_base_ref = None
         self.deterministic_reset = False
-        # TODO: robot spawn deviation(now is 0.0)
         self.robot_spawn_deviation_pos_x = 0.15
         self.robot_spawn_deviation_pos_y = 0.05
         self.robot_spawn_deviation_rot = 0.0
@@ -130,7 +129,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         self.init_robot_base_ori = [0.0, 0.0, 0.0, 1.0]
 
         self._load_model()
-        self.usd_path = self.lwlab_arena.usd_path
         # self.lwlab_arena.stage can not deepcopy
         del self.lwlab_arena
 
@@ -193,25 +191,17 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         )
         print(f" done in {time.time() - start_time:.2f}s")
         self.fixture_cfgs = self.lwlab_arena.get_fixture_cfgs()
+        self.usd_path = self.lwlab_arena.usd_path
 
     def _load_model(self):
-        from lwlab.core.models.fixtures import Fixture
-        import lwlab.utils.math_utils.transform_utils as T
-
         self._setup_model()
-
         if self.init_robot_base_ref is not None:
             for i in range(50):  # keep searching for valid environment
                 init_fixture = self.get_fixture(self.init_robot_base_ref)
                 if init_fixture is not None:
                     break
                 self._setup_model()
-        self.fxtr_placements, counter_fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
-        for obj_pos, obj_quat, obj in self.fxtr_placements.values():
-            assert isinstance(obj, Fixture)
-            obj.set_euler(T.mat2euler(T.quat2mat(obj_quat)))
-        for obj_pos, obj_quat, obj in counter_fxtr_placements.values():
-            obj.set_euler(T.mat2euler(T.quat2mat(obj_quat)))
+        self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
 
         from collections import namedtuple
         dummy_robot = namedtuple("dummy_robot", ["robot_model"])
@@ -225,7 +215,17 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
         self.robots = [dummy_robot(DummyRobot())]
 
-        # TODO: create objects from usd
+        # setup references related to fixtures
+        self._setup_kitchen_references()
+
+        if self.usd_simplify:
+            new_stage = usd.usd_simplify(self.lwlab_arena.stage, self.usd_path, self.fixture_refs)
+            dir_name = os.path.dirname(self.usd_path)
+            base_name = os.path.basename(self.usd_path)
+            new_path = os.path.join(dir_name, base_name.replace(".usd", "_simplified.usd"))
+            new_stage.GetRootLayer().Export(new_path)
+            self.usd_path = new_path
+
         self._create_objects()
         import lwlab.utils.place_utils.env_utils as EnvUtils
         # try:
@@ -240,11 +240,12 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         #     return
         object_placements = None
 
-        object_placements = self.placement_initializer.sample(
-            placed_objects=self.fxtr_placements
-        )
-
-        if object_placements is None:
+        try:
+            object_placements = self.placement_initializer.sample(
+                placed_objects=self.fxtr_placements,
+                max_attempts=5000,
+            )
+        except Exception as e:
             print("Could not place objects. Trying again with self._load_model()")
             self._load_model()
             return
@@ -288,12 +289,10 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         # init fixtures for isaac
         if self.usd_simplify:
             self.fixtures = self.fixture_refs
-        stage = usd.get_stage(self.usd_path)
-        root_prim = stage.GetPseudoRoot()
         for fixtr in self.fixtures.values():
             if isinstance(fixtr, IsaacFixture):
                 try:
-                    fixtr.setup_cfg(self, root_prim)
+                    fixtr.setup_cfg(self)
                 except Exception as e:
                     print(f"Error setting up cfg of {fixtr.name}: {str(e)}")
 
@@ -363,14 +362,20 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     model, info = EnvUtils.create_obj(self, container_cfg)
                     container_cfg["info"] = info
                     self.objects[model.task_name] = model
-                    # self.model.merge_objects([model])
 
                     # modify object config to lie inside of container
+                    reset_regions = model.get_reset_regions()
+                    if "int" in reset_regions:
+                        int_region = reset_regions["int"]
+                    else:
+                        int_region = reset_regions["bbox"]
                     cfg["placement"] = dict(
-                        size=(container_cfg["info"]["size"][0] / 2, container_cfg["info"]["size"][1] / 2),
+                        size=(int_region["size"][0] / 2, int_region["size"][1] / 2),
+                        pos=int_region["offset"],
                         ensure_object_boundary_in_range=False,
                         sample_args=dict(
                             reference=container_cfg["name"],
+                            ref_fixture=cfg["placement"]["fixture"],
                         ),
                     )
 
@@ -504,7 +509,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             dists = [
                 OU.fixture_pairwise_dist(ref_fixture, fxtr) for fxtr in cand_fixtures
             ]
-            print(cand_fixtures)
             min_dist = np.min(dists)
             close_fixtures = [
                 fxtr for (fxtr, d) in zip(cand_fixtures, dists) if d - min_dist < 0.10
@@ -645,11 +649,12 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             if self.placement_initializer is not None:
                 try:
                     object_placements = self.placement_initializer.sample(
-                        placed_objects=self.fxtr_placements
+                        placed_objects=self.fxtr_placements,
+                        max_attempts=5000,
                     )
                 except Exception as e:
-                    print("Placement error for objects")
-                    place_objects(self)
+                    print("Placement error for objects, try again...")
+                    return place_objects(self)
             return object_placements
 
         def place_robot(self):

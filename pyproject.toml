@@ -10,8 +10,17 @@ name = "lwlab"
 version = "0.1.0"
 description = "Isaac Lab based Benchmark for Robotics"
 dependencies = [
+    "lightwheel-sdk>=0.6",
     "grpcio>1.73",
     "protobuf>6",
     "mediapy",
     "tqdm"
+]
+
+[project.optional-dependencies]
+
+lerobot = [
+    "pyserial>=3.5",
+    "deepdiff>=7.0.1,<9.0.0",
+    "feetech-servo-sdk>=1.0.0"
 ]

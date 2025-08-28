@@ -20,21 +20,24 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
+from .fixture_types import FixtureType
 
 
 class ToasterOven(Fixture):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
-        self._door = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._doneness = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._function = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._temperature = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._time = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
+    fixture_types = [FixtureType.TOASTER_OVEN]
+
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
+        self._door = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._doneness = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._function = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._temperature = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._time = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
         self._rack = {}
         self._tray = {}
 
-        self._door_target = [None] * cfg.num_envs
-        self._last_time_update = [None] * cfg.num_envs
+        self._door_target = [None] * self.num_envs
+        self._last_time_update = [None] * self.num_envs
         self._joint_names = {
             "door": f"door_joint",
             "doneness": f"knob_doneness_joint",
@@ -278,6 +281,10 @@ class ToasterOven(Fixture):
             state[name] = getattr(self, f"_{name}", None)
 
         return state
+
+    def has_multiple_rack_levels(self):
+        # TODO: need to be completed
+        return False
 
     @property
     def nat_lang(self):

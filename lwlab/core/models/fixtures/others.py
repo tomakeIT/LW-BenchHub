@@ -1,13 +1,19 @@
 from lwlab.core.models.fixtures.fixture import ProcGenFixture
 import numpy as np
-import lwlab.utils.math_utils.transform_utils as T
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
 class Box(ProcGenFixture):
-    pass
+    def get_bounding_box_half_size(self):
+        return np.array([self.size[0], self.size[1], self.size[2]])
 
 
 class Wall(Box):
+    def __init__(self, name, prim, num_envs, wall_side="back", **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
+        # TODO: wall_size need to be added in USD
+        self.wall_side = wall_side
+
     def _get_pos_after_rel_tranformation(self, offset, quat):
         fixture_mat = T.quat2mat(T.convert_quat(quat))
         return self.pos + np.dot(fixture_mat, offset)
@@ -83,6 +89,24 @@ class Wall(Box):
         if not all_points:
             return sites[:4]
         return sites
+
+    def get_quat(self):
+        """
+        Returns the quaternion of the object based on the wall side
+
+        Returns:
+            list: quaternion
+        """
+        side_rots = {
+            "back": [-0.707, 0.707, 0, 0],
+            "front": [0, 0, 0.707, -0.707],
+            "left": [0.5, 0.5, -0.5, -0.5],
+            "right": [0.5, -0.5, -0.5, 0.5],
+            "floor": [0.707, 0, 0, 0.707],
+        }
+        if self.wall_side not in side_rots:
+            raise ValueError()
+        return side_rots[self.wall_side]
 
 
 class Floor(Box):

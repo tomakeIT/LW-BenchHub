@@ -16,18 +16,43 @@ import numpy as np
 import torch
 from .fixture import ProcGenFixture
 import lwlab.utils.object_utils as OU
+from .fixture_types import FixtureType
 
 
 class Cabinet(ProcGenFixture):
+    fixture_types = [FixtureType.CABINET, FixtureType.CABINET_WITH_DOOR, FixtureType.CABINET_SINGLE_DOOR, FixtureType.CABINET_DOUBLE_DOOR]
+
+    def _is_fixture_type(self, fixture_type: FixtureType) -> bool:
+        """
+        check if the fixture is of the given type
+        this function is called by fixture_is_type in fixture_utils.py
+        """
+        reset_regions = self.get_reset_regions(
+            z_range=(1.0, 1.50)
+        )  # find reset regions within bounds
+
+        return (
+            super()._is_fixture_type(fixture_type) and
+            "stack" not in self.name and
+            not self.is_corner_cab and
+            len(reset_regions) > 0
+        )
+
+    def __init__(self, name, prim, num_envs, is_corner_cab=None, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
+        self.is_corner_cab = is_corner_cab
+
     def set_door_state(self, min, max, env, env_ids=None, rng=None):
         pass
 
 
 class SingleCabinet(Cabinet):
+    fixture_types = [FixtureType.CABINET, FixtureType.CABINET_WITH_DOOR, FixtureType.CABINET_SINGLE_DOOR]
     pass
 
 
 class HingeCabinet(Cabinet):
+    fixture_types = [FixtureType.CABINET, FixtureType.CABINET_WITH_DOOR, FixtureType.CABINET_DOUBLE_DOOR]
 
     def get_state(self, env):
         """
@@ -90,11 +115,24 @@ class HingeCabinet(Cabinet):
 
 
 class OpenCabinet(Cabinet):
-    # Done
+    fixture_types = [FixtureType.CABINET]
     pass
 
 
 class Drawer(Cabinet):
+    fixture_types = [FixtureType.DRAWER, FixtureType.TOP_DRAWER]
+
+    def _is_fixture_type(self, fixture_type: FixtureType) -> bool:
+        """
+        check if the fixture is of the given type
+        this function is called by fixture_is_type in fixture_utils.py
+        """
+        type_check = ProcGenFixture._is_fixture_type(self, fixture_type)
+        if fixture_type == FixtureType.TOP_DRAWER:
+            # drawer's pos is at the bottom-center of the drawer
+            height_check = 0.7 <= self.pos[2] + self.size[2] / 2 <= 0.9
+            return type_check and height_check
+        return type_check
 
     def update_state(self, env):
         """
@@ -176,6 +214,7 @@ class Drawer(Cabinet):
 
 
 class PanelCabinet(Cabinet):
+    fixture_types = [FixtureType.CABINET]
 
     def get_state(self, env):
         """
@@ -194,4 +233,4 @@ class PanelCabinet(Cabinet):
 
 
 class HousingCabinet(Cabinet):
-    pass
+    fixture_types = [FixtureType.CABINET]

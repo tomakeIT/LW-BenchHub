@@ -2,6 +2,7 @@
 task_config=ci_default
 env_gpu=0
 policy_gpu=0
+export LW_API_ENDPOINT="http://api-dev.lightwheel.net:30807"
 
 if [ "$env_gpu" -eq "$policy_gpu" ]; then
     export CUDA_VISIBLE_DEVICES=${env_gpu}

@@ -17,19 +17,19 @@ import torch
 from isaaclab.envs import ManagerBasedRLEnvCfg
 
 from .fixture import Fixture
+from .fixture_types import FixtureType
 
 
 class StandMixer(Fixture):
+    fixture_types = [FixtureType.STAND_MIXER]
 
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
-
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
         self.mirror_placement = False
-        self._button_head_lock = torch.tensor([False], device=cfg.device).repeat(cfg.num_envs)
-        self._speed_dial_knob_value = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
-        self._head_value = torch.tensor([0.0], device=cfg.device).repeat(cfg.num_envs)
+        self._button_head_lock = torch.tensor([False], device=self.device).repeat(self.num_envs)
+        self._speed_dial_knob_value = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
+        self._head_value = torch.tensor([0.0], device=self.device).repeat(self.num_envs)
 
-        # Joint name mapping
         self._joint_names = {
             "button_head_lock": "button_head_lock_joint",
             "bowl": "bowl_joint",

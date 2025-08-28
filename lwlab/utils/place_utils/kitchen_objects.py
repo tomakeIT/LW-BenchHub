@@ -1,4 +1,4 @@
-from lwlab.core.scenes.loader import object_loader
+from lightwheel_sdk.loader import object_loader
 
 SOURCE_MAPPING = {
     "objaverse": "objaverse",

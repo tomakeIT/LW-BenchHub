@@ -1,5 +1,5 @@
 import numpy as np
-from lwlab.core.scenes.loader import object_loader
+from lightwheel_sdk.loader import object_loader
 from lwlab.utils.place_utils.usd_object import USDObject
 from lwlab.utils.place_utils.kitchen_objects import OBJ_CATEGORIES, OBJ_GROUPS, SOURCE_MAPPING
 
@@ -65,8 +65,13 @@ def sample_kitchen_object(
     valid_object_sampled = False
     while not valid_object_sampled:
         if isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
-            filename = object_cfgs["obj_groups"].split("/")[-1].split(".")[0]
-            category = max([g for g in OBJ_GROUPS if filename.startswith(g)], key=len)
+            if "/" in object_cfgs["obj_groups"]:
+                filename = object_cfgs["obj_groups"].split("/")[-1].split(".")[0]
+                category = object_cfgs["obj_groups"].split("/")[-2]
+            else:
+                filename = object_cfgs["obj_groups"]
+                category = find_most_similar_category(filename)
+
             obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
                 "objects",
                 registry_name=[category],
@@ -89,7 +94,7 @@ def sample_kitchen_object(
 
         obj_info = ObjInfo(
             name=obj_name,
-            types=obj_res["property"]["types"],
+            types=obj_res["property"]["types"] if "types" in obj_res["property"] else [],
             category=category,
             source=obj_res["source"],
             rotate_upright=rotate_upright,
@@ -112,8 +117,7 @@ def sample_kitchen_object(
             continue
 
         obj_scale = np.array([1.0, 1.0, 1.0])
-        if "scale" in metadata:
-            obj_scale *= np.array(metadata["scale"])
+        obj_scale *= obj_info.scale
         if scale_factor is not None:
             obj_scale *= scale_factor
 
@@ -141,3 +145,24 @@ def sample_kitchen_object(
         obj_info.groups_containing_sampled_obj = groups_containing_sampled_obj
 
     return model, obj_info.get_info()
+
+
+def find_most_similar_category(filename):
+    def normalize_name(name):
+        return name.replace("_", "").lower()
+    filename_norm = normalize_name(filename)
+    category = max(
+        [g for g in OBJ_GROUPS if filename_norm.startswith(normalize_name(g))],
+        key=len,
+        default=None
+    )
+    if category is not None:
+        return category
+    from difflib import get_close_matches
+    candidates = list(OBJ_GROUPS.keys())
+    matches = get_close_matches(filename_norm, [normalize_name(c) for c in candidates], n=1, cutoff=0.7)
+    if matches:
+        idx = [normalize_name(c) for c in candidates].index(matches[0])
+        return candidates[idx]
+    else:
+        raise ValueError(f"cannot find category for {filename}")

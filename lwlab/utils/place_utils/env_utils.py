@@ -1,10 +1,6 @@
-import lwlab.utils.math_utils.transform_utils as T
-
-import os
-import yaml
-
 import numpy as np
 import contextlib
+from pathlib import Path
 
 from copy import deepcopy
 import lwlab.utils.object_utils as OU
@@ -12,7 +8,8 @@ from lwlab.utils.place_utils.placement_samplers import (
     SequentialCompositeSampler,
     UniformRandomSampler,
 )
-from lwlab.core.scenes.loader import object_loader
+from lightwheel_sdk.loader import object_loader
+import lwlab.utils.math_utils.transform_utils as T
 
 
 _ROBOT_POS_OFFSETS: dict[str, list[float]] = {
@@ -516,7 +513,7 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
                     fixture_to_robot_offset[0] += delta_y
                 elif face_dir == -2 and face_dir in categorized_stool_rotations:
                     fixture_to_robot_offset[0] -= delta_y
-            elif fixture_is_type(ref_to_fixture, FixtureType.STOOL):
+            elif ref_to_fixture is not None and fixture_is_type(ref_to_fixture, FixtureType.STOOL):
                 if face_dir == 1:
                     fixture_to_robot_offset[1] -= abs(
                         fixture_sites[0][1] - stool_sites[0][1]
@@ -676,7 +673,6 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.005):
                     and rotation_axis == "z"
                 ):
                     sample_region_kwargs["min_size"] = mj_obj.size
-
                 reset_regions = fixture.sample_reset_region(
                     env=env, **sample_region_kwargs
                 )
@@ -946,7 +942,12 @@ def create_obj(env, cfg):
         that indicates which object we should be using.
         set the obj_groups to this path to do deterministic playback
         """
-        obj_path = cfg["info"]["obj_path"]
+        if "obj_path" in cfg["info"]:
+            obj_path = cfg["info"]["obj_path"]
+        else:
+            # old version
+            obj_path = Path(cfg["info"]["mjcf_path"]).parent.with_suffix(".usd")
+            obj_path = f"{obj_path.parent.name}/{obj_path.name}"
         obj_groups = obj_path
         exclude_obj_groups = None
     else:
@@ -967,7 +968,8 @@ def create_obj(env, cfg):
             object_properties[key] = cfg[key]
 
     if "placement" in cfg and "fixture" in cfg["placement"]:
-        ref_fixture = cfg["placement"]["fixture"]
+        ref_fixture_name = cfg["placement"]["fixture"]
+        ref_fixture = env.get_fixture(ref_fixture_name)
         if fixture_is_type(ref_fixture, FixtureType.SINK):
             object_properties["washable"] = True
         elif fixture_is_type(ref_fixture, FixtureType.DISHWASHER):

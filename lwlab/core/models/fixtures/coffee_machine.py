@@ -17,20 +17,22 @@ from functools import cached_property
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
+from .fixture_types import FixtureType
 
 
 class CoffeeMachine(Fixture):
     """
     Coffee machine object. Supports turning on coffee machine, and simulated coffee pouring
     """
+    fixture_types = [FixtureType.COFFEE_MACHINE]
 
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
-        self._turned_on = torch.tensor([False], dtype=torch.bool, device=cfg.device).repeat(cfg.num_envs)
+    def __init__(self, name, prim, num_envs, **kwargs):
+        super().__init__(name, prim, num_envs, **kwargs)
+        self._turned_on = torch.tensor([False], dtype=torch.bool, device=self.device).repeat(self.num_envs)
         self.force_threshold = 0.1
         self.pos_threshold = 0.05
-        self._activation_time = torch.zeros(cfg.num_envs, device=cfg.device)
-        self._active = torch.tensor([False], dtype=torch.bool, device=cfg.device).repeat(cfg.num_envs)
+        self._activation_time = torch.zeros(self.num_envs, device=self.device)
+        self._active = torch.tensor([False], dtype=torch.bool, device=self.device).repeat(self.num_envs)
         self._display_duration = 10.0
 
     def setup_env(self, env: ManagerBasedRLEnv):
