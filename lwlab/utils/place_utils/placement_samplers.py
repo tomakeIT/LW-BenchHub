@@ -65,7 +65,7 @@ class ObjectPositionSampler:
             )
         self.ensure_object_boundary_in_range = ensure_object_boundary_in_range
         self.ensure_valid_placement = ensure_valid_placement
-        self.reference_object = reference_object
+        self.reference_object = reference_object if reference_object is not None else []
         self.reference_pos = reference_pos
         self.reference_rot = reference_rot
         self.z_offset = z_offset
@@ -323,9 +323,9 @@ class UniformRandomSampler(ObjectPositionSampler):
 
         if ref_fixture is not None:
             if self.reference_object is None:
-                self.reference_object = [ref_fixture.name]
+                self.reference_object = [ref_fixture.name if isinstance(ref_fixture, Fixture) else ref_fixture]
             else:
-                self.reference_object = [self.reference_object, ref_fixture.name]
+                self.reference_object = [self.reference_object, ref_fixture.name if isinstance(ref_fixture, Fixture) else ref_fixture]
 
         if reference is None:
             base_offset = self.reference_pos
@@ -351,15 +351,13 @@ class UniformRandomSampler(ObjectPositionSampler):
         for obj in self.mujoco_objects:
             # First make sure the currently sampled object hasn't already been sampled
             assert (
-                obj.name not in placed_objects
-            ), "Object '{}' has already been sampled!".format(obj.name)
+                obj.task_name not in placed_objects
+            ), "Object '{}' has already been sampled!".format(obj.task_name)
 
             success = False
 
             # get reference rotation
-            ref_quat = convert_quat(
-                mat2quat(euler2mat([0, 0, self.reference_rot])), to="wxyz"
-            )
+            ref_quat = mat2quat(euler2mat([0, 0, self.reference_rot]))
 
             if (
                 isinstance(obj, USDObject) or isinstance(obj, Fixture)
@@ -393,10 +391,13 @@ class UniformRandomSampler(ObjectPositionSampler):
                 region_points += base_offset
 
                 # random rotation
-                quat = self._sample_quat()
+                quat = convert_quat(self._sample_quat(), to="xyzw")
+                # multiply this quat by the object's initial rotation if it has the attribute specified
+                if hasattr(obj, "init_quat"):
+                    quat = quat_multiply(quat, obj.init_quat)
 
                 if obj_size is not None and quat is not None:
-                    rot = R.from_quat([quat[1], quat[2], quat[3], quat[0]])  # wxyz -> xyzw
+                    rot = R.from_quat(quat)
                     size_vecs = [
                         [obj_size[0], 0, 0],
                         [0, obj_size[1], 0],
@@ -425,18 +426,9 @@ class UniformRandomSampler(ObjectPositionSampler):
                 object_y = object_y + base_offset[1]
                 object_z = self.z_offset + base_offset[2]
                 if on_top:
-                    object_z -= obj.bottom_offset[-1]
+                    object_z += abs(obj.bottom_offset[-1])
 
-                # multiply this quat by the object's initial rotation if it has the attribute specified
-                if hasattr(obj, "init_quat"):
-                    quat = quat_multiply(quat, obj.init_quat)
-                quat = convert_quat(
-                    quat_multiply(
-                        convert_quat(ref_quat, to="xyzw"),
-                        convert_quat(quat, to="xyzw"),
-                    ),
-                    to="wxyz",
-                )
+                quat = quat_multiply(ref_quat, quat)
 
                 location_valid = True
 
@@ -444,7 +436,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 if self.ensure_object_boundary_in_range and not obj_in_region(
                     obj,
                     obj_pos=[object_x, object_y, object_z],
-                    obj_quat=convert_quat(quat, to="xyzw"),
+                    obj_quat=quat,
                     p0=region_points[0],
                     px=region_points[1],
                     py=region_points[2],
@@ -464,10 +456,10 @@ class UniformRandomSampler(ObjectPositionSampler):
                         if objs_intersect(
                             obj=obj,
                             obj_pos=[object_x, object_y, object_z],
-                            obj_quat=convert_quat(quat, to="xyzw"),
+                            obj_quat=quat,
                             other_obj=other_obj,
                             other_obj_pos=[x, y, z],
-                            other_obj_quat=convert_quat(other_quat, to="xyzw"),
+                            other_obj_quat=other_quat,
                         ):
                             location_valid = False
                             break
@@ -475,7 +467,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 if location_valid:
                     # location is valid, put the object down
                     pos = (object_x, object_y, object_z)
-                    placed_objects[obj.task_name] = (pos, quat, obj)
+                    placed_objects[obj.task_name] = (pos, convert_quat(quat, to="wxyz"), obj)
                     success = True
                     break
 
@@ -524,7 +516,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         for obj in sampler.mujoco_objects:
             assert (
                 obj not in self.mujoco_objects
-            ), f"Object '{obj.name}' already has sampler associated with it!"
+            ), f"{obj.task_name} '{obj.name}' already has sampler associated with it!"
             self.mujoco_objects.append(obj)
         self.samplers[sampler.name] = sampler
         self.sample_args[sampler.name] = sample_args

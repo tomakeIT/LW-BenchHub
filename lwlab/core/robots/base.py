@@ -20,6 +20,7 @@ from typing import List, Optional
 from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import RecorderTerm, RecorderTermCfg, ActionStateRecorderManagerCfg
+from isaaclab.utils.datasets.episode_data import EpisodeData
 
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
@@ -104,6 +105,12 @@ class PrePhysicsStepJointTargetsRecorder(RecorderTerm):
             return "joint_targets", self.stack_joint_targets()
         return None, None
 
+    def record_pre_reset(self, env_ids):
+        for env_id, success in zip(env_ids, (self._env.cfg.success_cache >= self._env.cfg.success_count)[env_ids]):
+            if not success.item():
+                self._env.recorder_manager._episodes[env_id] = EpisodeData()
+        return None, None
+
 
 @configclass
 class PrePhysicsStepJointTargetsRecorderCfg(RecorderTermCfg):
@@ -145,6 +152,9 @@ class BaseRobotCfg(LwBaseCfg):
         if self.execute_mode == ExecuteMode.TELEOP:
             self.recorders = RecorderManagerCfg()
 
+        # Initialize last_pos for action filtering
+        self.last_pos = None
+
     def set_replay_joint_targets_action(self):
         self.actions = ActionsCfg()
         self.actions.joint_targets = JointReplayPositionActionCfg()
@@ -156,3 +166,44 @@ class BaseRobotCfg(LwBaseCfg):
         ep_meta = super().get_ep_meta()
         ep_meta["robot_name"] = self.robot_name
         return ep_meta
+
+    def filter_action(self, action: dict[str, torch.Tensor]) -> dict[str, torch.Tensor]:
+        # Apply simple EMA smoothing on absolute-mode arm actions only.
+        # This function does not modify gripper commands.
+        # It preserves relative-mode actions untouched.
+        left_arm_action = action.get("left_arm_action", None)
+        right_arm_action = action.get("right_arm_action", None)
+
+        if self.last_pos is None and left_arm_action is not None and right_arm_action is not None:
+            self.last_pos = {}
+            self.last_pos["left_arm_action"] = left_arm_action.clone()
+            self.last_pos["right_arm_action"] = right_arm_action.clone()
+
+        if self.last_pos is not None and left_arm_action is not None and right_arm_action is not None:
+            last_left_arm_action = self.last_pos["left_arm_action"]
+            last_right_arm_action = self.last_pos["right_arm_action"]
+
+            max_vel = 0.05
+            min_vel = 0.002
+
+            for i in [0, 1, 2]:
+                if left_arm_action[i] - last_left_arm_action[i] > max_vel:
+                    left_arm_action[i] = last_left_arm_action[i] + max_vel
+                elif left_arm_action[i] - last_left_arm_action[i] < -max_vel:
+                    left_arm_action[i] = last_left_arm_action[i] - max_vel
+
+                if abs(left_arm_action[i] - last_left_arm_action[i]) < min_vel:
+                    left_arm_action[i] = last_left_arm_action[i]
+
+            for i in [0, 1, 2]:
+                if right_arm_action[i] - last_right_arm_action[i] > max_vel:
+                    right_arm_action[i] = last_right_arm_action[i] + max_vel
+                elif right_arm_action[i] - last_right_arm_action[i] < -max_vel:
+                    right_arm_action[i] = last_right_arm_action[i] - max_vel
+                if abs(right_arm_action[i] - last_right_arm_action[i]) < min_vel:
+                    right_arm_action[i] = last_right_arm_action[i]
+
+            self.last_pos["left_arm_action"] = left_arm_action.clone()
+            self.last_pos["right_arm_action"] = right_arm_action.clone()
+
+        return action

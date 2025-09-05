@@ -1,0 +1,13 @@
+_base_: [teleop_base]
+
+robot: LeRobot-AbsJointGripper-RL
+teleop_device: so101leader
+port: /dev/ttyACM0
+record: true
+recalibrate: false
+
+task: PnPOrange
+layout: robocasakitchen-2-2
+enable_cameras: true
+reset_objects_enabled: true
+num_demos: 3

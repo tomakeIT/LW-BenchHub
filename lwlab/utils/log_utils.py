@@ -22,7 +22,7 @@ import traceback
 # (Original log_scene_rigid_objects function remains unchanged)
 def log_scene_rigid_objects(env):
     """
-    Retrieves USD path information for all rigid objects in the environment and logs it to a JSON file 
+    Retrieves USD path information for all rigid objects in the environment and logs it to a JSON file
     in the log folder under the program root directory.
     ... (Function content omitted as it matches your original code) ...
     """
@@ -282,7 +282,7 @@ class _LogDispatcher:
 
 def _ensure_initialized():
     """Ensure the logging system is initialized."""
-    global _is_initialized
+    global _is_initialized  # noqa: F824
     if not _is_initialized:
         setup_async_module_logging()
 
@@ -413,7 +413,7 @@ def get_logger(name=None, level=None):
     # If logger doesn't have handlers, it means it wasn't configured yet
     # Add it to the configuration and create handler
     if not logger.handlers:
-        global _backend_handlers, _log_queue
+        global _backend_handlers, _log_queue  # noqa: F824
 
         # Create configuration for this logger
         logger_config = _create_logger_config(name, level)
@@ -451,13 +451,13 @@ def add_logger(name, level=logging.INFO):
         name (str): Logger name
         level (int): Logging level
     """
-    global DEFAULT_LOG_CONFIG
+    global DEFAULT_LOG_CONFIG  # noqa: F824
     DEFAULT_LOG_CONFIG[name] = {'level': level}
 
 
 def stop_logging():
     """Stop the logging system and cleanup."""
-    global _log_listener, _is_initialized
+    global _log_listener, _is_initialized  # noqa: F824
     if _log_listener and _is_initialized:
         _log_listener.stop()
         _is_initialized = False

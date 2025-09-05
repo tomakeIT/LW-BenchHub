@@ -15,7 +15,6 @@ from isaaclab.assets import RigidObjectCfg
 # SPDX-License-Identifier: BSD-3-Clause
 import torch
 
-from dataclasses import MISSING
 from tasks.base import BaseTaskEnvCfg
 
 import isaaclab.sim as sim_utils
@@ -35,7 +34,9 @@ from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
 from . import mdp
 
 from lwlab.core import mdp as lwlab_mdp
-
+import torch.nn.functional as F
+import cv2
+from typing import Dict, Optional, Literal, List
 ##
 # Scene definition
 ##
@@ -94,9 +95,21 @@ class EventCfg:
         mode="reset",
         params={
             # "pose_range": {"x": (-0.1, 0.1), "y": (0, 0.25), "z": (0.0, 0.0)},
-            "pose_range": {"x": (-0.05, 0.05), "y": (-0.05, 0.05), "z": (0.0, 0.0), "yaw": (0.0, 90.0)},
+            "pose_range": {"x": (-0.08, 0.08), "y": (-0.08, 0.08), "z": (0.0, 0.0), "yaw": (0.0, 90.0)},
             "velocity_range": {},
             "asset_cfg": SceneEntityCfg("object", body_names="BuildingBlock003"),
+        },
+    )
+
+    reset_dome_lighting = EventTerm(
+        func=mdp.randomize_scene_lighting,
+        mode="reset",
+        params={
+            "intensity_range": (50.0, 800.0),
+            "color_variation": 0.35,
+            "default_intensity": 800.0,
+            "default_color": (0.75, 0.75, 0.75),
+            "asset_cfg": SceneEntityCfg("light"),
         },
     )
 
@@ -178,7 +191,7 @@ class BaseLiftObjRLEnvCfg(BaseRLEnvCfg, LiftObj):
         self.viewer.lookat = (0.8, 0.0, 0.5)
         # simulation settings
         self.decimation = 5
-        self.episode_length_s = 2.0
+        self.episode_length_s = 3.2
         # simulation settings
         self.sim.dt = 0.01  # 100Hz
         self.sim.render_interval = self.decimation
@@ -254,7 +267,7 @@ class G1VisualLiftObjRLEnvCfg(G1StateLiftObjRLEnvCfg):
     observations: G1VisualObservationsCfg = G1VisualObservationsCfg()
 
 
-from lwlab.core.robots.lerobot.lerobotrl import LERobotEnvRLCfg
+from lwlab.core.robots.lerobot.lerobotrl import LERobotEnvRLCfg, LERobot100EnvRLCfg
 
 
 @configclass
@@ -281,7 +294,7 @@ class LerobotStateObservationsCfg:
 
         def __post_init__(self):
             self.enable_corruption = True
-            self.concatenate_terms = True
+            self.concatenate_terms = False
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -302,31 +315,46 @@ class LerobotStateLiftObjRLEnvCfg(LERobotEnvRLCfg, BaseLiftObjRLEnvCfg):
         # self.commands.object_pose.body_name = "panda_hand"
 
 
+class Lerobot100StateLiftObjRLEnvCfg(LERobot100EnvRLCfg, LerobotStateLiftObjRLEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        # for Lerobot-RL
+        self.commands.object_pose.body_name = "Fixed_Jaw_tip"
+
+
 @configclass
 class LerobotVisualObservationsCfg:
-    """Observation specifications for the MDP."""
     """Observation specifications for the MDP."""
 
     @configclass
     class PolicyCfg(ObsGroup):
         """Observations for policy group."""
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+        joint_pos = ObsTerm(func=mdp.joint_pos)
         target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
         delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
+
+        # image_global = ObsTerm(
+        #     func=mdp.image_features,
+        #     params={
+        #         "sensor_cfg": SceneEntityCfg("global_camera"),
+        #         "data_type": "rgb",
+        #         "model_name": "resnet18",
+        #         "model_device": "cuda:0",
+        #     },
+        # )
         image_global = ObsTerm(
-            func=mdp.image_features,
+            func=mdp.image,
             params={
                 "sensor_cfg": SceneEntityCfg("global_camera"),
                 "data_type": "rgb",
-                "model_name": "resnet18",
-                "model_device": "cuda:0",
+                "normalize": False,
             },
         )
 
         def __post_init__(self):
             self.enable_corruption = True
-            self.concatenate_terms = True
+            self.concatenate_terms = False
 
     # observation groups
     policy: PolicyCfg = PolicyCfg()
@@ -334,3 +362,129 @@ class LerobotVisualObservationsCfg:
 
 class LerobotVisualLiftObjRLEnvCfg(LerobotStateLiftObjRLEnvCfg):
     observations: LerobotVisualObservationsCfg = LerobotVisualObservationsCfg()
+
+
+class Lerobot100VisualLiftObjRLEnvCfg(LERobot100EnvRLCfg, LerobotVisualLiftObjRLEnvCfg):
+    def __post_init__(self):
+        super().__post_init__()
+        # for Lerobot-RL
+        self.commands.object_pose.body_name = "Fixed_Jaw_tip"
+
+
+@configclass
+class DigitalTwinObservationCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        joint_pos = ObsTerm(func=mdp.joint_pos)
+        target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
+        delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
+        image_global = ObsTerm(
+            func=mdp.overlay_image,
+            params={
+                "sensor_cfg": SceneEntityCfg("global_camera"),
+                "data_type": "rgb",
+                "normalize": False,
+            },
+        )
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = False
+
+    # observation groups
+    policy: PolicyCfg = PolicyCfg()
+
+
+@configclass
+class LerobotLiftObjDigitalTwinCfg(LerobotStateLiftObjRLEnvCfg):
+    """A dictionary of rgb overlay paths.
+
+    The key is the name of the rgb sensor, and the value is the path to the background image.
+    example:{"camera_name": "path/to/greenscreen/background.png"}
+    """
+    rgb_overlay_mode: Optional[Literal["none", "debug", "background"]] = "none"
+
+    render_objects = None
+    task_name: str = "LiftObjDigitalTwin"
+    observations: DigitalTwinObservationCfg = DigitalTwinObservationCfg()
+    rgb_overlay_images: Dict[str, torch.Tensor] = {}
+
+    foreground_semantic_id_mapping: Dict[str, int] = {}
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.rgb_overlay_mode = "background"
+        self.rgb_overlay_paths = {
+            "global_camera": "224101.jpg"
+        }
+        self.render_objects = [
+            SceneEntityCfg("object"),
+            SceneEntityCfg("robot"),
+        ]
+        self.setup_camera_and_foreground()
+        # self.__record_semantic_id_mapping()
+
+    def setup_camera_and_foreground(self):
+        """Setup the camera for the ManagerBasedRLDigitalTwinEnv.
+        1. add semantic tags to the render objects
+        2. add semantic segmentation to the camera data types.
+        3. modify the observation cfg to add overlay_image.
+        """
+        for obj in self.render_objects:
+            obj_cfg = getattr(self.scene, obj.name)
+            obj_cfg.spawn.semantic_tags = [("class", "foreground")]
+
+        if self.rgb_overlay_paths is not None:
+            for camera_name, path in self.rgb_overlay_paths.items():
+                # preprocess camera cfg
+                camera_cfg = getattr(self.scene, camera_name)
+                if 'semantic_segmentation' not in camera_cfg.data_types:
+                    camera_cfg.data_types.append('semantic_segmentation')
+                camera_cfg.colorize_semantic_segmentation = False
+                overlayed_image = self.read_overlay_image(path, target_size=(camera_cfg.width, camera_cfg.height)).to(self.sim.device)
+                self.rgb_overlay_images[camera_name] = overlayed_image.repeat(self.num_envs, 1, 1, 1)
+                # preprocess observation cfg
+                # observation_cfg = getattr(cfg.observations.policy, camera_name)
+                # observation_cfg.func = overlay_image
+
+    def read_overlay_image(self, path: str, target_size: tuple[int, int]) -> torch.Tensor:
+        """
+        Read the overlay image and resize it to the target size.
+        Args:
+            path: the path to the overlay image.
+            target_size: the target size of the overlay image.(width, height)
+        Returns:
+            the resized overlay image.(C, H, W)
+        """
+        image = torch.from_numpy(cv2.imread(path))
+
+        if image.dim() == 3 and image.shape[2] in [3, 4]:  # [H, W, C]
+            image = image.permute(2, 0, 1)  # [C, H, W]
+
+        resize_image = F.interpolate(image.unsqueeze(0), size=(target_size[1], target_size[0]), mode="bilinear").squeeze(0)  # size is (height, width)
+        resize_image = resize_image.squeeze(0)
+        # reorder the image to [C, H, W]
+        if resize_image.shape[0] in [3, 4]:  # [C, H, W]
+            resize_image = resize_image.permute(1, 2, 0)  # [H, W, C]
+
+        return resize_image
+
+    def record_semantic_id_mapping(self, scene):
+        for camera_name in self.rgb_overlay_paths.keys():
+            for semantic_id, label in scene.sensors[camera_name].data.info['semantic_segmentation']['idToLabels'].items():
+                if label['class'] == 'foreground':
+                    self.foreground_semantic_id_mapping[camera_name] = int(semantic_id)
+                    break
+
+
+@configclass
+class Lerobot100LiftObjDigitalTwinCfg(LERobot100EnvRLCfg, LerobotLiftObjDigitalTwinCfg):
+
+    def __post_init__(self):
+        super().__post_init__()
+        # for Lerobot-RL
+        self.commands.object_pose.body_name = "Fixed_Jaw_tip"

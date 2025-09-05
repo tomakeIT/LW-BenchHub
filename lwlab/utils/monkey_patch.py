@@ -16,9 +16,72 @@ import torch
 from copy import deepcopy
 import numpy as np
 import time
+import os
 
+
+def patch_reset():
+    from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
+    from isaacsim.core.simulation_manager import SimulationManager
+
+    def reset(
+        self, seed: int | None = None, env_ids=None, options=None
+    ):
+        """Resets the specified environments and returns observations.
+
+        This function calls the :meth:`_reset_idx` function to reset the specified environments.
+        However, certain operations, such as procedural terrain generation, that happened during initialization
+        are not repeated.
+
+        Args:
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            options: Additional information to specify how the environment is reset. Defaults to None.
+
+                Note:
+                    This argument is used for compatibility with Gymnasium environment definition.
+
+        Returns:
+            A tuple containing the observations and extras.
+        """
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+
+        # trigger recorder terms for pre-reset calls
+        self.recorder_manager.record_pre_reset(env_ids)
+
+        # set the seed
+        if seed is not None:
+            self.seed(seed)
+
+        # reset state of scene
+        self._reset_idx(env_ids)
+
+        # update articulation kinematics
+        self.scene.write_data_to_sim()
+        self.sim.forward()
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
+        # trigger recorder terms for post-reset calls
+        self.recorder_manager.record_post_reset(env_ids)
+
+        # compute observations
+        self.obs_buf = self.observation_manager.compute(update_history=True)
+
+        if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
+            while SimulationManager.assets_loading():
+                self.sim.render()
+        if hasattr(self.cfg, "foreground_semantic_id_mapping"):
+            # self.cfg.setup_camera_and_foreground(self.scene)
+            self.cfg.record_semantic_id_mapping(self.scene)
+        # return observations
+        return self.obs_buf, self.extras
+    ManagerBasedRLEnv.reset = reset
 
 # monkey patch the configclass to allow validate dict with key is not a string
+
+
 def patch_configclass():
     from isaaclab.utils.configclass import configclass
     import sys
@@ -147,6 +210,10 @@ def patch_recorder_manager_joint_targets():
                 if state_index >= len(states):
                     return None
                 output_state = states[state_index, None]  # fix here
+            elif isinstance(states, list):
+                if state_index >= len(states):
+                    return None
+                output_state = [states[state_index]]
             else:
                 raise ValueError(f"Invalid state type: {type(states)}")
             return output_state
@@ -181,7 +248,6 @@ def patch_recorder_manager_joint_targets():
                     current_dataset_pointer[sub_keys[sub_key_index]] = [value.clone()]
                 else:
                     current_dataset_pointer[sub_keys[sub_key_index]].append(value.clone())
-
                 break
             # key index
             if sub_keys[sub_key_index] not in current_dataset_pointer:
@@ -271,6 +337,9 @@ def patch_step():
         # -- reset envs that terminated/timed-out and log the episode information
         reset_env_ids = self.reset_buf.nonzero(as_tuple=False).squeeze(-1)
         if len(reset_env_ids) > 0:
+            obs_final_buf = self.observation_manager.compute(update_history=False)
+            self.extras['final_obs'] = obs_final_buf
+
             # trigger recorder terms for pre-reset calls
             self.recorder_manager.record_pre_reset(reset_env_ids)
 
@@ -299,6 +368,64 @@ def patch_step():
         return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
 
     ManagerBasedRLEnv.step = step
+
+    def reset_to_check_state(
+        self,
+        state: dict[str, dict[str, dict[str, torch.Tensor]]],
+        env_ids,
+        seed: int | None = None,
+        is_relative: bool = False,
+    ):
+        """Resets specified environments to provided states.
+
+        This function resets the environments to the provided states. The state is a dictionary
+        containing the state of the scene entities. Please refer to :meth:`InteractiveScene.get_state`
+        for the format.
+
+        The function is different from the :meth:`reset` function as it resets the environments to specific states,
+        instead of using the randomization events for resetting the environments.
+
+        Args:
+            state: The state to reset the specified environments to. Please refer to
+                :meth:`InteractiveScene.get_state` for the format.
+            env_ids: The environment ids to reset. Defaults to None, in which case all environments are reset.
+            seed: The seed to use for randomization. Defaults to None, in which case the seed is not set.
+            is_relative: If set to True, the state is considered relative to the environment origins.
+                Defaults to False.
+        """
+        # reset all envs in the scene if env_ids is None
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, dtype=torch.int64, device=self.device)
+
+        # trigger recorder terms for pre-reset calls
+        # self.recorder_manager.record_pre_reset(env_ids)
+
+        # set the seed
+        if seed is not None:
+            self.seed(seed)
+
+        self._reset_idx(env_ids)
+
+        # set the state
+        self.scene.reset_to(state, env_ids, is_relative=is_relative)
+
+        # update articulation kinematics
+        self.sim.forward()
+
+        # if sensors are added to the scene, make sure we render to reflect changes in reset
+        if self.sim.has_rtx_sensors() and self.cfg.rerender_on_reset:
+            self.sim.render()
+
+        # trigger recorder terms for post-reset calls
+        # self.recorder_manager.record_post_reset(env_ids)
+
+        # compute observations
+        self.obs_buf = self.observation_manager.compute(update_history=True)
+
+        # return observations
+        return self.obs_buf, self.extras
+
+    ManagerBasedRLEnv.reset_to_check_state = reset_to_check_state
 
 
 YAML_CACHE = {}
@@ -362,6 +489,7 @@ def patch_reward_manager():
     RewardManager.compute = compute
 
 
+patch_reset()
 patch_configclass()
 patch_recorder_manager_ep_meta()
 patch_recorder_manager_joint_targets()

@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import torch
+import numpy as np
 from functools import cached_property
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
@@ -35,6 +36,34 @@ class CoffeeMachine(Fixture):
         self._active = torch.tensor([False], dtype=torch.bool, device=self.device).repeat(self.num_envs)
         self._display_duration = 10.0
 
+        self._coffee_liquid_site_names = []
+        for liquid_name in ["coffee_liquid_left", "coffee_liquid_right", "coffee_liquid"]:
+            liquid_prims = usd.get_prim_by_name(self.prim, liquid_name, only_xform=False)
+            if len(liquid_prims) > 0:
+                self._coffee_liquid_site_names.append(liquid_name)
+
+        self._start_button_names = []
+        button_prims = usd.get_prim_by_prefix(self.prim, "start_button", only_xform=False)
+        if len(button_prims) > 0:
+            for button_prim in button_prims:
+                self._start_button_names.append(button_prim.GetName())
+
+        receptacle_pouring_prims = usd.get_prim_by_name(self.prim, "receptacle_place_site", only_xform=False)
+        for pouring_prim in receptacle_pouring_prims:
+            site_pos = tuple(pouring_prim.GetAttribute("xformOp:translate").Get() * self.scale)
+            self._receptacle_pouring_site = {"pos": site_pos}
+
+    def get_reset_regions(self, *args, **kwargs):
+        """
+        returns dictionary of reset regions, usually used when initialzing a mug under the coffee machine
+        """
+        return {
+            "bottom": {
+                "offset": self._receptacle_pouring_site.get("pos"),
+                "size": (0.01, 0.01),
+            }
+        }
+
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
         self._env = env
@@ -56,9 +85,10 @@ class CoffeeMachine(Fixture):
         Args:
             env (ManagerBasedRLEnv): The environment to check the state of the coffee machine in
         """
-        start_button_pressed = torch.tensor([False], device=env.device).repeat(env.num_envs)
+        start_button_pressed = torch.tensor([False], device=self.device).repeat(self.num_envs)
+        gripper_names = [name for name in list(env.scene.sensors.keys()) if "gripper" in name and "contact" in name]
         for _, button in self.start_button_infos.items():
-            for gripper_name in [name for name in list(self._env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
+            for gripper_name in gripper_names:
                 start_button_pressed |= env.cfg.check_contact(gripper_name.replace("_contact", ""), str(button[0].GetPrimPath()))
 
         # detect button press (only when False to True)
@@ -72,7 +102,7 @@ class CoffeeMachine(Fixture):
         self._active = self._turned_on & (self._activation_time < self._display_duration)
 
         # update coffee liquid sites visibility
-        for site_name in self.coffee_liquid_site_names:
+        for site_name in self._coffee_liquid_site_names:
             sites_for_name = self.coffee_liquid_sites[site_name]
             for i, site in enumerate(sites_for_name):
                 if site is not None and site.IsValid():
@@ -93,28 +123,12 @@ class CoffeeMachine(Fixture):
         Returns:
             bool: True if object is placed under coffee machine, False otherwise
         """
-        obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
-        check = []
-        for i, pour_site_pos in enumerate(self.pour_sites):
-            if pour_site_pos is None:
-                check.append(False)
-                continue
-
-            pour_site_pos = torch.FloatTensor(pour_site_pos)
-            xy_check = torch.norm(obj_pos[i, 0:2] - pour_site_pos[0:2]) < xy_thresh
-            z_check = torch.abs(obj_pos[i, 2] - pour_site_pos[2]) < 0.10
-            check.append(bool(xy_check) and bool(z_check))
-        return torch.tensor(check, dtype=torch.bool, device=env.device)
-
-    @cached_property
-    def pour_sites(self):
-        sites_list = []
-        for i, site in enumerate(self.receptacle_place_sites):
-            if site is None:
-                sites_list.append(None)
-                continue
-            sites_list.append(usd.get_prim_pos_rot_in_world(site.GetPrim())[0])
-        return sites_list
+        obj_poses = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
+        pour_site_poses = self.pos + np.array(self.get_reset_regions()["bottom"]["offset"])
+        pour_site_poses = torch.tensor(pour_site_poses, device=self.device) + env.scene.env_origins
+        xy_check = torch.norm(obj_poses[:, 0:2] - pour_site_poses[0:2], dim=-1) < xy_thresh
+        z_check = torch.abs(obj_poses[:, 2:3] - pour_site_poses[:, 2:3], dim=-1) < 0.10
+        return xy_check & z_check
 
     def gripper_button_far(self, env, th=0.15):
         """
@@ -129,7 +143,7 @@ class CoffeeMachine(Fixture):
         """
         result = torch.tensor([True] * env.num_envs, dtype=torch.bool, device=env.device)
         gripper_site_pos = env.scene["ee_frame"].data.target_pos_w  # (env_num, ee_num, 3)
-        for name, button in self.start_button_infos.items():
+        for name in self._start_button_names:
             button_idx = env.scene.articulations[self.name].data.body_names(name)
             button_pos = env.scene.articulations[self.name].data.body_com_pos_w[:, button_idx:button_idx + 1, :]  # (env_num, 1, 3)
             gripper_button_far = torch.norm(gripper_site_pos - button_pos, dim=-1) > th  # (env_num, ee_num)
@@ -140,7 +154,7 @@ class CoffeeMachine(Fixture):
     @cached_property
     def coffee_liquid_sites(self):
         sites_dict = {}
-        for site_name in self.coffee_liquid_site_names:
+        for site_name in self._coffee_liquid_site_names:
             sites_list = []
             for prim_path in self.prim_paths:
                 sites_prim = usd.get_prim_by_name(self._env.sim.stage.GetObjectAtPath(prim_path), site_name, only_xform=False)
@@ -148,7 +162,7 @@ class CoffeeMachine(Fixture):
                     if site is not None and site.IsValid():
                         sites_list.append(site)
             sites_dict[site_name] = sites_list
-        for site_name in self.coffee_liquid_site_names:
+        for site_name in self._coffee_liquid_site_names:
             assert site_name in sites_dict.keys(), f"Coffee liquid site {site_name} not found!"
         return sites_dict
 
@@ -167,33 +181,19 @@ class CoffeeMachine(Fixture):
         return sites_list
 
     @cached_property
-    def coffee_liquid_site_names(self):
-        names_infos = {}
-        for liquid_name in ["coffee_liquid_left", "coffee_liquid_right", "coffee_liquid"]:
-            for prim_path in self.prim_paths:
-                sites_prim = usd.get_prim_by_name(self._env.sim.stage.GetObjectAtPath(prim_path), liquid_name, only_xform=False)
-                for site in sites_prim:
-                    if site is not None and site.IsValid():
-                        if liquid_name not in names_infos:
-                            names_infos[liquid_name] = [site]
-                        else:
-                            names_infos[liquid_name].append(site)
-        assert len(list(names_infos.keys())) > 0, f"Coffee liquid site not found!"
-        return names_infos
-
-    @cached_property
     def start_button_infos(self):
-        button_infos = {}
+        start_button_infos = {}
         for prim_path in self.prim_paths:
-            buttons_prim = usd.get_prim_by_prefix(self._env.sim.stage.GetObjectAtPath(prim_path), f"{self.folder.split('/')[-1]}_Button")
-            for button in buttons_prim:
-                if button is not None and button.IsValid():
-                    if button.GetName() not in button_infos:
-                        button_infos[button.GetName()] = [button]
+            root_prim = self._env.sim.stage.GetObjectAtPath(prim_path)
+            button_prims = usd.get_prim_by_prefix(root_prim, "start_button")
+            for button_prim in button_prims:
+                if button_prim is not None and button_prim.IsValid():
+                    if button_prim.GetName() not in start_button_infos:
+                        start_button_infos[button_prim.GetName()] = [button_prim]
                     else:
-                        button_infos[button.GetName()].append(button)
-        assert all(name.startswith(f"{self.folder.split('/')[-1]}_Button") for name in list(button_infos.keys())), f"Microwave Button not found!"
-        return button_infos
+                        start_button_infos[button_prim.GetName()].append(button_prim)
+        assert len(start_button_infos) > 0, f"Microwave Start Button not found!"
+        return start_button_infos
 
     @property
     def nat_lang(self):

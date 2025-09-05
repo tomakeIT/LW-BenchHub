@@ -82,6 +82,8 @@ class Oven(Fixture):
             )
 
     def slide_rack(self, env, value=1.0, rack_level=0, env_ids=None):
+        if env_ids is None:
+            env_ids = torch.arange(self.num_envs, device=env.device)
         for level in [rack_level, 0]:
             joint = f"rack{level}_joint"
             if joint in env.scene.articulations[self.name].data.joint_names:
@@ -151,8 +153,16 @@ class Oven(Fixture):
         return state
 
     def has_multiple_rack_levels(self):
-        # TODO: need to be completed
-        return False
+        """
+        Returns True if the oven has multiple rack levels, False if only one.
+        """
+        rack_levels = set()
+        for key in self._regions:
+            m = re.fullmatch(r"rack(\d+)", key)
+            if m:
+                idx = int(m.group(1))
+                rack_levels.add(idx)
+        return len(rack_levels) > 1
 
     @cached_property
     def rack_infos(self):
@@ -198,7 +208,7 @@ class Oven(Fixture):
         if region:
             level = region[0]
             self._joint_names["rack"] = f"rack{level}_joint"
-            self._rack[f"rack{level}"] = 0.0
+            self._rack[f"rack{level}"] = torch.zeros(self.num_envs, device=env.device)
         else:
             raise ValueError(f"No rack reset regions found for rack_level {rack_level}")
 

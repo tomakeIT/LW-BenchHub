@@ -33,3 +33,23 @@ class FixtureType(IntEnum):
     WINDOW = 25  # DONE
     DISH_RACK = 26  # DONE
     COUNTER_NON_DINING = 27
+    TABLE = 28
+    YCB = 29
+    DOOR = 30
+    SIDETABLE = 31
+
+    # AI2 FIXTURES
+    BUTTON = 32
+    SWITCH = 33
+    BOOK = 34
+    HAND_SOAP = 35
+    DISH_SOAP = 36
+    CART = 37
+    COFFEE_POT = 38
+    SOFA = 39
+    TELEVISION = 40
+    COFFEE_TABLE = 41
+    WALL_ART = 42
+    CARPET = 43
+    TABLE_LAMP = 44
+    FLOOR_LAMP = 45

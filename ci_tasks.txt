@@ -1,4 +1,6 @@
-bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/ci_task/OpenOven/OpenOven.hdf5 action
-bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/ci_task/CloseOven/CloseOven.hdf5 action
-bash -i /workspace/lwlab/ci_run/train_ci.sh
-
+python3 /workspace/lwlab/ci_run/check_format.py
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/open-source-ci/CloseDrawer/CloseDrawer.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/open-source-ci/OpenDishwasher/OpenDishwasher.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/open-source-ci/OpenDrawer/OpenDrawer.hdf5 action
+bash -i /workspace/lwlab/ci_run/train_ci.sh ci_lift_obj
+bash -i /workspace/lwlab/ci_run/train_ci.sh ci_open_draw

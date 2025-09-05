@@ -14,7 +14,7 @@ class IMUKF:
         self.Q = np.eye(3) * process_noise
         self.R = np.eye(3) * measurement_noise
         self.H = np.eye(3)
-        self.I = np.eye(3)
+        self.I = np.eye(3)  # noqa: E741
 
     def update(self, z):
         """

@@ -16,6 +16,37 @@ from lwlab.core.models.fixtures import FixtureType
 
 from tasks.base import BaseTaskEnvCfg
 from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
+# @configclass
+import lwlab.utils.object_utils as OU
+
+
+class TurnOnElectricKettle(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+    """
+    Class encapsulating the atomic turn on electric kettle task.
+    """
+
+    task_name: str = "TurnOnElectricKettle"
+    enable_fixtures: list[str] = ["electric_kettle"]
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+
+        self.electric_kettle = self.register_fixture_ref(
+            "electric_kettle", dict(id=FixtureType.ELECTRIC_KETTLE)
+        )
+        self.init_robot_base_ref = self.electric_kettle
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "Press down the lever to turn on the electric kettle."
+        return ep_meta
+
+    def _setup_scene(self, env_ids=None):
+        super()._setup_scene(env_ids)
+        self.electric_kettle.init_state(self.env)
+
+    def _check_success(self):
+        return self.electric_kettle.get_state(self.env)["turned_on"]
 
 
 class CloseElectricKettleLid(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):

@@ -13,18 +13,18 @@ class TerminationsCfg:
 
     # joint_vel_limit = DoneTerm(func=mdp.joint_vel_out_of_limit, time_out=True)
 
+
 class BaseRLEnvCfg(LwBaseCfg):
     task_type: str = "rl"
     terminations: TerminationsCfg = TerminationsCfg()
 
     def _check_success(self):
-        if self.env.cfg.execute_mode == ExecuteMode.TRAIN:
-            # check_succuss only work in eval mode
-            # no need to run in train mode
-            return False
-        else:
-            return super()._check_success()
-
+        # if self.env.cfg.execute_mode == ExecuteMode.TRAIN:
+        #     # check_succuss only work in eval mode
+        #     # no need to run in train mode
+        #     return False
+        # else:
+        return super()._check_success()
 
     def __post_init__(self):
         super().__post_init__()
@@ -38,7 +38,7 @@ class BaseRLEnvCfg(LwBaseCfg):
         self.sim.physx.friction_correlation_distance = 0.00625
 
 
-def register_rl_env(robot_name, task_name, env_cfg_entry_point, skrl_cfg_entry_point, variant=None):
+def register_rl_env(robot_name, task_name, env_cfg_entry_point, skrl_cfg_entry_point, rsl_rl_cfg_entry_point, variant=None):
     if variant:
         task_name = f"{task_name}-{variant}"
     gym.register(
@@ -47,6 +47,7 @@ def register_rl_env(robot_name, task_name, env_cfg_entry_point, skrl_cfg_entry_p
         kwargs={
             "env_cfg_entry_point": env_cfg_entry_point,
             "skrl_cfg_entry_point": skrl_cfg_entry_point,
+            "rsl_rl_cfg_entry_point": rsl_rl_cfg_entry_point,
         },
         disable_env_checker=True,
     )

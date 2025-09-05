@@ -79,7 +79,13 @@ class Fixture:
             self._regions = dict()
 
         geom_prim_list = usd.get_prim_by_type(self.prim, exclude_types=["Xform", "Scope"])
-        prim_pos = np.array(list(prim.GetAttribute("xformOp:translate").Get()))
+        self._pos = np.array(list(prim.GetAttribute("xformOp:translate").Get()))
+        self._scale = prim.GetAttribute("xformOp:scale").Get()
+        self._scale = np.array(self._scale) if self._scale is not None else np.array([1, 1, 1])
+        euler_angles = prim.GetAttribute("xformOp:rotateXYZ").Get()
+        if euler_angles is not None:
+            euler_radians = np.radians(np.array(euler_angles))
+            self.set_euler(euler_radians)
 
         reg_geom_prims = []
         for geom_prim in geom_prim_list:
@@ -99,13 +105,12 @@ class Fixture:
             else:
                 reg_quat = np.array(reg_quat)
                 reg_pos = np.array(reg_pos)
-                prim_scale = np.array(prim.GetAttribute("xformOp:scale").Get())
                 # TODO: fixture standard (extent or scale)
                 reg_extent = np.array(geom_prim.GetAttribute("extent").Get()[1])
                 reg_scale = np.array(geom_prim.GetAttribute("xformOp:scale").Get())
                 reg_halfsize = np.where(abs(reg_extent) > abs(reg_scale), reg_scale, reg_extent)
-                reg_halfsize = reg_halfsize * prim_scale
-                reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - prim_pos)
+                reg_halfsize = reg_halfsize * self.scale
+                reg_rel_pos = (T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos)) * self.scale
 
             p0 = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             px = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
@@ -126,7 +131,7 @@ class Fixture:
             reg_pos = np.array(reg_pos)
             reg_quat = np.array(reg_quat)
             reg_halfsize = np.fromstring(prim.GetAttribute("size").Get(), sep=',') / 2
-            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - prim_pos)
+            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos) * self.scale
             reg_dict = {}
             reg_dict["p0"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             reg_dict["px"] = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
@@ -160,7 +165,7 @@ class Fixture:
                         np.mean((p0[2], pz[2])),
                     ]
                 ) - np.array(self.prim.GetAttribute("xformOp:translate").Get())
-            except:
+            except Exception as e:
                 raise RuntimeError(f"The counter self._regions is None.")
         else:
             self.origin_offset = np.array([0, 0, 0])
@@ -180,12 +185,6 @@ class Fixture:
             self._joint_infos[jnt.GetName()] = {} if jnt.GetAttribute("physics:lowerLimit").Get() is None \
                 else {"range": torch.tensor([jnt.GetAttribute("physics:lowerLimit").Get() * torch.pi / 180,
                                              jnt.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
-
-        self._pos = np.array(prim.GetAttribute("xformOp:translate").Get())
-        euler_angles = prim.GetAttribute("xformOp:rotateXYZ").Get()
-        if euler_angles is not None:
-            euler_radians = np.radians(np.array(euler_angles))
-            self.set_euler(euler_radians)
 
     def get_reset_region_names(self):
         return ("int", )
@@ -513,6 +512,10 @@ class Fixture:
         return self._pos if hasattr(self, "_pos") else np.array([0, 0, 0])
 
     @property
+    def scale(self):
+        return self._scale if hasattr(self, "_scale") else np.array([1, 1, 1])
+
+    @property
     def quat(self):
         return self._quat
 
@@ -617,7 +620,7 @@ class Fixture:
         points = [(np.matmul(rot, p) + trans) for p in bbox_offsets]
         return points
 
-    def sample_reset_region(self, min_size=None, *args, **kwargs):
+    def get_all_valid_reset_region(self, min_size=None, *args, **kwargs):
         """
         Sample a reset region from available regions
         """
@@ -673,6 +676,13 @@ class Fixture:
                 f"Could not find suitable region to sample from for {self.name}"
             )
         return valid_regions
+
+    def sample_reset_region(self, min_size=None, *args, **kwargs):
+        """
+        Sample a reset region from available regions
+        """
+        valid_regions = self.get_all_valid_reset_region(min_size, *args, **kwargs)
+        return self.rng.choice(valid_regions)
 
     def set_regions(self, region_dict):
         """

@@ -11,7 +11,8 @@ from typing import TYPE_CHECKING
 from isaaclab.assets import RigidObject
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import FrameTransformer
-from isaaclab.utils.math import combine_frame_transforms
+from isaaclab.utils.math import combine_frame_transforms, matrix_from_quat
+
 
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnv

@@ -66,7 +66,9 @@ parser.add_argument("--robot_scale", type=float, default=1.0, help="robot scale"
 parser.add_argument("--first_person_view", action="store_true", default=False, help="first person view")
 parser.add_argument("--replay_mode", type=str, default="action", help="replay mode(action or joint_target)")
 parser.add_argument("--layout", type=str, default=None, help="layout name")
-parser.add_argument("--only_last_clips", action="store_true", default=True, help="only replay the last clips")
+parser.add_argument("--replay_all_clips", action="store_true", help="replay all clips, otherwise only replay the last clips")
+parser.add_argument("--record", action="store_true", default=False, help="record the replayed actions")
+
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
@@ -143,7 +145,7 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
 
 def main():
     """Replay episodes loaded from a file."""
-    global is_paused
+    global is_paused  # noqa: F824
     from isaaclab.envs import ManagerBasedRLEnv
 
     # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
@@ -166,7 +168,7 @@ def main():
 
     episode_indices_to_replay = args_cli.select_episodes
     if len(episode_indices_to_replay) == 0:
-        if args_cli.only_last_clips:
+        if not args_cli.replay_all_clips:
             episode_indices_to_replay = [episode_count - 1]
         else:
             episode_indices_to_replay = list(range(episode_count))
@@ -183,9 +185,14 @@ def main():
     else:  # robocasa
         from lwlab.utils.env import parse_env_cfg, ExecuteMode
         task_name = env_args["task_name"] if args_cli.task is None else args_cli.task
+        robot_name = env_args["robot_name"]
+        if robot_name == "double_piper_abs":
+            robot_name = "DoublePiper-Abs"
+        if robot_name == "double_piper_rel":
+            robot_name = "DoublePiper-Rel"
         env_cfg = parse_env_cfg(
             task_name=task_name,
-            robot_name=env_args["robot_name"],
+            robot_name=robot_name,
             scene_name=f"robocasakitchen-{env_args['layout_id']}-{env_args['style_id']}" if args_cli.layout is None else args_cli.layout,
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True,
@@ -195,7 +202,7 @@ def main():
             execute_mode=ExecuteMode.REPLAY_ACTION if args_cli.replay_mode == "action" else ExecuteMode.REPLAY_JOINT_TARGETS,
             usd_simplify=usd_simplify,
         )
-        env_name = f"Robocasa-{task_name}-{env_args['robot_name']}-v0"
+        env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(
             id=env_name,
             entry_point="isaaclab.envs:ManagerBasedRLEnv",
@@ -206,16 +213,20 @@ def main():
         )
 
     # Disable all recorders and terminations
-    env_cfg.recorders = {}
+    if args_cli.record:
+        env_cfg.recorders.dataset_export_dir_path = os.path.dirname(args_cli.dataset_file)
+        env_cfg.recorders.dataset_filename = os.path.splitext(os.path.basename(args_cli.dataset_file))[0] + f"_{args_cli.replay_mode}_replay_record.hdf5"
+
     delattr(env_cfg.terminations, "time_out")
 
     # create environment from loaded config
     env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
 
-    teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
-    teleop_interface.add_callback("N", play_cb)
-    teleop_interface.add_callback("B", pause_cb)
-    print('Press "B" to pause and "N" to resume the replayed actions.')
+    if app_launcher._enable_cameras:
+        teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
+        teleop_interface.add_callback("N", play_cb)
+        teleop_interface.add_callback("B", pause_cb)
+        print('Press "B" to pause and "N" to resume the replayed actions.')
     print(args_cli.dataset_file)
 
     # Determine if state validation should be conducted
@@ -237,38 +248,60 @@ def main():
 
     # reset before starting
     env.reset()
-
-    teleop_interface.reset()
+    if app_launcher._enable_cameras:
+        teleop_interface.reset()
     font = ImageFont.load_default()
     if hasattr(font, 'font_variant'):
         font = font.font_variant(size=20)
 
     # prepare video writer and json file
-    replay_mp4_path = Path(args_cli.dataset_file).parent / f"isaac_replay_action_{args_cli.replay_mode}.mp4"
-    replay_mp4_path.parent.mkdir(parents=True, exist_ok=True)
-    replay_json_path = replay_mp4_path.with_suffix('.json')
     success_info = {}
     has_success = False
 
     # read ee_poses from hdf5
     import h5py
-    if (ee_poses_path := replay_mp4_path.parent / "replay_state_ee_poses.hdf5").exists():
-        gt_ee_poses_f = h5py.File(ee_poses_path, "r")
-    else:
-        gt_ee_poses_f = None
 
     # simulate environment -- run everything in inference mode
     episode_names = list(dataset_file_handler.get_episode_names())
     episode_names.sort(key=lambda x: int(x.split("_")[-1]))
     replayed_episode_count = 0
     pose_divergence_ep = []
-    with (
-        contextlib.suppress(KeyboardInterrupt),
-        media.VideoWriter(path=replay_mp4_path, shape=(args_cli.height, sum(env.cfg.task_type in c["tags"] for c in env.cfg.observation_cameras.values()) * args_cli.width), fps=30) as v,
-        h5py.File(replay_mp4_path.parent / f"isaac_replay_action_{args_cli.replay_mode}_pose_divergence.hdf5", "w") as pose_divergence_f
-    ):
-        pose_divergence_f.create_group("data")
-        while simulation_app.is_running() and not simulation_app.is_exiting():
+    ee_poses = []
+    joint_pos_list = []
+    joint_target_list = []
+    gt_joint_target_list = []
+    episode_name: str = None
+    gt_joint_pos = None
+    num_cameras = sum(env.cfg.task_type in c["tags"] for c in env.cfg.observation_cameras.values())
+    if num_cameras > 4:
+        # two rows layout: height is twice the original, width is the maximum width of each row
+        cameras_per_row = (num_cameras + 1) // 2
+        video_height = args_cli.height * 2
+        video_width = max(cameras_per_row, num_cameras - cameras_per_row) * args_cli.width
+    else:
+        # single row layout: original calculation
+        video_height = args_cli.height
+        video_width = num_cameras * args_cli.width
+
+    for i in episode_indices_to_replay:
+        episode_indices_to_replay_tmp = [i]
+        if not args_cli.replay_all_clips:
+            save_dir = Path(args_cli.dataset_file).parent
+        else:
+            save_dir = Path(args_cli.dataset_file).parent / 'replay_results' / episode_names[i]
+        save_dir.mkdir(parents=True, exist_ok=True)
+        replay_mp4_path = save_dir / f"isaac_replay_action_{args_cli.replay_mode}.mp4"
+        replay_json_path = replay_mp4_path.with_suffix('.json')
+        if (ee_poses_path := save_dir / "replay_state_ee_poses.hdf5").exists():
+            gt_ee_poses_f = h5py.File(ee_poses_path, "r")
+        else:
+            gt_ee_poses_f = None
+        with (
+            contextlib.suppress(KeyboardInterrupt),
+            media.VideoWriter(path=replay_mp4_path, shape=(video_height, video_width), fps=30) as v,
+            h5py.File(save_dir / f"isaac_replay_action_{args_cli.replay_mode}_pose_divergence.hdf5", "w") as pose_divergence_f
+        ):
+            pose_divergence_f.create_group("data")
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             first_loop = True
             has_next_action = True
@@ -283,13 +316,13 @@ def main():
 
                     if env_next_action is None:
                         next_episode_index = None
-                        while episode_indices_to_replay:
-                            next_episode_index = episode_indices_to_replay.pop(0)
+                        while episode_indices_to_replay_tmp:
+                            next_episode_index = episode_indices_to_replay_tmp.pop(0)
                             if next_episode_index < episode_count:
                                 break
                             next_episode_index = None
 
-                        if replayed_episode_count:
+                        if replayed_episode_count and isinstance(joint_pos_list, list):
                             # compare ee_poses with gt_ee_poses, calculate pose divergence
                             if gt_ee_poses_f is not None:
                                 gt_ee_poses = gt_ee_poses_f["data"][episode_name]["ee_poses"][:]
@@ -356,6 +389,7 @@ def main():
                             # env.step(actions)
                             initial_state = episode_data.get_initial_state()
                             env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=False)
+
                             # env.step(actions)
 
                             # Get the first action for the new episode
@@ -392,15 +426,33 @@ def main():
                     joint_target_list.append(get_robot_joint_target_from_scene(env.scene)["joint_pos_target"].cpu().numpy())
                     gt_joint_target_list.append(actions.reshape(env.cfg.decimation, -1)[-1:, ...].cpu().numpy())
                 if app_launcher._enable_cameras:
-                    full_image = np.concatenate([obs['policy'][name].cpu().numpy() for name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]], axis=0).transpose(0, 2, 1, 3)
-                    full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
-                    # draw the frame number on the image
-                    # cv2.putText(full_image, f"Frame: {env_episode_data_map[env_id].next_state_index - 1}", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
-                    pil_im = Image.fromarray(full_image)
-                    draw = ImageDraw.Draw(pil_im)
-                    draw.text((20, 30), f"{env_episode_data_map[env_id].next_action_index - 1}", fill=(0, 255, 0), font=font)
-                    full_image = np.array(pil_im)
+                    # get all camera images
+                    camera_images = [obs['policy'][name].cpu().numpy() for name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]]
+                    num_cameras = len(camera_images)
 
+                    # if camera number is more than 4, split into two rows
+                    if num_cameras > 4:
+                        # get the number of cameras per row
+                        cameras_per_row = (num_cameras + 1) // 2
+
+                        # first row of cameras
+                        first_row = camera_images[:cameras_per_row]
+                        first_row_images = np.concatenate(first_row, axis=0).transpose(0, 2, 1, 3)
+                        first_row_reshaped = first_row_images.reshape(-1, *first_row_images.shape[2:]).transpose(1, 0, 2)
+
+                        # second row of cameras
+                        second_row = camera_images[cameras_per_row:]
+                        if second_row:  # ensure second row has cameras
+                            second_row_images = np.concatenate(second_row, axis=0).transpose(0, 2, 1, 3)
+                            second_row_reshaped = second_row_images.reshape(-1, *second_row_images.shape[2:]).transpose(1, 0, 2)
+
+                            # vertically concatenate two rows of images
+                            full_image = np.concatenate([first_row_reshaped, second_row_reshaped], axis=0)
+                        else:
+                            full_image = first_row_reshaped
+                    else:
+                        full_image = np.concatenate(camera_images, axis=0).transpose(0, 2, 1, 3)
+                        full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
                     v.add_image(full_image)
                     if not args_cli.without_image:
                         cv2.imshow("replay", full_image[..., ::-1])
@@ -426,7 +478,6 @@ def main():
             # save pose divergence to hdf5
             with open(replay_json_path, 'w') as f:
                 json.dump(success_info, f, indent=4)
-            break
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.")

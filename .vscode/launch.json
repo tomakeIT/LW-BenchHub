@@ -1,6 +1,17 @@
 {
     "version": "0.2.0",
     "configurations": [
+        {
+            "name": "teleop_launcher",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                // "--task_config=default" , // data_collection/teleop/task_config/default.yml
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_launcher.py",
+            "console": "integratedTerminal",
+            "justMyCode": false
+        },
 
         {
             "name": "Python Debugger: Current File",
@@ -14,12 +25,28 @@
             "type": "python",
             "request": "launch",
             "args": [
-                "--task_config=g1_liftobj_state", // policy/skrl/task_config/default.yml
-                // "--headless",
+                "--task_config=lerobot_liftobj_state", // policy/skrl/task_config/default.yml
+                "--headless",
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/rl/train.py",
+            "program": "${workspaceFolder}/policy/maniskill_ppo/train.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+            "env": {
+                "ENV_GPU": "0",
+                "POLICY_GPU": "0",
+            },
+        },
+        {
+            "name": "camera_alignment",
+            "type": "python",
+            "request": "launch",
+            "args": [
+                "--task_config=lerobot_liftobj_state", // policy/skrl/task_config/default.yml
+                // "--headless",
+            ],
+            "program": "${workspaceFolder}/policy/skrl/camera_alignment.py",
+            "console": "integratedTerminal",
+            "justMyCode": false, 
             "env": {
                 "ENV_GPU": "0",
                 "POLICY_GPU": "0",
@@ -47,9 +74,6 @@
             "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {
-                "LWLAB_ENV_MODE": "dev"
-            },
         },
         {
             "name": "replay",

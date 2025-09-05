@@ -464,6 +464,7 @@ class UnitreeG1LocoHandEnvCfg(UnitreeG1LocoEnvCfg):
         return torch.concat([left_arm_action, right_arm_action,
                              left_finger_tips, right_finger_tips, base_action]).unsqueeze(0)
 
+
 class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
     robot_name: str = "G1-Loco-Controller"
     hand_action_mode: str = "handle"
@@ -523,6 +524,7 @@ class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
         right_gripper = torch.tensor([-action["right_gripper"]], device=action['rbase'].device)
         return torch.concat([left_arm_action, right_arm_action,
                              left_gripper, right_gripper, base_action]).unsqueeze(0)
+
 
 class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
     robot_name: str = "G1-RL"

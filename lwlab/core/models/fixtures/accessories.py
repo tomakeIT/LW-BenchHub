@@ -43,7 +43,7 @@ class Accessory(Fixture):
 
 class WallAccessory(Fixture):
     """
-    Class for wall accessories. These are objects that are attached to walls, 
+    Class for wall accessories. These are objects that are attached to walls,
     such as outlets, clocks, paintings, etc.
 
     Args:

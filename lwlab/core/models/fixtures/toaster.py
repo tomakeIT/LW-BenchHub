@@ -41,7 +41,7 @@ class Toaster(Fixture):
             self._turned_on = {s: torch.tensor([False], device=env.device).repeat(env.num_envs) for s in self.slot_pairs}
             self._num_steps_on = {s: torch.tensor([0], device=env.device).repeat(env.num_envs) for s in self.slot_pairs}
             self._cooldown = {s: torch.tensor([0], device=env.device).repeat(env.num_envs) for s in self.slot_pairs}
-        except:
+        except Exception as e:
             print("toaster setup_env failed")
             return
 
@@ -61,6 +61,16 @@ class Toaster(Fixture):
                 desired_max = joint_min + (joint_max - joint_min) * (1 - min)
             joint_qpos_all[:, joint_idx] = self.rng.uniform(float(desired_min), float(desired_max))
         env.scene.articulations[self.name].write_joint_position_to_sim(joint_qpos_all, env_ids=[env_id])
+
+    def get_reset_region_names(self):
+        return (
+            "slotL",
+            "slotR",
+            "sideL_slotL",
+            "sideL_slotR",
+            "sideR_slotL",
+            "sideR_slotR",
+        )
 
     def set_doneness_knob(self, env: ManagerBasedRLEnv, env_id: int, slot_pair: int, value: float):
         """
@@ -142,12 +152,12 @@ class Toaster(Fixture):
                 elif self._cooldown[sp][env_ids] >= 1000:
                     self._cooldown[sp][env_ids] = 0
 
-    def check_slot_contact(self, env: ManagerBasedRLEnv, obj_name: str, slot_pair: int | None = None, side: str | None = None):
+    def check_slot_contact(self, cfg, obj_name: str, slot_pair: int | None = None, side: str | None = None):
         """
         Returns True if the specified object is in contact with any of the toaster slot-floor geom(s).
 
         Args:
-            env (MujocoEnv): the environment
+            cfg (USDSceneCfg)
             obj_name (str): name of the object to check
             slot_pair (int or None): 0 to N-1 slot pairs
             side (str or None): None = both sides; otherwise “left” or “right”
@@ -201,12 +211,12 @@ class Toaster(Fixture):
                 f"must be None, 0 (left) or 1 (right)"
             )
 
-        is_contact = torch.tensor([False], device=env.device).repeat(env.num_envs)
+        is_contact = torch.tensor([False], device=cfg.device).repeat(cfg.num_envs)
 
         # check contact
         for slot_floor_name in final_floor_names:
             floor_geom_path = self.floor_geoms[slot_floor_name][0].GetPrimPath()
-            is_contact |= env.check_contact(obj_name, str(floor_geom_path))
+            is_contact |= cfg.check_contact(obj_name, str(floor_geom_path))
 
         return is_contact
 

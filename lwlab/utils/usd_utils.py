@@ -13,10 +13,9 @@
 # limitations under the License.
 
 import os
-from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema, Gf
-from lwlab.core.mdp.helpers.transformations import quaternion_from_euler
-import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import math
+from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
 class OpenUsd:
@@ -80,6 +79,10 @@ class OpenUsd:
                 if child.HasAPI(PhysxSchema.PhysxContactReportAPI):
                     child.RemoveAPI(PhysxSchema.PhysxContactReportAPI)
             if "joint" in str(child.GetName()).lower() or "collisions" in str(child.GetName()).lower():
+                stage.RemovePrim(child.GetPath().pathString)
+                continue
+
+            if UsdPhysics.Joint(child):
                 stage.RemovePrim(child.GetPath().pathString)
                 continue
             OpenUsd.usd_simplify(stage, usd_path, ref_prim, child)
@@ -190,14 +193,6 @@ class OpenUsd:
                 break
         if not found_scale:
             xformable.AddScaleOp().Set((scale_factor[0], scale_factor[1], scale_factor[2]))
-
-    @staticmethod
-    def rotate_upright(root_prim, axis=(0, 1, 0)):
-        """Rotate object to be upright"""
-        xformable = UsdGeom.Xformable(OpenUsd.get_prim_by_name(root_prim, "root")[0])
-        if not xformable:
-            raise ValueError("prim must be xformable")
-        xformable.Rotate(axis, 0)
 
     @staticmethod
     def export(stage, path):
@@ -390,7 +385,7 @@ class OpenUsd:
             prim = prim[0]
             fixture_pos = tuple(prim.GetAttribute("xformOp:translate").Get())
             fixture_rot = prim.GetAttribute("xformOp:rotateXYZ").Get()
-            fixture_quat = T.mat2quat(T.euler2mat([math.radians(fixture_rot[0]), math.radians(fixture_rot[1]), math.radians(fixture_rot[2])]))
+            fixture_quat = T.mat2quat(T.euler2mat([math.radians(fixture_rot[0]), math.radians(fixture_rot[1]), math.radians(fixture_rot[2])]))  # xyzw
             fixture_placements[name] = (fixture_pos, fixture_quat, fixtures[name])
 
         return fixture_placements
@@ -436,9 +431,6 @@ class OpenUsdWrapper:
 
     def scale_size(self, scale_factor=(1.0, 1.0, 1.0)):
         return self._usd.scale_size(self.root_prim, scale_factor)
-
-    def rotate_upright(self, axis=(0, 1, 0)):
-        return self._usd.rotate_upright(self.root_prim, axis)
 
     def export(self, path):
         return self._usd.export(self.stage, path)

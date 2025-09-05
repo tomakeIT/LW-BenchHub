@@ -13,9 +13,9 @@
 # limitations under the License.
 
 import torch
+import numpy as np
 
-from isaaclab.envs import ManagerBasedRLEnvCfg
-
+import lwlab.utils.math_utils.transform_utils.torch_impl as T
 from .fixture import Fixture
 from .fixture_types import FixtureType
 
@@ -44,7 +44,8 @@ class StandMixer(Fixture):
         Args:
             knob_val (float): normalized value between 0 and 1 (max speed)
         """
-        self._speed_dial_knob_value = torch.clip(knob_val, 0.0, 1.0)
+        self._speed_dial_knob_value = torch.clip(
+            torch.tensor(knob_val, device=env.device), 0.0, 1.0)
         jn = self._joint_names["knob_speed"]
         self.set_joint_state(
             env=env,
@@ -60,7 +61,8 @@ class StandMixer(Fixture):
         Args:
             head_val (float): normalized value between 0 (closed) and 1 (open)
         """
-        self._head_value = torch.clip(head_val, 0.0, 1.0)
+        self._head_value = torch.clip(
+            torch.tensor(head_val, device=env.device), 0.0, 1.0)
         jn = self._joint_names["head"]
 
         self.set_joint_state(
@@ -90,34 +92,41 @@ class StandMixer(Fixture):
             if jn in env.scene.articulations[self.name].data.joint_names:
                 setattr(self, attr, self.get_joint_state(env, [jn])[jn])
 
-    def check_item_in_bowl(self, env, obj_name, partial_check=False):
+    def check_item_in_bowl(self, cfg, obj_name, partial_check=False):
         """
         Check if an object is in the bowl of the stand mixer.
         """
-        obj = env.objects[obj_name]
+        obj = cfg.objects[obj_name]
         sites = self.get_int_sites(relative=False)
-        if partial_check:
-            pts = torch.norm(env.scene.articulations[obj.name].data.body_com_pos_w, dim=1)  # (env_num, 3)
-            tol = 0.0
-        else:
-            pos = torch.norm(env.scene.articulations[obj.name].data.body_com_pos_w, dim=1)  # (env_num, 3)
-            quat = torch.norm(env.scene.articulations[obj.name].data.body_com_quat_w, dim=1)  # (env_num, 4)
-            pts = obj.get_bbox_points(trans=pos, rot=quat)
-            tol = 1e-2
-
-        for (_, (p0, px, py, pz)) in sites.items():
-            u, v, w = px - p0, py - p0, pz - p0
-            mid = p0 + 0.5 * (pz - p0)
-            all_in = torch.tensor([True], device=env.device).repeat(env.num_envs)
-            for env_id in range(pts.shape[0]):
-                cu, cv, cw = torch.dot(u, pts[env_id]), torch.dot(v, pts[env_id]), torch.dot(w, pts[env_id])
-                if not (
-                    (torch.dot(u, p0) - tol <= cu <= torch.dot(u, px) + tol)
-                    and (torch.dot(v, p0) - tol <= cv <= torch.dot(v, py) + tol)
-                    and (torch.dot(w, p0) - tol <= cw <= torch.dot(w, mid) + tol)
-                ):
-                    all_in[env_id] &= False
-        return all_in
+        all_in = np.array([True]).repeat(cfg.num_envs)
+        for env_id in range(cfg.num_envs):
+            if partial_check:
+                pts = torch.norm(cfg.env.scene.rigid_objects[obj.task_name].data.body_com_pos_w, dim=1)[env_id].cpu().numpy()  # (3, )
+                tol = 0.0
+            else:
+                pos = cfg.env.scene.rigid_objects[obj.task_name].data.body_com_pos_w[env_id, 0, :]  # (3, )
+                pos = (pos + cfg.env.scene.env_origins[env_id]).cpu().numpy()
+                quat = cfg.env.scene.rigid_objects[obj.task_name].data.body_com_quat_w[env_id, 0, :]  # (4, )
+                quat = T.convert_quat(quat, to="xyzw").cpu().numpy()
+                pts = obj.get_bbox_points(trans=pos, rot=quat)
+                pts = np.stack(pts, axis=0)
+                tol = 1e-2
+            for (_, int_sites) in sites.items():
+                for site in int_sites:
+                    site += cfg.env.scene.env_origins[env_id].cpu().numpy()
+                p0, px, py, pz = int_sites
+                u, v, w = px - p0, py - p0, pz - p0
+                mid = p0 + 0.5 * (pz - p0)
+                for pt_id in range(pts.shape[0]):
+                    cu, cv, cw = np.dot(u, pts[pt_id]), np.dot(v, pts[pt_id]), np.dot(w, pts[pt_id])
+                    if not (
+                        (np.dot(u, p0) - tol <= cu <= np.dot(u, px) + tol)
+                        and (np.dot(v, p0) - tol <= cv <= np.dot(v, py) + tol)
+                        and (np.dot(w, p0) - tol <= cw <= np.dot(w, mid) + tol)
+                    ):
+                        all_in[env_id] = False
+                        break
+        return torch.from_numpy(all_in).to(cfg.device)
 
     def get_state(self, env):
         """

@@ -17,12 +17,10 @@ import os
 from typing import Dict, List, Any, Optional
 import numpy as np
 import torch
-from pathlib import Path
 from dataclasses import MISSING
 from copy import deepcopy
-from pathlib import Path
-import platform
-from termcolor import colored
+import traceback
+from collections import namedtuple
 
 import isaaclab.sim as sim_utils
 from isaaclab.sensors import ContactSensorCfg
@@ -33,12 +31,14 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from ..base import BaseSceneEnvCfg
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
-from lwlab.utils.env import set_camera_follow_pose
+from lwlab.utils.env import set_camera_follow_pose, ExecuteMode
 from lwlab.utils.usd_utils import OpenUsd as usd
-from lwlab.utils.env import ExecuteMode
 from lightwheel_sdk.loader import ENDPOINT
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 from lwlab.utils.log_utils import get_error_logger
+from lwlab.core.checks.checker_factory import get_checkers_from_cfg
+import lwlab.utils.place_utils.env_utils as EnvUtils
+from lwlab.core.scenes.kitchen.kitchen_arena import KitchenArena
 
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
@@ -52,6 +52,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
     EXCLUDE_LAYOUTS = []
 
+    # TODO: move these to cloud
     OVEN_EXCLUDED_LAYOUTS = [1, 3, 5, 6, 8, 10, 11, 13, 14, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 33, 36, 38, 40, 41, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
 
     DOUBLE_CAB_EXCLUDED_LAYOUTS = [32, 41, 59]
@@ -65,52 +66,20 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
     SHELVES_INCLUDED_LAYOUT = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
     def __post_init__(self):
-        assert self.scene_name.startswith("robocasa"), "Only robocasa scenes are supported"
-        import lwlab.utils.place_utils.scene_registry as SceneRegistry
-        # scene name is of the form robocasa-kitchen-<layout_id>
-        scene_name_split = self.scene_name.split("-")
-        layout_ids = SceneRegistry.unpack_layout_ids(None, "test")
-        style_ids = SceneRegistry.unpack_style_ids(None, "test")
-        if len(scene_name_split) == 3:
-            _, layout_id, style_id = scene_name_split
-            layout_id = int(layout_id)
-            style_id = int(style_id)
-            if layout_id not in layout_ids:
-                raise ValueError(f"Layout {layout_id} is not in the list of available layouts")
-            if style_id not in style_ids:
-                raise ValueError(f"Style {style_id} is not in the list of available styles")
-            layout_ids = [layout_id]
-            style_ids = [style_id]
-        elif len(scene_name_split) == 2:
-            _, layout_id = scene_name_split
-            layout_id = int(layout_id)
-            if layout_id not in layout_ids:
-                raise ValueError(f"Layout {layout_id} is not in the list of available layouts")
-            layout_ids = [layout_id]
-        elif len(scene_name_split) != 1:
-            raise ValueError(f"Invalid scene name: {self.scene_name}")
-        if len(scene_name_split) in (2, 3):
-            if layout_id in self.EXCLUDE_LAYOUTS:
-                raise ValueError(f"Layout {layout_id} is excluded")
-
-        self.layout_and_style_ids = [(l, s) for l in layout_ids for s in style_ids]
-
-        # remove excluded layouts
-        self.layout_and_style_ids = [
-            (l, s)
-            for (l, s) in self.layout_and_style_ids
-            if l not in self.EXCLUDE_LAYOUTS
-        ]
-
+        self.cache_usd_version = {}
         self._ep_meta = {}
         if hasattr(self, "replay_cfgs") and "ep_meta" in self.replay_cfgs:
             self.set_ep_meta(self.replay_cfgs["ep_meta"])
+            if "cache_usd_version" in self._ep_meta:
+                self.cache_usd_version = self._ep_meta["cache_usd_version"]
         self.sources = (
             "objaverse",
-            "lightwheel"
+            "lightwheel",
+            "aigen_objs",
         )
         self.obj_instance_split = None
         self.fixture_refs = {}
+
         self.init_robot_base_ref = None
         self.deterministic_reset = False
         self.robot_spawn_deviation_pos_x = 0.15
@@ -152,48 +121,84 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             self.update_state()
             try:
                 check_result = self._check_success()
+                for checker in self.checkers:
+                    self.checkers_results[checker.type] = checker.check(env)
                 self.success_flag &= (self.success_cache < self.success_count)
                 self.success_cache *= (self.success_cache < self.success_count)
                 self.success_flag |= check_result
                 self.success_cache += self.success_flag.int()
                 return self.success_cache >= self.success_count
             except Exception as e:
-                print(f"Error checking success: {e}")
+                print(f"Error checking success: {traceback.format_exc()}")
                 return torch.tensor([False], device=self.device, dtype=torch.bool).repeat(self.num_envs)
 
         def camera_pose_update(env):
             set_camera_follow_pose(env, self.viewport_cfg["offset"], self.viewport_cfg["lookat"])
-            return False
+            return torch.tensor([False], device=self.device, dtype=torch.bool).repeat(self.num_envs)
 
         self.events.init_kitchen = EventTerm(func=init_kitchen, mode="startup")
         self.terminations.success = DoneTerm(func=check_success_caller)
         if self.first_person_view:
             self.terminations.camera_pose_update = DoneTerm(func=camera_pose_update)
 
-    def _setup_model(self):
-        from lwlab.core.scenes.kitchen.kitchen_arena import KitchenArena
-        if "layout_id" in self._ep_meta and "style_id" in self._ep_meta:
-            self.layout_id = self._ep_meta["layout_id"]
-            self.style_id = self._ep_meta["style_id"]
-        else:
-            layout_id, style_id = self.rng.choice(self.layout_and_style_ids)
-            self.layout_id = int(layout_id)
-            self.style_id = int(style_id)
-        self._curr_gen_fixtures = self._ep_meta.get("gen_textures")
+        # checkers
+        self.checkers_cfg = {
+            "motion": {
+                "warning_on_screen": True
+            }
+        }
 
-        import time
-        start_time = time.time()
-        print(f"load scene {self.layout_id} {self.style_id}", end="...")
+        self.checkers = get_checkers_from_cfg(self.checkers_cfg)
+        self.checkers_results = {}
+
+    def apply_object_init_offset(self, cfgs):
+        if hasattr(self, "object_init_offset"):
+            object_init_offset = getattr(self, "object_init_offset", [0.0, 0.0])
+            for cfg in cfgs:
+                if "placement" in cfg and "pos" in cfg["placement"]:
+                    pos = cfg["placement"]["pos"]
+                    cfg["placement"]["pos"] = ((object_init_offset[0] + pos[0]) if isinstance(pos[0], float) else pos[0],
+                                               (object_init_offset[1] + pos[1]) if isinstance(pos[1], float) else pos[1])
+
+    def _setup_model(self):
+        self._curr_gen_fixtures = self._ep_meta.get("gen_textures")
+        layout_id = None
+        style_id = None
+        if "layout_id" in self._ep_meta and "style_id" in self._ep_meta:
+            layout_id = self._ep_meta["layout_id"]
+            style_id = self._ep_meta["style_id"]
+        else:
+            assert self.scene_name.startswith("robocasa"), "Only robocasa scenes are supported"
+            # scene name is of the form robocasa-kitchen-<layout_id>
+            scene_name_split = self.scene_name.split("-")
+            if len(scene_name_split) == 3:
+                _, layout_id, style_id = scene_name_split
+            elif len(scene_name_split) == 2:
+                _, layout_id = scene_name_split
+            elif len(scene_name_split) != 1:
+                raise ValueError(f"Invalid scene name: {self.scene_name}")
+            if len(scene_name_split) in (2, 3):
+                if int(layout_id) in self.EXCLUDE_LAYOUTS:
+                    raise ValueError(f"Layout {layout_id} is excluded in task {self.task_name}")
+            layout_id = int(layout_id) if layout_id is not None else None
+            style_id = int(style_id) if style_id is not None else None
+
         self.lwlab_arena = KitchenArena(
-            layout_id=self.layout_id,
-            style_id=self.style_id,
+            layout_id=layout_id,
+            style_id=style_id,
             scene_cfg=self,
         )
-        print(f" done in {time.time() - start_time:.2f}s")
-        self.fixture_cfgs = self.lwlab_arena.get_fixture_cfgs()
+
         self.usd_path = self.lwlab_arena.usd_path
+        self.layout_id = self.lwlab_arena.layout_id
+        self.style_id = self.lwlab_arena.style_id
+        self.fixture_cfgs = self.lwlab_arena.get_fixture_cfgs()
+        self.cache_usd_version.update({"floorplan_version": self.lwlab_arena.version_id})
 
     def _load_model(self):
+        # clean cache when not in replay mode
+        if self.execute_mode not in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
+            self.cache_usd_version = {}
         self._setup_model()
         if self.init_robot_base_ref is not None:
             for i in range(50):  # keep searching for valid environment
@@ -203,7 +208,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                 self._setup_model()
         self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
 
-        from collections import namedtuple
         dummy_robot = namedtuple("dummy_robot", ["robot_model"])
 
         class DummyRobot:
@@ -227,7 +231,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             self.usd_path = new_path
 
         self._create_objects()
-        import lwlab.utils.place_utils.env_utils as EnvUtils
         # try:
         self.placement_initializer = EnvUtils._get_placement_initializer(
             self, self.object_cfgs
@@ -316,7 +319,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         Creates and places objects in the kitchen environment.
         Helper function called by _create_objects()
         """
-        import lwlab.utils.place_utils.env_utils as EnvUtils
         # add objects
         self.objects = {}
         if "object_cfgs" in self._ep_meta:
@@ -324,12 +326,18 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             for obj_num, cfg in enumerate(self.object_cfgs):
                 if "name" not in cfg:
                     cfg["name"] = "obj_{}".format(obj_num + 1)
-                model, info = EnvUtils.create_obj(self, cfg)
+                object_version = None
+                if self.cache_usd_version.get("objects_version", None) is not None:
+                    for obj_version in self.cache_usd_version["objects_version"]:
+                        if cfg["name"] in obj_version:
+                            object_version = obj_version[cfg["name"]]
+                            break
+                model, info = EnvUtils.create_obj(self, cfg, version=object_version)
                 cfg["info"] = info
                 self.objects[model.task_name] = model
-                # self.model.merge_objects([model])
         else:
             self.object_cfgs = self._get_obj_cfgs()
+            self.apply_object_init_offset(self.object_cfgs)
             addl_obj_cfgs = []
             for obj_num, cfg in enumerate(self.object_cfgs):
                 cfg["type"] = "object"
@@ -368,7 +376,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     if "int" in reset_regions:
                         int_region = reset_regions["int"]
                     else:
-                        int_region = reset_regions["bbox"]
+                        int_region = reset_regions[model.bounded_region_name]
                     cfg["placement"] = dict(
                         size=(int_region["size"][0] / 2, int_region["size"][1] / 2),
                         pos=int_region["offset"],
@@ -378,12 +386,12 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                             ref_fixture=cfg["placement"]["fixture"],
                         ),
                     )
-
-            # prepend the new object configs in
             self.object_cfgs = addl_obj_cfgs + self.object_cfgs
-
-            # # remove objects that didn't get created
-            # self.object_cfgs = [cfg for cfg in self.object_cfgs if "model" in cfg]
+        # update cache_usd_version
+        objects_version = []
+        for cfg in self.object_cfgs:
+            objects_version.append({cfg["name"]: cfg["info"]["obj_version"]})
+        self.cache_usd_version.update({"objects_version": objects_version})
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -411,9 +419,12 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         # serialize np arrays to lists
         for cfg in ep_meta["object_cfgs"]:
             if cfg.get("reset_region", None) is not None:
-                for (k, v) in cfg["reset_region"].items():
-                    if isinstance(v, np.ndarray):
-                        cfg["reset_region"][k] = list(v)
+                if isinstance(cfg["reset_region"], dict):
+                    cfg["reset_region"] = [cfg["reset_region"]]
+                for region in cfg["reset_region"]:
+                    for (k, v) in region.items():
+                        if isinstance(v, np.ndarray):
+                            region[k] = list(v)
 
         ep_meta["fixtures"] = {
             k: {"cls": v.__class__.__name__} for (k, v) in self.fixtures.items()
@@ -424,13 +435,14 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             {k: v.name for (k, v) in self.fixture_refs.items()}
         )
         ep_meta["usd_simplify"] = self.usd_simplify
-        ep_meta["LWLAB_ENV_MODE"] = ENV_MODE
+        ep_meta["LW_API_ENDPOINT"] = ENDPOINT
         # ep_meta["init_robot_base_pos"] = list(self.init_robot_base_pos)
         # ep_meta["init_robot_base_ori"] = list(self.init_robot_base_ori)
         # export actual init pose if available in this episode, otherwise omit
         if hasattr(self, "init_robot_base_pos") and hasattr(self, "init_robot_base_ori") and self.init_robot_base_pos is not None and self.init_robot_base_ori is not None:
             ep_meta["init_robot_base_pos"] = list(self.init_robot_base_pos)
             ep_meta["init_robot_base_ori"] = list(self.init_robot_base_ori)
+        ep_meta["cache_usd_version"] = self.cache_usd_version
         return ep_meta
 
     def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None):
@@ -501,6 +513,9 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                         continue
                 cand_fixtures.append(fxtr)
 
+            if len(cand_fixtures) == 0:
+                raise ValueError(f"No fixture found for {id} with size {size}")
+
             # first, try to find fixture "containing" the reference fixture
             for fxtr in cand_fixtures:
                 if OU.point_in_fixture(ref_fixture.pos, fxtr, only_2d=True):
@@ -555,7 +570,27 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     get_error_logger().error(f"Error updating state of {fixtr.name}: {str(e)}")
 
     def _check_success(self):
-        return torch.tensor([[False]], device=self.env.device).repeat(self.env.num_envs, 1)
+        return torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+
+    def get_metrics(self):
+        """
+        Get all metrics data for JSON export. This function integrates various types of metrics
+        and can be extended to include additional metrics in the future.
+
+        Returns:
+            dict: Complete metrics data combining all available metrics
+        """
+        metrics_data = {}
+
+        for checker in self.checkers:
+            metrics_data[checker.type] = checker.get_metrics(self.checkers_results[checker.type])
+
+        return metrics_data
+
+    def get_warning_text(self):
+        for checker in self.checkers:
+            if self.checkers_results[checker.type].get("warning_text"):
+                return self.checkers_results[checker.type].get("warning_text")
 
     def _spawn_objects(self):
         for pos, rot, obj in self.object_placements.values():

@@ -28,6 +28,7 @@ import h5py
 from pathlib import Path
 from isaaclab.app import AppLauncher
 import pinocchio  # noqa: F401
+from lwlab.scripts.teleop.teleop_launcher import get_video_duration
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
@@ -45,8 +46,8 @@ parser.add_argument(
 )
 parser.add_argument("--dataset_file", type=str, default="/your/path/to/dataset.hdf5", help="Dataset file to be replayed.")
 parser.add_argument("--robot_scale", type=float, default=1.0, help="robot scale")
-parser.add_argument("--first_person_view", action="store_true", default=False, help="first person view")
-parser.add_argument("--only_last_clips", action="store_true", default=True, help="only replay the last clips")
+parser.add_argument("--first_person_view", action="store_true", help="first person view")
+parser.add_argument("--replay_all_clips", action="store_true", help="replay all clips. If not specified, only replay the last clips")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -59,7 +60,7 @@ if not args_cli.without_image:
 
 def main():
     """Replay episodes loaded from a file."""
-    global is_paused
+    global is_paused  # noqa: F824
     # launch the simulator
     app_launcher = AppLauncher(args_cli)
     simulation_app = app_launcher.app
@@ -93,7 +94,7 @@ def main():
 
     episode_indices_to_replay = args_cli.select_episodes
     if len(episode_indices_to_replay) == 0:
-        if args_cli.only_last_clips:
+        if not args_cli.replay_all_clips:
             episode_indices_to_replay = [episode_count - 1]
         else:
             episode_indices_to_replay = list(range(episode_count))
@@ -110,9 +111,14 @@ def main():
     else:  # robocasa
         from lwlab.utils.env import parse_env_cfg, ExecuteMode
         task_name = env_args["task_name"] if args_cli.task is None else args_cli.task
+        robot_name = env_args["robot_name"]
+        if robot_name == "double_piper_abs":
+            robot_name = "DoublePiper-Abs"
+        if robot_name == "double_piper_rel":
+            robot_name = "DoublePiper-Rel"
         env_cfg = parse_env_cfg(
             task_name=task_name,
-            robot_name=env_args["robot_name"],
+            robot_name=robot_name,
             scene_name=f"robocasakitchen-{env_args['layout_id']}-{env_args['style_id']}",
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True,
@@ -122,7 +128,7 @@ def main():
             execute_mode=ExecuteMode.REPLAY_STATE,
             usd_simplify=usd_simplify,
         )
-        env_name = f"Robocasa-{task_name}-{env_args['robot_name']}-v0"
+        env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(
             id=env_name,
             entry_point="isaaclab.envs:ManagerBasedRLEnv",
@@ -143,9 +149,7 @@ def main():
     env.reset()
 
     # prepare video writer
-    replay_mp4_path = Path(args_cli.dataset_file).parent / "isaac_replay_state.mp4"
-    replay_mp4_path.parent.mkdir(parents=True, exist_ok=True)
-   # simulate environment -- run everything in inference mode
+    # simulate environment -- run everything in inference mode
     episode_names = list(dataset_file_handler.get_episode_names())
     episode_names.sort(key=lambda x: int(x.split("_")[-1]))
     if len(args_cli.select_episodes) > 0:
@@ -164,20 +168,44 @@ def main():
         video_height = args_cli.height
         video_width = num_cameras * args_cli.width
 
-    with (
-        contextlib.suppress(KeyboardInterrupt),
-        media.VideoWriter(path=replay_mp4_path, shape=(video_height, video_width), fps=30) as v,
-        h5py.File(replay_mp4_path.parent / f"replay_state_ee_poses.hdf5", "w") as ee_poses_hdf5_f,
-    ):
-        ee_poses_hdf5_f.create_group("data")
-        env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
-        env_id = 0
-        for i in tqdm.tqdm(episode_indices_to_replay, desc="Replaying"):
+    # Collect next_state data for JSON output
+    next_state_data = {}
+
+    def convert_tensors_to_serializable(obj):
+        """Convert PyTorch tensors to JSON serializable format."""
+        if isinstance(obj, dict):
+            return {key: convert_tensors_to_serializable(value) for key, value in obj.items()}
+        elif isinstance(obj, list):
+            return [convert_tensors_to_serializable(item) for item in obj]
+        elif hasattr(obj, 'cpu') and hasattr(obj, 'numpy'):  # PyTorch tensor
+            return obj.cpu().numpy().tolist()
+        elif hasattr(obj, 'tolist'):  # numpy array
+            return obj.tolist()
+        else:
+            return obj
+
+    for i in tqdm.tqdm(episode_indices_to_replay, desc="Replaying"):
+        if args_cli.replay_all_clips:
+            save_dir = Path(args_cli.dataset_file).parent / 'replay_results' / f'{episode_names[i]}'
+        else:
+            save_dir = Path(args_cli.dataset_file).parent
+        save_dir.mkdir(parents=True, exist_ok=True)
+        replay_mp4_path = save_dir / "isaac_replay_state.mp4"
+
+        with (
+            contextlib.suppress(KeyboardInterrupt),
+            media.VideoWriter(path=replay_mp4_path, shape=(video_height, video_width), fps=30) as v,
+            h5py.File(save_dir / f"replay_state_ee_poses.hdf5", "w") as ee_poses_hdf5_f,
+        ):
+            ee_poses_hdf5_f.create_group("data")
+            env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
+            env_id = 0
             ep = episode_names[i]
             print(f"Replaying episode {ep}")
             env_episode_data_map[env_id] = dataset_file_handler.load_episode(ep, env.device)
             next_state = env_episode_data_map[env_id].get_next_state()
             ee_poses = []
+            step_count = 0
             for _ in tqdm.tqdm(count(), desc=f"Replaying {ep}"):
                 if next_state is None:
                     break
@@ -186,6 +214,12 @@ def main():
                 obs, _ = env.reset_to(next_state, torch.tensor([env_id], device=env.device), is_relative=True if env_args["robot_name"].endswith("Rel") else False)
                 env.sim.render()
                 next_state = env_episode_data_map[env_id].get_next_state()
+                # Collect next_state data instead of printing
+                if isinstance(next_state, dict):
+                    next_state["robot"] = next_state.get("articulation", {}).get("robot", {})
+                    next_state["robot"]["joint_names"] = env.scene.articulations["robot"].joint_names
+                    next_state_data[step_count] = convert_tensors_to_serializable(next_state)
+                step_count += 1
                 ee_poses.append(obs['policy']['ee_pose'].cpu().numpy())
                 if app_launcher._enable_cameras:
                     # get all camera images
@@ -224,6 +258,26 @@ def main():
                 # save ee poses to hdf5 file
                 ee_poses_hdf5_f.create_dataset(f"data/{ep}/ee_poses", data=ee_poses)
             # np.save(replay_mp4_path.parent / f"ee_poses.npy", ee_poses)
+
+        # Save next_state data to JSON file
+        next_state_json_path = save_dir / "next_state_data.json"
+        with open(next_state_json_path, 'w') as f:
+            json.dump(next_state_data, f, indent=2)
+
+        # evaluate qa metrics
+        from lwlab.scripts.teleop.eval.eval import evaluate_qa_metrics
+        evaluate_qa_metrics(next_state_data, save_dir / "qa_results.json")
+
+    if os.path.exists(replay_mp4_path):
+        video_duration = get_video_duration(replay_mp4_path)
+        print(f"Video duration: {video_duration} seconds")
+    else:
+        print(f"Video file not found: {replay_mp4_path}")
+
+    video_meta_json_path = replay_mp4_path.parent / "video_meta.json"
+    with open(video_meta_json_path, 'w') as f:
+        json.dump({"video_duration": video_duration}, f, indent=2)
+
     print(f"Finished replaying {len(episode_names)} episode{'s' if replayed_episode_count > 1 else ''}.")
     env.close()
     simulation_app.close()

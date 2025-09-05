@@ -1,2 +1,4 @@
 _base_: [teleop_base]
-record: true
+record: false
+task: CupcakeCleanup
+layout: robocasakitchen-4-2

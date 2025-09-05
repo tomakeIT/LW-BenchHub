@@ -1,1 +1,1 @@
-harbor.lightwheel.net/robot/lwlab:1.6
+harbor.lightwheel.net/robot/lwlab:2.3

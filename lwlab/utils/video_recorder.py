@@ -15,6 +15,7 @@
 import mediapy as media
 import torch
 from pathlib import Path
+from datetime import datetime
 
 
 class VideoRecorder:
@@ -41,7 +42,9 @@ class VideoRecorder:
         height, width = image_shape
         combined_shape = (height, width)
 
-        video_filename = f"{camera_name}.mp4"
+        # Generate timestamp in format YYYYMMDD_HHMM
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        video_filename = f"{timestamp}.mp4"
         video_path = self.save_dir / video_filename
         video_path.parent.mkdir(parents=True, exist_ok=True)
 

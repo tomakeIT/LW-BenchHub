@@ -37,15 +37,14 @@ class KitchenArena:
         enable_fixtures (list of str): any fixtures to enable (some are disabled by default)
     """
 
-    def __init__(self, layout_id, style_id, scene_cfg):
+    def __init__(self, layout_id=None, style_id=None, scene_cfg=None):
         # download floorplan usd
         self.scene_cfg = scene_cfg
-        self._usd_future = floorplan_loader.acquire_usd(layout_id, style_id, cancel_previous_download=True)
-        start_time = time.time()
-        print(f"load usd", end="...")
-        self.usd_path = str(self._usd_future.result()[0])
-        del self._usd_future
-        print(f"done in {time.time() - start_time:.2f}s")
+        if self.scene_cfg.cache_usd_version is not None and "floorplan_version" in self.scene_cfg.cache_usd_version:
+            self.floorplan_version = self.scene_cfg.cache_usd_version["floorplan_version"]
+        else:
+            self.floorplan_version = None
+        self.load_floorplan(layout_id, style_id, self.scene_cfg.EXCLUDE_LAYOUTS)
         self.stage = usd.get_stage(self.usd_path)
 
         # enable fixtures in usd
@@ -80,3 +79,22 @@ class KitchenArena:
             fixture_cfgs.append(cfg)
 
         return fixture_cfgs
+
+    def load_floorplan(self, layout_id, style_id, exclude_layouts=[]):
+        start_time = time.time()
+        print(f"load floorplan usd", end="...")
+        if layout_id is None:
+            res = floorplan_loader.acquire_usd(version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+        elif style_id is None:
+            res = floorplan_loader.acquire_usd(layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+        else:
+            res = floorplan_loader.acquire_usd(layout_id, style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+        usd_path, self.floorplan_meta = res.result()
+        self.usd_path = str(usd_path)
+        self.backend = self.floorplan_meta.get("backend")
+        self.scene_type = self.floorplan_meta.get("scene")
+        self.layout_id = self.floorplan_meta.get("layout_id")
+        self.style_id = self.floorplan_meta.get("style_id")
+        self.version_id = self.floorplan_meta.get("version_id")
+        print(f"{self.backend}-{self.scene_type}-{self.layout_id}-{self.style_id} loaded in {time.time() - start_time:.2f}s\n")
+        print(f"version_id: {self.version_id}")

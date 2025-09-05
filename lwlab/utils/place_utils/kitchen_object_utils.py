@@ -15,6 +15,7 @@ class ObjInfo:
         rotate_upright=False,
         obj_path=None,
         exclude=[],
+        obj_version=None,
     ):
         self.source = SOURCE_MAPPING[source]
         self.name = name
@@ -24,6 +25,7 @@ class ObjInfo:
         self.rotate_upright = rotate_upright
         self.obj_path = obj_path
         self.exclude = exclude
+        self.obj_version = obj_version
 
     def get_info(self):
         return self.__dict__
@@ -37,8 +39,9 @@ def sample_kitchen_object(
     object_cfgs,
     source=None,
     max_size=(None, None, None),
-    scale_factor=None,
+    object_scale=None,
     rotate_upright=False,
+    object_version=None,
 ):
     """
     Sample a kitchen object from the specified groups and within max_size bounds.
@@ -50,7 +53,7 @@ def sample_kitchen_object(
 
         max_size (tuple): max size of the object. If the sampled object is not within bounds of max size, function will resample
 
-        scale_factor (float): scale of the object. If set will multiply the scale of the sampled object by this value
+        object_scale (float): scale of the object. If set will multiply the scale of the sampled object by this value
 
         rotate_upright (bool): whether to rotate the object to be upright
 
@@ -64,12 +67,15 @@ def sample_kitchen_object(
 
     valid_object_sampled = False
     while not valid_object_sampled:
-        if isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
+        if object_version is not None:
+            obj_path, obj_name, obj_res = object_loader.acquire_by_file_version(object_version)
+            category = find_most_similar_category(obj_name)
+        elif isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
             if "/" in object_cfgs["obj_groups"]:
                 filename = object_cfgs["obj_groups"].split("/")[-1].split(".")[0]
-                category = object_cfgs["obj_groups"].split("/")[-2]
+                category = find_most_similar_category(object_cfgs["obj_groups"].split("/")[-2])
             else:
-                filename = object_cfgs["obj_groups"]
+                filename = object_cfgs["obj_groups"].split(".")[0]
                 category = find_most_similar_category(filename)
 
             obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
@@ -92,16 +98,20 @@ def sample_kitchen_object(
                 exclude_registry_name=[] if object_cfgs["exclude_obj_groups"] is None else object_cfgs["exclude_obj_groups"],
             )
 
+        sampled_category = find_most_similar_category(obj_res["assetName"])
+        if sampled_category is None:
+            sampled_category = category
         obj_info = ObjInfo(
             name=obj_name,
             types=obj_res["property"]["types"] if "types" in obj_res["property"] else [],
-            category=category,
+            category=sampled_category,
             source=obj_res["source"],
             rotate_upright=rotate_upright,
             obj_path=obj_path,
+            obj_version=obj_res.get("fileVersionId", None),
         )
 
-        metadata = {"scale": 0.9, "exclude": []}
+        metadata = {"scale": 1.0, "exclude": []}
         if obj_info.source in obj_res["metadata"]:
             for key, value in metadata.items():
                 if key in obj_res["metadata"][obj_info.source]:
@@ -118,15 +128,15 @@ def sample_kitchen_object(
 
         obj_scale = np.array([1.0, 1.0, 1.0])
         obj_scale *= obj_info.scale
-        if scale_factor is not None:
-            obj_scale *= scale_factor
+        if object_scale is not None:
+            obj_scale *= object_scale
 
         model = USDObject(
             name=obj_info.name,
             task_name=object_cfgs["task_name"],
             category=obj_info.category,
             obj_path=obj_path,
-            scale_factor=obj_scale,
+            object_scale=obj_scale,
             rotate_upright=rotate_upright,
         )
         obj_info.size = model.size
@@ -165,4 +175,4 @@ def find_most_similar_category(filename):
         idx = [normalize_name(c) for c in candidates].index(matches[0])
         return candidates[idx]
     else:
-        raise ValueError(f"cannot find category for {filename}")
+        return None

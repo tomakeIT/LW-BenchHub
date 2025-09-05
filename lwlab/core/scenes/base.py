@@ -66,7 +66,7 @@ class BaseSceneEnvCfg(LwBaseCfg):
     # Scene settings
     scene: USDSceneCfg = MISSING
     usd_path: str = MISSING
-    warmup_steps: int = 3
+    warmup_steps: int = 10
 
     def __post_init__(self):
         """Post initialization."""
@@ -76,7 +76,7 @@ class BaseSceneEnvCfg(LwBaseCfg):
             env_spacing=10.0,
             _usd_path=self.usd_path
         )
-        if hasattr(self, "enable_cameras") and self.enable_cameras == True:
+        if hasattr(self, "enable_cameras") and self.enable_cameras:
             render_resolution = None
             if hasattr(self, "replay_cfgs") and self.replay_cfgs.get("render_resolution", None) is not None:
                 render_resolution = self.replay_cfgs["render_resolution"]
@@ -94,12 +94,6 @@ class BaseSceneEnvCfg(LwBaseCfg):
         self.sim.physx.friction_correlation_distance = 0.00625
         self.sim.render.enable_translucency = True
 
-        def camera_pose_update(env):
-            set_camera_follow_pose(env, self.viewport_cfg["offset"], self.viewport_cfg["lookat"])
-            return False
-        if self.first_person_view:
-            self.terminations.camera_pose_update = DoneTerm(func=camera_pose_update)
-
     def _reset_internal(self, env_ids):
         pass
 
@@ -107,3 +101,7 @@ class BaseSceneEnvCfg(LwBaseCfg):
         ep_meta = super().get_ep_meta()
         ep_meta["usd_path"] = self.usd_path
         return ep_meta
+
+    def update_sensors(self, env, dt: float) -> None:
+        for sensor in env.scene.sensors.values():
+            sensor.update(dt, force_recompute=not env.scene.cfg.lazy_sensor_update)

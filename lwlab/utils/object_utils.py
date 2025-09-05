@@ -3,6 +3,8 @@ import torch
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import os
 
+# from robocasa.models.objects.objects import MJCFObject
+
 
 def array_to_string(array):
     """
@@ -68,11 +70,11 @@ def obj_inside_of(env, obj_name, fixture_id, partial_check=False):
                     inside_of = False
                     break
 
-            if inside_of == True:
+            if inside_of:
                 check.append(True)
                 break
 
-        if inside_of == False:
+        if not inside_of:
             check.append(False)
 
     return torch.tensor(check, dtype=torch.bool, device=env.device)
@@ -376,6 +378,20 @@ def check_obj_in_receptacle(env, obj_name, receptacle_name, th=None):
     return is_contact & is_closed
 
 
+def check_obj_in_receptacle_no_contact(env, obj_name, receptacle_name, th=None):
+    """
+    check if object is in receptacle object based on threshold
+    """
+    recep = env.cfg.objects[receptacle_name]
+
+    obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    if th is None:
+        th = recep.horizontal_radius * 0.7
+    is_closed = torch.norm(obj_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
+    return is_closed
+
+
 def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
     """
     check if object is in contact with fixture
@@ -385,12 +401,17 @@ def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
     return env.cfg.check_contact(obj, fixture)
 
 
-def gripper_obj_far(env, obj_name="obj", th=0.25) -> torch.Tensor:
+def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None) -> torch.Tensor:
     """
     check if gripper is far from object based on distance defined by threshold
     """
     obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
-    gripper_site_pos = env.scene["ee_frame"].data.target_pos_w[0]
+    if eef_name is None:
+        gripper_site_pos = env.scene["ee_frame"].data.target_pos_w[0]
+    else:
+        eef_frame_data = env.scene['ee_frame'].data
+        eef_index = eef_frame_data.target_frame_names.index(eef_name)
+        gripper_site_pos = eef_frame_data.target_pos_w[:, eef_index, :]
     gripper_obj_far = torch.norm(gripper_site_pos - obj_pos, dim=-1) > th
     return torch.all(gripper_obj_far).unsqueeze(0)
 
@@ -422,7 +443,7 @@ def get_obj_lang(env, obj_name="obj", get_preposition=False):
         if cfg["name"] == obj_name:
             obj_cfg = cfg
             break
-    lang = obj_cfg["info"]["cat"].replace("_", " ")
+    lang = obj_cfg["info"]["category"]
 
     # replace some phrases
     if lang == "kettle electric":
@@ -480,6 +501,15 @@ def quat2mat(quaternion):
 def construct_full_env_path(env_regex_ns_template: str, env_index: int, fixture_name: str) -> str:
 
     return os.path.join(f"{env_regex_ns_template.rstrip('.*')}{env_index}", "Scene", fixture_name)
+
+
+def check_object_stable(env, obj: str, threshold=0.5):
+    '''
+    check if the object is stable
+    '''
+    obj_vel = env.scene.rigid_objects[obj].data.body_com_vel_w[:, 0, :]
+    obj_vel_norm = torch.norm(obj_vel, dim=-1)
+    return obj_vel_norm < threshold
 
 
 def project_point_to_segment(point, seg_start, seg_end):

@@ -12,6 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import re
 import torch
 import numpy as np
 from functools import cached_property
@@ -22,6 +23,7 @@ from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 from .fixture_types import FixtureType
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
+import lwlab.utils.object_utils as OU
 
 STOVE_LOCATIONS = [
     "rear_left",
@@ -43,7 +45,7 @@ class Stove(Fixture):
     def __init__(self, name="stove", prim=None, num_envs=1, *args, **kwargs):
         super().__init__(name, prim, num_envs, *args, **kwargs)
         self.valid_knob_joint_names = [j for j in self._joint_infos.keys() if "knob_" in j]
-        self.valid_locations = [l for l in STOVE_LOCATIONS if any(f"knob_{l}_joint" == j for j in self.valid_knob_joint_names)]
+        self.valid_locations = [loc for loc in STOVE_LOCATIONS if any(f"knob_{loc}_joint" == j for j in self.valid_knob_joint_names)]
         self._knob_joint_ranges = {}  # store the range of each knob joint
         self._reset_regions = self._init_reset_regions(prim)
 
@@ -89,7 +91,7 @@ class Stove(Fixture):
                     if burner_site[env_idx] is not None:
                         burner_site[env_idx].GetAttribute("visibility").Set("invisible")
 
-    def set_knob_state(self, env, rng, knob, mode="on"):
+    def set_knob_state(self, env, rng, knob, mode="on", env_ids=None):
         """
         Sets the state of the knob joint based on the mode parameter
 
@@ -103,7 +105,9 @@ class Stove(Fixture):
             mode (str): "on" or "off"
         """
         assert mode in ["on", "off"]
-        for env_idx in range(env.num_envs):
+        if env_ids is None:
+            env_ids = torch.arange(env.num_envs)
+        for env_id in env_ids:
             if mode == "off":
                 joint_val = 0.0
             else:
@@ -117,7 +121,7 @@ class Stove(Fixture):
             env.scene.articulations[self.name].write_joint_position_to_sim(
                 torch.tensor([[joint_val]]).to(env.device),
                 torch.tensor([knob_joint_id]).to(env.device),
-                torch.tensor([env_idx]).to(env.device)
+                torch.tensor([env_id]).to(env.device)
             )
 
     def get_knobs_state(self, env):
@@ -138,6 +142,41 @@ class Stove(Fixture):
             knobs_state[location] = joint_qpos
 
         return knobs_state
+
+    def check_obj_location_on_stove(self, env, obj_name, threshold=0.08, need_knob_on=True):
+        """
+        Check if the object is on the stove and close to a burner and the knob is on (optional).
+        Returns the location of the burner if the object is on the stove, close to a burner, and the burner is on (optional).
+        None otherwise.
+        """
+
+        knobs_state = self.get_knobs_state(env=env)
+        obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[..., 0, :]
+        obj_on_stove = OU.check_obj_fixture_contact(env, obj_name, self)
+        stove_pos = torch.tensor(self.pos, device=self.device)
+        stove_rot = T.euler2mat(torch.tensor([0.0, 0.0, self.rot], device=self.device)).to(dtype=torch.float32)
+        locations = []
+        for env_id in range(len(obj_on_stove)):
+            found_location = False
+            if obj_on_stove[env_id]:
+                for location, site in self.burner_sites.items():
+                    if site[env_id] is not None:
+                        burner_pos = stove_rot @ torch.tensor(site[env_id].GetAttribute("xformOp:translate").Get(), device=env.device) + stove_pos + env.scene.env_origins[env_id]
+                        dist = torch.norm(burner_pos[:2] - obj_pos[env_id][:2])
+                        obj_on_site = dist < threshold
+                        knob_on = (
+                            (0.35 <= torch.abs(knobs_state[location]) <= 2 * torch.pi - 0.35)
+                            if location in knobs_state
+                            else False
+                        )
+                        check_result = obj_on_site if not need_knob_on else obj_on_site and knob_on
+                        if check_result:
+                            found_location = True
+                            locations.append(location)
+                            break
+            if not found_location:
+                locations.append(None)
+        return locations
 
     @cached_property
     def original_flame_sizes(self):
@@ -160,10 +199,8 @@ class Stove(Fixture):
         """
         Returns the knob joints of the stove
         """
-        if not hasattr(self, "_knob_joints") or self._knob_joints is None:
-            self._knob_joints = {k: None for k, v in super().knob_joints.items() if v is not None}
+        self._knob_joints = {}
         if self._env is not None:
-            self.valid_locations = list(self._knob_joints.keys())
             for location in self.valid_locations:
                 joint_id = self._env.scene.articulations[self.name].data.joint_names.index(f"knob_{location}_joint")
                 joint = self._env.scene.articulations[self.name].data.joint_pos[:, joint_id]

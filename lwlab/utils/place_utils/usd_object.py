@@ -14,35 +14,37 @@ class USDObject():
         task_name,
         category,
         obj_path,
-        scale_factor=(1.0, 1.0, 1.0),
+        object_scale=(1.0, 1.0, 1.0),
         rotate_upright=False,
     ):
         # get scale in x, y, z
-        if isinstance(scale_factor, float):
-            scale_factor = [scale_factor, scale_factor, scale_factor]
-        elif isinstance(scale_factor, tuple) or isinstance(scale_factor, list):
-            assert len(scale_factor) == 3
-            scale_factor = np.array(scale_factor)
-        elif isinstance(scale_factor, np.ndarray):
-            assert scale_factor.shape[0] == 3
+        if isinstance(object_scale, float):
+            object_scale = [object_scale, object_scale, object_scale]
+        elif isinstance(object_scale, tuple) or isinstance(object_scale, list):
+            assert len(object_scale) == 3
+            object_scale = np.array(object_scale)
+        elif isinstance(object_scale, np.ndarray):
+            assert object_scale.shape[0] == 3
         else:
-            raise Exception("got invalid scale_factor: {}".format(scale_factor))
-        scale_factor = np.array(scale_factor)
+            raise Exception("got invalid object_scale: {}".format(object_scale))
+        object_scale = np.array(object_scale)
         self.name = name
         self.task_name = task_name
         self.category = category
         self.obj_path = obj_path
-        self.scale_factor = scale_factor
+        self.object_scale = object_scale
         self.rotate_upright = rotate_upright
+        self.init_quat = np.array([0, 0, 0, 1])  # xyzw
         self._regions = dict()
         self._setup_region_dict()
 
     def _setup_region_dict(self):
         reg_dict = dict()
         usd = Usd(self.obj_path)
-        usd.scale_size(scale_factor=self.scale_factor)
+        usd.scale_size(scale_factor=self.object_scale)
         if self.rotate_upright:
-            usd.rotate_upright()
+            self.init_quat = np.array([0.5, 0.5, 0.5, 0.5])
+
         usd.export(self.obj_path)
 
         reg_bboxes = usd.get_prim_by_prefix("reg_", only_xform=False)
@@ -51,16 +53,12 @@ class USDObject():
                 reg_halfsize = np.array(reg_bbox.GetAttribute("extent").Get()[1])
             else:
                 reg_halfsize = np.array(reg_bbox.GetAttribute("xformOp:scale").Get())
-            reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(reg_bbox)
+            reg_pos, _ = usd.get_prim_pos_rot_in_world(reg_bbox)
             if reg_pos is None:
                 reg_pos = np.array([0, 0, 0])
             else:
                 reg_pos = np.array(reg_pos)
-            if reg_quat is None:
-                reg_quat = np.array([1, 0, 0, 0])
-            else:
-                reg_quat = np.array(reg_quat)
-            reg_halfsize = reg_halfsize * self.scale_factor
+            reg_halfsize = reg_halfsize * self.object_scale
             p0 = reg_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             px = reg_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             py = reg_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
@@ -71,34 +69,44 @@ class USDObject():
             reg_dict["pz"] = pz
             reg_dict["reg_halfsize"] = reg_halfsize
             reg_dict["reg_pos"] = reg_pos
-            reg_dict["reg_quat"] = reg_quat
             prefix = reg_bbox.GetName().replace("reg_", "")
             self._regions[prefix] = reg_dict
 
     @property
+    def bounded_region_name(self):
+        if "main" in self._regions:
+            return "main"
+        elif "bbox" in self._regions:
+            return "bbox"
+        else:
+            raise ValueError(f"No bounded region found for object {self.name}")
+
+    @property
     def horizontal_radius(self):
-        _horizontal_radius = self._regions["bbox"]["reg_halfsize"][
+        _horizontal_radius = self._regions[self.bounded_region_name]["reg_halfsize"][
             0:2
         ]
         return np.linalg.norm(_horizontal_radius)
 
     @property
     def bottom_offset(self):
-        pos = self._regions["bbox"]["reg_pos"]
-        half_size = self._regions["bbox"]["reg_halfsize"]
+        pos = self._regions[self.bounded_region_name]["reg_pos"]
+        half_size = self._regions[self.bounded_region_name]["reg_halfsize"]
         return np.array([pos[0], pos[1], pos[2] - half_size[2]])
 
     @property
     def top_offset(self):
-        pos = self._regions["bbox"]["reg_pos"]
-        half_size = self._regions["bbox"]["reg_halfsize"]
+        pos = self._regions[self.bounded_region_name]["reg_pos"]
+        half_size = self._regions[self.bounded_region_name]["reg_halfsize"]
         return np.array([pos[0], pos[1], pos[2] + half_size[2]])
 
-    def get_bbox_points(self, trans=None, rot=None, name="bbox"):
+    def get_bbox_points(self, trans=None, rot=None, name=None):
         """
         Get the full 8 bounding box points of the object
         rot: a rotation matrix
         """
+        if name is None:
+            name = self.bounded_region_name
         bbox_offsets = []
         center = self._regions[name]["reg_pos"]
         half_size = self._regions[name]["reg_halfsize"]
@@ -126,7 +134,7 @@ class USDObject():
 
     @property
     def size(self):
-        half_size = self._regions["bbox"]["reg_halfsize"]
+        half_size = self._regions[self.bounded_region_name]["reg_halfsize"]
         return list(half_size * 2)
 
     def get_reset_regions(self):

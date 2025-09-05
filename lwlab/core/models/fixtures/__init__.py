@@ -37,6 +37,7 @@ from .toaster import Toaster
 from .electric_kettle import ElectricKettle
 from .toaster_oven import ToasterOven
 from .dishwasher import Dishwasher
+from .table import Table
 from .dish_rack import DishRack
 from .others import Box, Wall, Floor
 

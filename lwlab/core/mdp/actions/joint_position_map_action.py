@@ -36,9 +36,20 @@ class JointPositionMapAction(JointPositionAction):
     def action_dim(self) -> int:
         return 1
 
+    def process_actions(self, actions: torch.Tensor):
+        # store the raw actions
+        self._raw_actions[:] = actions
+        # apply the affine transformations
+        self._processed_actions = self._raw_actions * self._scale + self._offset
+        # clip actions
+        if self.cfg.clip is not None:
+            self._processed_actions = torch.clamp(
+                self._processed_actions, min=self._clip[:, :, 0], max=self._clip[:, :, 1]
+            )
+        self._processed_actions = self.cfg.post_process_fn(self.processed_actions, self._joint_names)
+
     def apply_actions(self):
-        processed_actions = self.cfg.post_process_fn(self.processed_actions, self._joint_names)
-        self._asset.set_joint_position_target(processed_actions, joint_ids=self._joint_ids)
+        self._asset.set_joint_position_target(self._processed_actions, joint_ids=self._joint_ids)
 
 
 @configclass

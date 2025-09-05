@@ -1,4 +1,4 @@
-# Copyright 2025 Lightwheel Team
+# Copyright 2024 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,5 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import requests
-class ApiException(Exception):
-    """
-    Exception for API errors.
-
-    Args:
-        response (requests.Response): The response from the API
-    """
-    def __init__(self, response: requests.Response):
-        self.response = response
-        super().__init__(f"{response.status_code} {response.text}")
-    
-    def authenticated_failed(self):
-        return self.response.status_code == 401
+from .camera_opencv import OpenCVCamera
+from .configuration_opencv import OpenCVCameraConfig

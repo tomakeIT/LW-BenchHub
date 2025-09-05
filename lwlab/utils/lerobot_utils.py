@@ -13,7 +13,7 @@
 # limitations under the License.
 
 import torch
-from lwlab.core.robots.lerobot.assets_cfg import SO101_FOLLOWER_USD_JOINT_LIMLITS
+from lwlab.core.robots.lerobot.assets_cfg import SO101_FOLLOWER_USD_JOINT_LIMLITS, SO100_FOLLOWER_USD_JOINT_LIMLITS
 
 joint_names_to_motor_ids = {
     "shoulder_pan": 0,
@@ -28,6 +28,19 @@ joint_names_to_motor_ids = {
 def convert_action_from_so101_leader(joint_state: dict[str, float], motor_limits: dict[str, tuple[float, float]], teleop_device) -> torch.Tensor:
     processed_action = torch.zeros(teleop_device.env.num_envs, 6, device=teleop_device.env.device)
     joint_limits = SO101_FOLLOWER_USD_JOINT_LIMLITS
+    for joint_name, motor_id in joint_names_to_motor_ids.items():
+        motor_limit_range = motor_limits[joint_name]
+        joint_limit_range = joint_limits[joint_name]
+        processed_degree = (joint_state[joint_name] - motor_limit_range[0]) / (motor_limit_range[1] - motor_limit_range[0]) \
+            * (joint_limit_range[1] - joint_limit_range[0]) + joint_limit_range[0]
+        processed_radius = processed_degree / 180.0 * torch.pi  # convert degree to radius
+        processed_action[:, motor_id] = processed_radius
+    return processed_action
+
+
+def convert_action_100_from_so101_leader(joint_state: dict[str, float], motor_limits: dict[str, tuple[float, float]], teleop_device) -> torch.Tensor:
+    processed_action = torch.zeros(teleop_device.env.num_envs, 6, device=teleop_device.env.device)
+    joint_limits = SO100_FOLLOWER_USD_JOINT_LIMLITS
     for joint_name, motor_id in joint_names_to_motor_ids.items():
         motor_limit_range = motor_limits[joint_name]
         joint_limit_range = joint_limits[joint_name]

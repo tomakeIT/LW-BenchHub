@@ -2,7 +2,7 @@
 
 DATASET_FILE=$1
 REPLAY_MODE=$2
-export LWLAB_ENV_MODE="dev"
+export LW_API_ENDPOINT="http://api-dev.lightwheel.net:30807"
 HDF5_FILENAME=$(basename "${DATASET_FILE}")
 DATASET_DIR=/output
 
@@ -17,11 +17,10 @@ python3 /workspace/lwlab/lwlab/scripts/teleop/replay_action_demo.py \
     --width=480 \
     --height=480 \
     --replay_mode=${REPLAY_MODE} \
-    --enable_cameras \
     --headless \
     --without_image \
     --device=cpu 2>&1
-
+    # --enable_cameras \
 PYTHON_EXIT_CODE=$?
 
 REPLAY_JSON_PATH="${DATASET_DIR}/isaac_replay_action_${REPLAY_MODE}.json"

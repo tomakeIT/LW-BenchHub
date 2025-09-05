@@ -1,4 +1,4 @@
-# Copyright 2025 Lightwheel Team
+# Copyright 2024 The HuggingFace Inc. team. All rights reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
@@ -12,17 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import os
-ENV_MODE = os.environ.get("LWLAB_ENV_MODE", "prod")
-
-hosts = {
-    "prod": "https://api.lightwheel.net",
-    "dev": "http://usdcache-dev.lightwheel.net:30807",
-}[ENV_MODE]
-
-from .login import Login
-login_client = Login(hosts)
-from .object import ObjectLoader
-object_loader = ObjectLoader(hosts)
-from .floorplan import FloorplanLoader
-floorplan_loader = FloorplanLoader(hosts)
+from .camera import Camera
+from .configs import CameraConfig, ColorMode, Cv2Rotation
+from .utils import make_cameras_from_configs

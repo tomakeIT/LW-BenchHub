@@ -13,8 +13,10 @@ from . import consts
 from isaaclab.devices.device_base import DeviceBase
 import copy
 import requests
-from .Hand_KF import HandFusionSystem
 from lwlab.utils.opentelevision import OpenTeleVision
+from termcolor import colored
+
+from lwlab.utils.log_utils import get_vr_logger
 
 
 def mat_update(prev_mat, mat, name="UNK"):
@@ -104,6 +106,9 @@ class Device(DeviceBase):
     def input2action(self):
         raise NotImplementedError
 
+    def set_checkpoint_frame_idx(self, frame_index):
+        raise NotImplementedError
+
     def advance(self):
         action = self.input2action()
         if action is None:
@@ -171,13 +176,14 @@ class VRDevice(Device):
         # also add a keyboard for aux controls
         self.listener = Listener(on_press=self.on_press, on_release=self.on_release)
 
-        self.fusion = HandFusionSystem()
-
         # start listening
         self.listener.start()
 
         self.last_thumbstick_state = 0  # 记录上一次thumbstick的状态
         self.base_mode_flag = 1       # 切换的模式变量
+
+        self.last_x_button_state = 0
+        self.last_y_button_state = 0
 
     def _init_preprocessor(self):
         self.vuer_head_mat = np.array([[1, 0, 0, 0],
@@ -205,8 +211,18 @@ class VRDevice(Device):
 
         self.rel_keep_mat_left = np.eye(4)
         self.rel_keep_mat_right = np.eye(4)
+        self.rel_checkpoint_keep_mat_left = np.eye(4)
+        self.rel_checkpoint_keep_mat_right = np.eye(4)
         self.has_started = False
         self.has_keep = False
+        self.rollback_keep = False
+        self.is_body_moving = False
+        self.is_body_moving_last_frame = True
+        self.checkpoint_frame_origin_left_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_left_wrist_mat.copy() @ fast_mat_inv(consts.grd_yup2grd_zup)
+        self.checkpoint_frame_origin_right_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_right_wrist_mat.copy() @ fast_mat_inv(consts.grd_yup2grd_zup)
+        self.checkpoint_frame_first_left_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_left_wrist_mat.copy() @ fast_mat_inv(consts.grd_yup2grd_zup)
+        self.checkpoint_frame_first_right_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_right_wrist_mat.copy() @ fast_mat_inv(consts.grd_yup2grd_zup)
+        self.last_checkpoint_frame_idx = -1
 
         self.left_offset = config.get("left_offset", np.array([0, 0, 0]))
         self.right_offset = config.get("right_offset", np.array([0, 0, 0]))
@@ -270,6 +286,10 @@ class VRDevice(Device):
         # Reset Mode Switching
         self.last_thumbstick_state = 0  # 记录上一次thumbstick的状态
         self.base_mode_flag = 1       # 切换的模式变量
+
+        self.last_x_button_state = 0
+        self.last_y_button_state = 0
+        self.last_checkpoint_frame_idx = -1
 
     # NOTE: Interface to robosuite
     def start_control(self):
@@ -425,6 +445,12 @@ class VRDevice(Device):
             elif key.char == "m":
                 if "M" in self._additional_callbacks:
                     self._additional_callbacks["M"]()
+            elif key.char == "n":
+                if "N" in self._additional_callbacks:
+                    self._additional_callbacks["N"]()
+            elif key.char == "t":
+                if "T" in self._additional_callbacks:
+                    self._additional_callbacks["T"]()
 
         except AttributeError as e:
             pass
@@ -446,6 +472,9 @@ class VRDevice(Device):
         self.listener.join()
         self.tv.close()
 
+    def set_checkpoint_frame_idx(self, frame_index):
+        self.last_checkpoint_frame_idx = frame_index
+
 
 class VRController(VRDevice):
     tv_device_type = "controller"
@@ -453,17 +482,59 @@ class VRController(VRDevice):
     def get_controller_state(self):
         head_mat, origin_left_wrist_mat, origin_right_wrist_mat, abs_left_wrist_mat, abs_right_wrist_mat = super().get_controller_state()
 
-        if self.has_started and not self.has_keep and (self.tv.right_controller_state["a_button"] or self.tv.left_controller_state["a_button"]):
+        if self.has_started and not self.has_keep and self.tv.right_controller_state["a_button"]:
+            get_vr_logger().info("before a button, abs_right_wrist_mat:\n%s", abs_right_wrist_mat)
+            self.before_a_button_abs_right_wrist_mat = abs_right_wrist_mat.copy()
+            self.before_a_button_abs_left_wrist_mat = abs_left_wrist_mat.copy()
             self.rel_keep_mat_left[:3, 3] = self.first_left_wrist_mat[:3, 3] - origin_left_wrist_mat[:3, 3]
             self.rel_keep_mat_left[:3, :3] = (self.first_left_wrist_mat @ fast_mat_inv(origin_left_wrist_mat))[:3, :3]
             self.rel_keep_mat_right[:3, 3] = self.first_right_wrist_mat[:3, 3] - origin_right_wrist_mat[:3, 3]
             self.rel_keep_mat_right[:3, :3] = (self.first_right_wrist_mat @ fast_mat_inv(origin_right_wrist_mat))[:3, :3]
-        if self.has_started and self.has_keep and not (self.tv.right_controller_state["a_button"] or self.tv.left_controller_state["a_button"]):
+        if self.has_started and self.has_keep and not self.tv.right_controller_state["a_button"]:
             self.first_left_wrist_mat[:3, 3] = origin_left_wrist_mat[:3, 3] + self.rel_keep_mat_left[:3, 3]
             self.first_left_wrist_mat[:3, :3] = self.rel_keep_mat_left[:3, :3] @ origin_left_wrist_mat[:3, :3]
             self.first_right_wrist_mat[:3, 3] = origin_right_wrist_mat[:3, 3] + self.rel_keep_mat_right[:3, 3]
             self.first_right_wrist_mat[:3, :3] = self.rel_keep_mat_right[:3, :3] @ origin_right_wrist_mat[:3, :3]
-        self.has_keep = self.tv.right_controller_state["a_button"] or self.tv.left_controller_state["a_button"]
+            left_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_left_wrist_mat @ fast_mat_inv(consts.grd_yup2grd_zup)
+            right_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_right_wrist_mat @ fast_mat_inv(consts.grd_yup2grd_zup)
+            left_wrist_mat[0:3, 3] = origin_left_wrist_mat[0:3, 3] - self.first_left_wrist_mat[0:3, 3]
+            right_wrist_mat[0:3, 3] = origin_right_wrist_mat[0:3, 3] - self.first_right_wrist_mat[0:3, 3]
+            left_wrist_mat[:3, :3] = (left_wrist_mat @ fast_mat_inv(self.first_left_wrist_mat))[:3, :3]
+            right_wrist_mat[:3, :3] = (origin_right_wrist_mat @ fast_mat_inv(self.first_right_wrist_mat))[:3, :3]
+            left_wrist_mat = self.adjust_pose(left_wrist_mat, human_arm_length=0.5, robot_arm_length=self.robot_arm_length)
+            right_wrist_mat = self.adjust_pose(right_wrist_mat, human_arm_length=0.5, robot_arm_length=self.robot_arm_length)
+            abs_left_wrist_mat = left_wrist_mat @ self.left2arm_transform
+            abs_right_wrist_mat = right_wrist_mat @ self.right2arm_transform
+            abs_left_wrist_mat[0:3, 3] += self.left_offset
+            abs_right_wrist_mat[0:3, 3] += self.right_offset
+            get_vr_logger().info("new abs_right_wrist_mat:\n%s", abs_right_wrist_mat)
+        self.has_keep = self.tv.right_controller_state["a_button"]
+
+        if self.has_started and not self.rollback_keep and self.tv.left_controller_state["b_button"]:
+            get_vr_logger().info("before rollback, abs_right_wrist_mat:\n%s", abs_right_wrist_mat)
+            self.rel_checkpoint_keep_mat_left[:3, 3] = self.checkpoint_frame_first_left_wrist_mat[:3, 3] - self.checkpoint_frame_origin_left_wrist_mat[:3, 3]
+            self.rel_checkpoint_keep_mat_left[:3, :3] = (self.checkpoint_frame_first_left_wrist_mat @ fast_mat_inv(self.checkpoint_frame_origin_left_wrist_mat))[:3, :3]
+            self.rel_checkpoint_keep_mat_right[:3, 3] = self.checkpoint_frame_first_right_wrist_mat[:3, 3] - self.checkpoint_frame_origin_right_wrist_mat[:3, 3]
+            self.rel_checkpoint_keep_mat_right[:3, :3] = (self.checkpoint_frame_first_right_wrist_mat @ fast_mat_inv(self.checkpoint_frame_origin_right_wrist_mat))[:3, :3]
+        if self.has_started and self.rollback_keep and not self.tv.left_controller_state["b_button"]:
+            self.first_left_wrist_mat[:3, 3] = origin_left_wrist_mat[:3, 3] + self.rel_checkpoint_keep_mat_left[:3, 3]
+            self.first_left_wrist_mat[:3, :3] = self.rel_checkpoint_keep_mat_left[:3, :3] @ origin_left_wrist_mat[:3, :3]
+            self.first_right_wrist_mat[:3, 3] = origin_right_wrist_mat[:3, 3] + self.rel_checkpoint_keep_mat_right[:3, 3]
+            self.first_right_wrist_mat[:3, :3] = self.rel_checkpoint_keep_mat_right[:3, :3] @ origin_right_wrist_mat[:3, :3]
+            left_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_left_wrist_mat @ fast_mat_inv(consts.grd_yup2grd_zup)
+            right_wrist_mat = consts.grd_yup2grd_zup @ self.vuer_right_wrist_mat @ fast_mat_inv(consts.grd_yup2grd_zup)
+            left_wrist_mat[0:3, 3] = origin_left_wrist_mat[0:3, 3] - self.first_left_wrist_mat[0:3, 3]
+            right_wrist_mat[0:3, 3] = origin_right_wrist_mat[0:3, 3] - self.first_right_wrist_mat[0:3, 3]
+            left_wrist_mat[:3, :3] = (left_wrist_mat @ fast_mat_inv(self.first_left_wrist_mat))[:3, :3]
+            right_wrist_mat[:3, :3] = (origin_right_wrist_mat @ fast_mat_inv(self.first_right_wrist_mat))[:3, :3]
+            left_wrist_mat = self.adjust_pose(left_wrist_mat, human_arm_length=0.5, robot_arm_length=self.robot_arm_length)
+            right_wrist_mat = self.adjust_pose(right_wrist_mat, human_arm_length=0.5, robot_arm_length=self.robot_arm_length)
+            abs_left_wrist_mat = left_wrist_mat @ self.left2arm_transform
+            abs_right_wrist_mat = right_wrist_mat @ self.right2arm_transform
+            abs_left_wrist_mat[0:3, 3] += self.left_offset
+            abs_right_wrist_mat[0:3, 3] += self.right_offset
+            get_vr_logger().info("new rollback abs_right_wrist_mat:\n%s", abs_right_wrist_mat)
+        self.rollback_keep = self.tv.left_controller_state["b_button"]
 
         rel_left_wrist_mat = np.eye(4)
         rel_left_wrist_mat[:3, :3] = (origin_left_wrist_mat[:3, :3] @ np.linalg.inv(self.last_left_wrist_mat[:3, :3]))
@@ -481,10 +552,31 @@ class VRController(VRDevice):
         if reset:
             self._reset_state = False
             return state
-        while True:
-            head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
-            if not (right_controller_state["a_button"] or left_controller_state["a_button"]):
-                break
+
+        head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+        if right_controller_state["a_button"]:
+            if self.is_body_moving_last_frame:
+                self.is_body_moving = False
+                body_lin_vel_w = self.env.scene.articulations["robot"].data.body_lin_vel_w
+                for i in range(body_lin_vel_w.shape[1]):
+                    if abs(np.linalg.norm(body_lin_vel_w[0, i, :])) > 0.00001:  # TODO: 0.00001 is a magic number, need to be tuned, 0.0001 is tested to be unsuitable
+                        self.is_body_moving = True
+                        get_vr_logger().info("body %s has non zero vel: %s", self.env.scene.articulations["robot"].body_names[i], body_lin_vel_w[0, i, :])
+            self.is_body_moving_last_frame = self.is_body_moving
+
+            if self.is_body_moving:
+                abs_right_wrist_mat = self.before_a_button_abs_right_wrist_mat.copy()
+                abs_left_wrist_mat = self.before_a_button_abs_left_wrist_mat.copy()
+            else:
+                # if robot body is not moving, wait for a button release in the loop
+                while True:
+                    head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+                    if not right_controller_state["a_button"]:
+                        break
+        else:
+            self.is_body_moving_last_frame = True
+            self.is_body_moving = False
+
         state["lpose_abs"] = abs_left_wrist_mat
         state["rpose_abs"] = abs_right_wrist_mat
         state["lpose_delta"] = rel_left_wrist_mat
@@ -499,13 +591,30 @@ class VRController(VRDevice):
         state["rbase_button"] = right_controller_state["thumbstick"]
         state["lbase_button"] = left_controller_state["thumbstick"]
 
+        state["x_button"] = left_controller_state["b_button"]
+        state["y_button"] = left_controller_state["a_button"]
+
         if left_controller_state["thumbstick"] == 1 and self.last_thumbstick_state == 0:
             self.base_mode_flag = 1 - self.base_mode_flag
             print(f"base_mode_flag 切换为: {self.base_mode_flag}")
         self.last_thumbstick_state = left_controller_state["thumbstick"]
         state["base_mode"] = self.base_mode_flag
 
-        b_pressed = right_controller_state["b_button"] or left_controller_state["b_button"]
+        if left_controller_state["b_button"] == 1 and self.last_x_button_state == 0:
+            print(colored("x button pressed", "blue"))
+            state["x_button_pressed"] = True
+        else:
+            state["x_button_pressed"] = False
+        self.last_x_button_state = left_controller_state["b_button"]
+
+        if left_controller_state["a_button"] == 1 and self.last_y_button_state == 0:
+            print(colored("y button pressed", "blue"))
+            state["y_button_pressed"] = True
+        else:
+            state["y_button_pressed"] = False
+        self.last_y_button_state = left_controller_state["a_button"]
+
+        b_pressed = right_controller_state["b_button"]
         if not b_pressed and self.last_start_state:
             state["reset"] = self.started
             self.started = not self.started
@@ -526,7 +635,58 @@ class VRController(VRDevice):
             state[f"left_gripper"] = state["lgrasp"]
             state[f"right_gripper"] = state["rgrasp"]
 
+        if state.get("x_button_pressed", False):
+            if "N" in self._additional_callbacks:
+                self._additional_callbacks["N"]()
+
+        if state.get("y_button_pressed", False):
+            self.checkpoint_frame_origin_left_wrist_mat = self.last_left_wrist_mat.copy()
+            self.checkpoint_frame_origin_right_wrist_mat = self.last_right_wrist_mat.copy()
+            self.checkpoint_frame_first_left_wrist_mat = self.first_left_wrist_mat.copy()
+            self.checkpoint_frame_first_right_wrist_mat = self.first_right_wrist_mat.copy()
+            if "M" in self._additional_callbacks:
+                self._additional_callbacks["M"]()
+
+        # while True:
+        #     head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+        #     if not left_controller_state["b_button"]:
+        #         break
+
         return state
+
+    def get_rollback_action(self):
+        if self.last_checkpoint_frame_idx == -1:
+            return None
+
+        episode_data = self.env.recorder_manager._episodes[0]
+        if len(episode_data._data['actions']) <= self.last_checkpoint_frame_idx:
+            saved_action = None
+        else:
+            action = episode_data._data['actions'][self.last_checkpoint_frame_idx]
+            saved_action = action.reshape(self.env.num_envs, -1)
+
+        head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+        if left_controller_state["b_button"]:
+            if self.is_body_moving_last_frame:
+                self.is_body_moving = False
+                body_lin_vel_w = self.env.scene.articulations["robot"].data.body_lin_vel_w
+                for i in range(body_lin_vel_w.shape[1]):
+                    if abs(np.linalg.norm(body_lin_vel_w[0, i, :])) > 0.00001:  # TODO: 0.00001 is a magic number, need to be tuned, 0.0001 is tested to be unsuitable
+                        self.is_body_moving = True
+                        get_vr_logger().info("body %s has non zero vel: %s", self.env.scene.articulations["robot"].body_names[i], body_lin_vel_w[0, i, :])
+            self.is_body_moving_last_frame = self.is_body_moving
+
+            if self.is_body_moving:
+                return saved_action
+            else:
+                # if robot body is not moving, wait for a button release in the loop
+                while True:
+                    head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+                    if not right_controller_state["a_button"]:
+                        break
+        else:
+            self.is_body_moving_last_frame = True
+            self.is_body_moving = False
 
     def _display_controls(self):
         """
@@ -537,6 +697,8 @@ class VRController(VRDevice):
         self.print_command("Control", "Command")
         self.print_command("B button", "reset simulation")
         self.print_command("Trigger (hold)", "close gripper")
+        self.print_command("X button (left controller)", "rollback to checkpoint (N key)")
+        self.print_command("Y button (left controller)", "save checkpoint (M key)")
         self.print_command("Move controller position/rotation", "move arm to bring gripper to corresponding position/rotation")
         self.print_command("Control+C", "quit")
         self.print_command("move Thumbstick up/down", "move the base forward/backward")
@@ -594,16 +756,16 @@ class VRHand(VRDevice):
         # return head_mat, abs_left_wrist_mat, abs_right_wrist_mat, vr_left, vr_right
         # TODO use hamer to get the pose of the hand
         # mano_left, mano_right, left_rotate, right_rotate = self.get_controller_state_hamer()
-        mano_left, mano_right = None, None
+        # mano_left, mano_right = None, None
 
-        if mano_left is not None:
-            mano_left, left_rotate = np.array(mano_left), np.array(left_rotate)
-            mano_left = mano_left[consts.tip_indices_mano] - mano_left[0]
-            mano_left = mano_left @ left_rotate @ consts.left_rotation_matrix
-        if mano_right is not None:
-            mano_right, right_rotate = np.array(mano_right), np.array(right_rotate)
-            mano_right = mano_right[consts.tip_indices_mano] - mano_right[0]
-            mano_right = mano_right @ right_rotate @ consts.right_rotation_matrix
+        # if mano_left is not None:
+        #     mano_left, left_rotate = np.array(mano_left), np.array(left_rotate)
+        #     mano_left = mano_left[consts.tip_indices_mano] - mano_left[0]
+        #     mano_left = mano_left @ left_rotate @ consts.left_rotation_matrix
+        # if mano_right is not None:
+        #     mano_right, right_rotate = np.array(mano_right), np.array(right_rotate)
+        #     mano_right = mano_right[consts.tip_indices_mano] - mano_right[0]
+        #     mano_right = mano_right @ right_rotate @ consts.right_rotation_matrix
 
         # TODO fuse vr hand and hamer hand
         # left_fingers, right_fingers = self.fusion.run_fusion_loop(vr_left, vr_right, mano_left, mano_right)

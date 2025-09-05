@@ -36,6 +36,9 @@ class Dishwasher(Fixture):
             "rack": f"rack1_joint",
         }
 
+    def get_reset_region_names(self):
+        return ("rack0", "rack1")
+
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
         self._env = env

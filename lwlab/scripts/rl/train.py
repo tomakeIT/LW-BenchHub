@@ -67,7 +67,6 @@ from isaaclab.envs import (
     multi_agent_to_single_agent,
 )
 
-from isaaclab.envs import DirectMARLEnv, multi_agent_to_single_agent
 from isaaclab.utils.assets import retrieve_file_path
 
 from datetime import datetime
@@ -129,6 +128,7 @@ def main():
             else:
                 agent_cfg = load_robocasa_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}", agent_cfg_entry_point)
 
+    env_cfg.observations.policy.concatenate_terms = True
     # modify configuration
     env_cfg.terminations.time_out = None
     # create environment

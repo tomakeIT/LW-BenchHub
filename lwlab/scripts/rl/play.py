@@ -49,7 +49,6 @@ simulation_app = app_launcher.app
 """Rest everything follows."""
 
 import gymnasium as gym
-import os
 import time
 import torch
 import skrl
@@ -80,7 +79,7 @@ def main():
         skrl.config.jax.backend = "jax" if args_cli.ml_framework == "jax" else "numpy"
 
     # Parse environment configuration for Robocasa
-    from lwlab.utils.env import parse_env_cfg, ExecuteMode
+    from lwlab.utils.env import parse_env_cfg, ExecuteMode  # noqa: F811
 
     env_cfg = parse_env_cfg(
         task_name=args_cli.task,
@@ -133,6 +132,7 @@ def main():
         )
     log_dir = os.path.dirname(os.path.dirname(resume_path))
 
+    env_cfg.observations.policy.concatenate_terms = True
     # create isaac environment
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
 

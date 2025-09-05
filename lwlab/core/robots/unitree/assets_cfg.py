@@ -19,12 +19,7 @@ import isaaclab.sim as sim_utils
 from isaaclab.actuators import ActuatorNetMLPCfg, DCMotorCfg, ImplicitActuatorCfg
 from isaaclab.assets.articulation import ArticulationCfg
 from isaaclab.utils.assets import ISAACLAB_NUCLEUS_DIR
-import numpy as np
 from lwlab.data import LWLAB_DATA_PATH
-##
-# Configuration - Actuators.
-##
-
 
 ASSET_PATH = LWLAB_DATA_PATH / "assets" / "g1_three_fingers.usd"
 G1_CFG = ArticulationCfg(

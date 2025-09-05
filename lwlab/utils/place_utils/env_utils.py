@@ -9,12 +9,11 @@ from lwlab.utils.place_utils.placement_samplers import (
     UniformRandomSampler,
 )
 from lightwheel_sdk.loader import object_loader
-import lwlab.utils.math_utils.transform_utils as T
+import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
 _ROBOT_POS_OFFSETS: dict[str, list[float]] = {
     "G1ArmsOnly": [0, 0, 0.97],
-    "G1": [0, 0, 0.97],
     "H1ArmsOnly": [0, 0, 1.05],
     "H1": [0, 0, 1.05],
     "GR1ArmsOnly": [0, 0, 0.97],
@@ -583,7 +582,7 @@ def _check_cfg_is_valid(cfg):
         ), f"got invaild key \"{k}\" in placement config for {cfg['name']}"
 
 
-def _get_placement_initializer(env, cfg_list, z_offset=0.005):
+def _get_placement_initializer(env, cfg_list, z_offset=0.01):
     """
     Creates a placement initializer for the objects/fixtures based on the specifications in the configurations list.
 
@@ -652,6 +651,8 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.005):
             )
             sample_region_kwargs = placement.get("sample_region_kwargs", {})
             ref_fixture = sample_region_kwargs.get("ref", None)
+            if isinstance(ref_fixture, str):
+                ref_fixture = env.get_fixture(ref_fixture)
 
             # this checks if the reference fixture and dining counter are facing different directions
             ref_dining_counter_mismatch = False
@@ -673,14 +674,14 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.005):
                     and rotation_axis == "z"
                 ):
                     sample_region_kwargs["min_size"] = mj_obj.size
-                reset_regions = fixture.sample_reset_region(
+                reset_region = fixture.get_all_valid_reset_region(
                     env=env, **sample_region_kwargs
                 )
 
                 reference_object = fixture.name
 
-            cfg["reset_regions"] = reset_regions
-            for reset_region in cfg["reset_regions"]:
+            cfg["reset_region"] = reset_region if isinstance(reset_region, list) else [reset_region]
+            for reset_region in cfg["reset_region"]:
                 outer_size = reset_region["size"]
                 if fixture_is_type(fixture, FixtureType.TOASTER) or fixture_is_type(
                     fixture, FixtureType.BLENDER
@@ -760,7 +761,6 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.005):
                     if x_halfsize == 0.0:
                         inner_xpos = 0.0
                     else:
-                        ref_fixture = env.get_fixture(sample_region_kwargs["ref"])
                         ref_pos = ref_fixture.pos
                         fixture_to_ref = OU.get_rel_transform(fixture, ref_fixture)[0]
                         outer_to_ref = fixture_to_ref - reset_region["offset"]
@@ -775,7 +775,6 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.005):
                     if y_halfsize == 0.0:
                         inner_ypos = 0.0
                     else:
-                        ref_fixture = env.get_fixture(sample_region_kwargs["ref"])
                         ref_pos = ref_fixture.pos
                         fixture_to_ref = OU.get_rel_transform(fixture, ref_fixture)[0]
                         outer_to_ref = fixture_to_ref - reset_region["offset"]
@@ -923,7 +922,7 @@ def find_object_cfg_by_name(env, name):
     raise ValueError
 
 
-def create_obj(env, cfg):
+def create_obj(env, cfg, version=None):
     """
     Helper function for creating objects.
     Called by _create_objects()
@@ -968,8 +967,9 @@ def create_obj(env, cfg):
             object_properties[key] = cfg[key]
 
     if "placement" in cfg and "fixture" in cfg["placement"]:
-        ref_fixture_name = cfg["placement"]["fixture"]
-        ref_fixture = env.get_fixture(ref_fixture_name)
+        ref_fixture = cfg["placement"]["fixture"]
+        if isinstance(ref_fixture, str):
+            ref_fixture = env.get_fixture(ref_fixture)
         if fixture_is_type(ref_fixture, FixtureType.SINK):
             object_properties["washable"] = True
         elif fixture_is_type(ref_fixture, FixtureType.DISHWASHER):
@@ -1003,8 +1003,9 @@ def create_obj(env, cfg):
         object_cfgs,
         source=cfg.get("source", env.sources),
         max_size=cfg.get("max_size", (None, None, None)),
-        scale_factor=cfg.get("scale_factor", None),
+        object_scale=cfg.get("object_scale", None),
         rotate_upright=cfg.get("rotate_upright", False),
+        object_version=version,
     )
 
 

@@ -142,7 +142,6 @@ class LegPositionAction(ActionTerm):
         quat_np = quat.cpu().numpy()[0][0]  # [w, x, y, z]
         ang_vel_np = ang_vel.cpu().numpy()[0].flatten()  # [wx, wy, wz]
 
-        from scipy.spatial.transform import Rotation as R
         quat_xyzw = np.array([quat_np[1], quat_np[2], quat_np[3], quat_np[0]])
         r = R.from_quat(quat_xyzw)
 

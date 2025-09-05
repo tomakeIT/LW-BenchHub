@@ -149,9 +149,13 @@ def load_robocasa_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_poin
 
         else:
             cfg_cls = cfg_entry_point
-        cfg = cfg_cls
         # load the configuration
         print(f"[INFO]: Parsing configuration from: {cfg_entry_point}")
+
+        if callable(cfg_cls) and "rsl_rl" in str(cfg_cls):
+            cfg = cfg_cls()
+        else:
+            cfg = cfg_cls
     return cfg
 
 
@@ -168,6 +172,7 @@ def parse_env_cfg(
     first_person_view: bool = False,
     enable_cameras: bool = False,
     usd_simplify: bool = False,
+    object_init_offset: list[float] = [0.0, 0.0],
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -232,6 +237,7 @@ def parse_env_cfg(
     RobocasaEnvCfg.first_person_view = first_person_view
     RobocasaEnvCfg.usd_simplify = usd_simplify
     RobocasaEnvCfg.enable_cameras = enable_cameras
+    RobocasaEnvCfg.object_init_offset = object_init_offset
 
     if scene_type == "USD":
         cfg = RobocasaEnvCfg(
@@ -321,17 +327,21 @@ def setup_task_description_ui(env_cfg, env):
         env: Environment object
 
     Returns:
-        overlay_window
+        tuple: (overlay_window, warning_label) for updating motion warnings
     """
     desc = None
+    base_desc = None
 
     if hasattr(env_cfg, 'task_name') and hasattr(env_cfg, 'layout_id') and hasattr(env_cfg, 'style_id') and hasattr(env_cfg, 'get_ep_meta'):
-        desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.layout_id, env_cfg.style_id, env_cfg.get_ep_meta()["lang"])
+        base_desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.layout_id, env_cfg.style_id, env_cfg.get_ep_meta()["lang"])
     elif hasattr(env_cfg, 'task_name') and hasattr(env_cfg, 'usd_path') and hasattr(env_cfg, 'get_ep_meta'):
-        desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.usd_path, env_cfg.get_ep_meta()["lang"])
+        base_desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.usd_path, env_cfg.get_ep_meta()["lang"])
+
+    if base_desc is not None:
+        desc = base_desc + "\n Checkpoints: not saved"
 
     if desc is None:
-        return None
+        return None, None
 
     import omni.ui as ui
 
@@ -354,7 +364,8 @@ def setup_task_description_ui(env_cfg, env):
         with ui.ZStack():
             ui.Spacer()
             with ui.VStack(style={"margin": 15}):
-                ui.Label(
+                # Task description (green text)
+                task_desc_label = ui.Label(
                     desc,
                     alignment=ui.Alignment.LEFT_TOP,
                     style={
@@ -366,9 +377,44 @@ def setup_task_description_ui(env_cfg, env):
                     }
                 )
 
+                # Motion warnings (red text) - initially empty, positioned closer to desc
+                warning_label = ui.Label(
+                    "",
+                    alignment=ui.Alignment.LEFT_TOP,
+                    style={
+                        "color": 0xFF0000FF,    # Red (corrected format)
+                        "font_size": 24,
+                        "background_color": 0x00000080,  # Semi-transparent black
+                        "padding": 6,
+                        "border_radius": 4
+                    }
+                )
+
     env.sim.render()
 
+    # Expose the label/base text for minimal external updates without changing return signature
+    try:
+        setattr(env, "_task_desc_label", task_desc_label)
+        setattr(env, "_warning_label", warning_label)
+        setattr(env, "_base_desc", base_desc if base_desc is not None else desc)
+    except Exception:
+        pass
+
     return overlay_window
+
+
+def update_motion_warnings(env, warning_text):
+    """
+    Update the motion warning label with new warning text.
+
+    Args:
+        warning_label: The UI label to update
+        warning_text: The warning text to display
+    """
+    if env._warning_label and warning_text:
+        env._warning_label.text = warning_text
+    elif env._warning_label:
+        env._warning_label.text = ""
 
 
 def dock_window(space, name, location, ratio):
@@ -411,7 +457,7 @@ def create_and_dock_viewport(env, parent_window_name, position, ratio, camera_pa
     env.sim.render()
 
     viewport.viewport_api.set_active_camera(camera_path)
-    viewport.viewport_api.set_texture_resolution((640, 360))
+    viewport.viewport_api.set_texture_resolution((426, 240))
 
     env.sim.render()
 

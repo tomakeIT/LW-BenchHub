@@ -16,12 +16,12 @@ import torch
 
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from lwlab.core.models.fixtures import FixtureType
-from robocasa.models.fixtures.others import Floor, Wall
+from lwlab.core.models.fixtures.others import Floor, Wall
 
 from tasks.base import BaseTaskEnvCfg
 from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
 import lwlab.utils.object_utils as OU
-from lwlab.core.models.fixtures import *
+from lwlab.core.models import fixtures
 
 
 class ManipulateDrawer(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
@@ -145,13 +145,13 @@ class ManipulateDrawer(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
         fxtrs = [
             fxtr
             for fxtr in self.fixtures.values()
-            if isinstance(fxtr, Counter)
-            or isinstance(fxtr, Stove)
-            or isinstance(fxtr, Stovetop)
-            or isinstance(fxtr, HousingCabinet)
-            or isinstance(fxtr, SingleCabinet)
-            or isinstance(fxtr, HingeCabinet)
-            or isinstance(fxtr, Fridge)
+            if isinstance(fxtr, fixtures.Counter)
+            or isinstance(fxtr, fixtures.Stove)
+            or isinstance(fxtr, fixtures.Stovetop)
+            or isinstance(fxtr, fixtures.HousingCabinet)
+            or isinstance(fxtr, fixtures.SingleCabinet)
+            or isinstance(fxtr, fixtures.HingeCabinet)
+            or isinstance(fxtr, fixtures.Fridge)
             or (isinstance(fxtr, Wall) and not isinstance(fxtr, Floor))
         ]
 

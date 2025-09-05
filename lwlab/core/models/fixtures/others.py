@@ -9,10 +9,9 @@ class Box(ProcGenFixture):
 
 
 class Wall(Box):
-    def __init__(self, name, prim, num_envs, wall_side="back", **kwargs):
+    def __init__(self, name, prim, num_envs, **kwargs):
         super().__init__(name, prim, num_envs, **kwargs)
-        # TODO: wall_size need to be added in USD
-        self.wall_side = wall_side
+        self.wall_side = prim.GetAttribute("wall_side").Get()
 
     def _get_pos_after_rel_tranformation(self, offset, quat):
         fixture_mat = T.quat2mat(T.convert_quat(quat))
@@ -109,5 +108,5 @@ class Wall(Box):
         return side_rots[self.wall_side]
 
 
-class Floor(Box):
+class Floor(Wall):
     pass

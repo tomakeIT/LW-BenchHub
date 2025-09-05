@@ -21,6 +21,7 @@ register_rl_env(
     task_name="OpenDrawer",
     env_cfg_entry_point=f"{__name__}.open_drawer.open_drawer:OpenDrawerG1RlCfg",
     skrl_cfg_entry_point=f"{open_drawer_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{open_drawer_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
 )
 
 register_rl_env(
@@ -29,6 +30,7 @@ register_rl_env(
     variant="State",
     env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:G1StateLiftObjRLEnvCfg",
     skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
 )
 
 register_rl_env(
@@ -37,6 +39,7 @@ register_rl_env(
     variant="Visual",
     env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:G1VisualLiftObjRLEnvCfg",
     skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
 )
 
 register_rl_env(
@@ -45,6 +48,7 @@ register_rl_env(
     variant="State",
     env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LerobotStateLiftObjRLEnvCfg",
     skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
 )
 
 register_rl_env(
@@ -53,4 +57,40 @@ register_rl_env(
     variant="Visual",
     env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LerobotVisualLiftObjRLEnvCfg",
     skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
+)
+register_rl_env(
+    robot_name="Lerobot-RL",
+    task_name="LiftObjDigitalTwin",
+    variant="Visual",
+    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LerobotLiftObjDigitalTwinCfg",
+    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
+)
+
+register_rl_env(
+    robot_name="Lerobot100-RL",
+    task_name="LiftObj",
+    variant="State",
+    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:Lerobot100StateLiftObjRLEnvCfg",
+    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
+)
+
+register_rl_env(
+    robot_name="Lerobot100-RL",
+    task_name="LiftObj",
+    variant="Visual",
+    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:Lerobot100VisualLiftObjRLEnvCfg",
+    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
+)
+
+register_rl_env(
+    robot_name="Lerobot100-RL",
+    task_name="LiftObjDigitalTwin",
+    variant="Visual",
+    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:Lerobot100LiftObjDigitalTwinCfg",
+    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
 )

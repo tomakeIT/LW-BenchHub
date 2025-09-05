@@ -12,6 +12,39 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""
+Teleoperation Main Script with Enhanced Checkpoint System
+
+This script provides a complete teleoperation system with an advanced checkpoint/load system
+that allows users to save and load their progress during teleoperation sessions.
+
+Key Features:
+1. Standard Checkpoint System (SAVE/LOAD):
+   - SAVE (M key): Save current frame index to checkpoint file
+   - LOAD (N key): Load from checkpoint file and reset to saved frame
+
+2. Enhanced Load System (reset_and_keep_to):
+   - Preserves all episode data up to the target frame
+   - Implements true "read checkpoint" functionality
+   - Maintains recording history for replay and analysis
+
+3. Quick Rewind (B key / REWIND):
+   - Instantly go back 10 frames while preserving data
+   - Useful for quick corrections during teleoperation
+
+Usage:
+- M key: Save checkpoint
+- N key: Load checkpoint (with data preservation)
+- B key: Quick rewind 10 frames (with data preservation)
+- R key: Reset recording instance (clears all data)
+
+The reset_and_keep_to function is the core of the enhanced system, providing:
+- Complete episode data backup before reset
+- Environment state restoration to target frame
+- Episode data truncation to maintain consistency
+- Comprehensive error handling and user feedback
+"""
+
 """Script to run a keyboard teleoperation with Isaac Lab manipulation environments."""
 
 """Launch Isaac Sim Simulator first."""
@@ -28,6 +61,7 @@ import json
 from datetime import datetime
 from lwlab.utils.log_utils import log_scene_rigid_objects, handle_exception_and_log
 
+
 from lwlab.utils.log_utils import get_default_logger
 
 from isaaclab.app import AppLauncher
@@ -38,6 +72,8 @@ from lwlab.utils.config_loader import config_loader
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
 parser.add_argument("--task_config", type=str, default=None, help="task config")
+parser.add_argument("--checkpoint_path", type=str, default=None, help="path to save/load teleop checkpoint (env state)")
+parser.add_argument("--auto_load_checkpoint", action="store_true", default=False, help="auto-load checkpoint on start if available")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -53,9 +89,8 @@ if args_cli.teleop_device.lower() == "handtracking":
 if "handtracking" in args_cli.teleop_device.lower():
     app_launcher_args["xr"] = True
 
-if args_cli.enable_pinocchio:
+if 'hand' in args_cli.teleop_device.lower() or args_cli.enable_pinocchio:
     import pinocchio
-
 
 app_launcher_args["profiler_backend"] = ["tracy"]
 
@@ -134,8 +169,9 @@ def optimize_rendering(env):
     settings.set_int("/rtx/post/dlss/execMode", 0)  # "Performance"
     settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", False)
 
-    settings.set_bool("/app/renderer/skipMaterialLoading", True)
-    settings.set_bool("/app/renderer/skipTextureLoading", True)
+    # TODO this option affects the rendering of dynamic spawned objects
+    settings.set_bool("/app/renderer/skipMaterialLoading", False)
+    settings.set_bool("/app/renderer/skipTextureLoading", False)
 
     # Setup timeline
     import omni.timeline as timeline
@@ -175,18 +211,23 @@ def main():
     app_launcher = AppLauncher(app_launcher_args)
     simulation_app = app_launcher.app
     print(f"isaacsim started in {time.time() - start_time:.2f}s")
-
-    from lwlab.utils.env import parse_env_cfg, ExecuteMode
+    from lwlab.utils.env import parse_env_cfg, ExecuteMode, update_motion_warnings
 
     """Rest everything follows."""
     import gymnasium as gym
-    from lwlab.core.devices import LwOpenXRDevice, KEYCONTROLLER_MAP
+    import numpy as np
+    from lwlab.core.devices import VRController, VRHand, LwOpenXRDevice, KEYCONTROLLER_MAP
     from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
     if app_launcher_args.get("xr"):
         from isaacsim.xr.openxr import OpenXRSpec
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab.envs.ui import ViewportCameraController
+    from isaaclab.managers import TerminationTermCfg as DoneTerm
+    import isaaclab_tasks  # noqa: F401
+    from isaaclab_tasks.manager_based.manipulation.lift import mdp
+    from multiprocessing import Process, shared_memory
     from lwlab.utils.video_recorder import VideoRecorder, get_camera_images
+    from lwlab.utils.teleop_utils import save_checkpoint, load_checkpoint, quick_rewind
 
     import carb
 
@@ -196,6 +237,9 @@ def main():
     # create directory if it does not exist
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
+    # setup default checkpoint path if not provided
+    if getattr(args_cli, "checkpoint_path", None) in (None, ""):
+        args_cli.checkpoint_path = os.path.join(output_dir, f"{output_file_name}.ckpt.pt")
 
     if "-" in args_cli.task:
         env_cfg = parse_env_cfg(
@@ -203,7 +247,6 @@ def main():
         )
         env_name = args_cli.task
     else:  # isaac-robocasa
-        from lwlab.utils.env import parse_env_cfg, ExecuteMode
         with trace_profile("parse_env_cfg"):
             # Build replay_cfgs from YAML if initial pose is provided
             ep_meta = {}
@@ -224,6 +267,12 @@ def main():
             replay_cfgs = None
             if len(ep_meta) > 0:
                 replay_cfgs = {"ep_meta": ep_meta}
+            object_init_offset = [0.0, 0.0]
+            if hasattr(args_cli, "object_init_offset") and args_cli.object_init_offset is not None:
+                try:
+                    object_init_offset = [float(v) for v in args_cli.object_init_offset]
+                except Exception:
+                    pass
             env_cfg = parse_env_cfg(
                 task_name=args_cli.task,
                 robot_name=args_cli.robot,
@@ -235,7 +284,10 @@ def main():
                 enable_cameras=app_launcher._enable_cameras,
                 execute_mode=ExecuteMode.TELEOP,
                 usd_simplify=args_cli.usd_simplify,
+                object_init_offset=object_init_offset
             )
+            if hasattr(args_cli, "reset_objects_enabled"):
+                env_cfg.reset_objects_enabled = args_cli.reset_objects_enabled
         env_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
         gym.register(
             id=env_name,
@@ -280,14 +332,6 @@ def main():
     elif args_cli.teleop_device.lower() == "bi_so101leader":
         from lwlab.core.devices.lerobot import BiSO101Leader
         teleop_interface = BiSO101Leader(env, left_port=args_cli.left_port, right_port=args_cli.right_port, recalibrate=args_cli.recalibrate)
-    elif args_cli.teleop_device.lower() == "handtracking":
-        from isaacsim.xr.openxr import OpenXRSpec
-
-        teleop_interface = Se3HandTracking(OpenXRSpec.XrHandEXT.XR_HAND_RIGHT_EXT, False, True)
-        teleop_interface.add_callback("RESET", env.reset)
-        viewer = ViewerCfg(eye=(-0.25, -0.3, 0.5), lookat=(0.6, 0, 0), asset_name="viewer")
-        ViewportCameraController(env, viewer)
-
     elif args_cli.teleop_device.lower() == "dualhandtracking_abs" and args_cli.robot.lower().endswith("hand"):
         # Create hand tracking device with retargeter
         teleop_interface = LwOpenXRDevice(
@@ -296,16 +340,32 @@ def main():
             env=env,
         )
         teleoperation_active = False
+    elif args_cli.teleop_device.lower().startswith("vr"):
+        image_size = (720, 1280)
+        shm = shared_memory.SharedMemory(
+            create=True,
+            size=image_size[0] * image_size[1] * 3 * np.uint8().itemsize,
+        )
+        vr_device_type = {
+            "vr-controller": VRController,
+            "vr-hand": VRHand,
+        }[args_cli.teleop_device.lower()]
+        teleop_interface = vr_device_type(env,
+                                          img_shape=image_size,
+                                          shm_name=shm.name,)
     else:
         raise ValueError(
-            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'handtracking'."
+            f"Invalid device interface '{args_cli.teleop_device}'. Supported: 'keyboard', 'spacemouse''handtracking'."
         )
 
     def run_simulation():
         # add teleoperation key for env reset
         should_reset_recording_instance = False
+        flush_recorder_manager_flag = False
+        rollback_to_checkpoint_flag = False
 
         def reset_recording_instance():
+            print("reset recording instance")
             nonlocal should_reset_recording_instance
             should_reset_recording_instance = True
 
@@ -317,14 +377,36 @@ def main():
             nonlocal teleoperation_active
             teleoperation_active = False
 
+        def flush_recorder_manager():
+            nonlocal flush_recorder_manager_flag
+            flush_recorder_manager_flag = True
+
+        def call_save_checkpoint():
+            frame_index = save_checkpoint(env, args_cli.checkpoint_path)
+            if isinstance(teleop_interface, VRController):
+                teleop_interface.set_checkpoint_frame_idx(frame_index)
+
+        def rollback_to_checkpoint():
+            nonlocal rollback_to_checkpoint_flag
+            rollback_to_checkpoint_flag = True
+
         if isinstance(teleop_interface, LwOpenXRDevice):
             teleoperation_active = False
             teleop_interface.add_callback("RESET", reset_recording_instance)
             teleop_interface.add_callback("START", start_teleoperation)
             teleop_interface.add_callback("STOP", stop_teleoperation)
+            teleop_interface.add_callback("SAVE", lambda: save_checkpoint(env, args_cli.checkpoint_path))
+            teleop_interface.add_callback("LOAD", lambda: load_checkpoint(env, args_cli.checkpoint_path))
+            # Add new shortcut: quick rewind 10 frames
+            teleop_interface.add_callback("REWIND", lambda: quick_rewind(env, 10))
         else:
             teleoperation_active = True
             teleop_interface.add_callback("R", reset_recording_instance)
+            teleop_interface.add_callback("T", flush_recorder_manager)
+            teleop_interface.add_callback("M", call_save_checkpoint)
+            teleop_interface.add_callback("N", rollback_to_checkpoint)
+            # Add new shortcut: quick rewind 10 frames
+            teleop_interface.add_callback("B", lambda: quick_rewind(env, 10))
         print(teleop_interface)
 
         rate_limiter = RateLimiter(args_cli.step_hz)
@@ -332,6 +414,9 @@ def main():
         # reset environment
         env.reset()
         teleop_interface.reset()
+        # auto load checkpoint if enabled
+        if getattr(args_cli, "auto_load_checkpoint", False) and os.path.exists(args_cli.checkpoint_path):
+            load_checkpoint()
 
         from lwlab.utils.env import setup_cameras, setup_task_description_ui, spawn_robot_vis_helper_general, destroy_robot_vis_helper
 
@@ -340,7 +425,10 @@ def main():
             for key, v_p in viewports.items():
                 res = v_p.viewport_api.get_texture_resolution()
                 sca = v_p.viewport_api.get_texture_resolution_scale()
-                print(f"Viewport {key} resolution: {res}, scale: {sca}")
+                v_p.viewport_api.set_texture_resolution((426, 240))
+                env.sim.render()
+                res_new = v_p.viewport_api.get_texture_resolution()
+                print(f"Viewport {key} resolution: {res}, scale: {sca}, new resolution: {res_new}")
 
         overlay_window = setup_task_description_ui(env_cfg, env)
 
@@ -362,8 +450,28 @@ def main():
 
         vis_helper_prims = []
 
+        def save_metrics():
+            """Save metrics data to JSON file"""
+            metrics_data = {}
+            if hasattr(env_cfg, 'get_metrics'):
+                metrics_data = env_cfg.get_metrics()
+
+            # Save metrics to JSON file
+            if metrics_data:
+                metrics_file_path = os.path.join(output_dir, "metrics.json")
+                try:
+                    with open(metrics_file_path, 'w') as f:
+                        json.dump(metrics_data, f, indent=2)
+                    print(f"Metrics saved to: {metrics_file_path}")
+                except Exception as e:
+                    print(f"Failed to save metrics: {e}")
+
         # simulate environment
         while simulation_app.is_running():
+            if flush_recorder_manager_flag:
+                env.recorder_manager.export_episodes()
+                env.recorder_manager.reset()
+                flush_recorder_manager_flag = False
 
             # start frame analysis (debug mode only)
             frame_analyzer.start_frame()
@@ -387,17 +495,18 @@ def main():
                     env.reset()
                 should_reset_recording_instance = False
                 frame_count = 0
-                if start_record_state == True:
+                if start_record_state:
                     print("Stop Recording!!!")
+                    save_metrics()
                     start_record_state = False
                     if video_recorder is not None:
                         video_recorder.stop_recording()
 
-            elif (isinstance(actions, bool) and actions == False) or (not teleoperation_active):
+            elif (isinstance(actions, bool) and not actions) or (not teleoperation_active):
                 env.render()
             # apply actions
             else:
-                if start_record_state == False:
+                if not start_record_state:
                     print("Start Recording!!!")
                     start_record_state = True
 
@@ -412,25 +521,47 @@ def main():
                 # warmup rendering
                 if env.common_step_counter <= 1:
                     for _ in range(env.cfg.warmup_steps):
-                        env.sim.step()
-                        env.scene.update(env.physics_dt)
+                        env.cfg.update_sensors(env, env.physics_dt)
 
                 if args_cli.enable_log:
                     try:
                         env.step(actions)
+                        # Update motion warnings in UI if available
+                        if hasattr(env_cfg, 'get_warning_text'):
+                            update_motion_warnings(env, env_cfg.get_warning_text())
                     except Exception as e:
+                        print(f"Error during env step: {traceback.format_exc()}")
                         handle_exception_and_log(e, log_path)
                         break
                 else:
                     frame_count += 1  # increase frame counter
                     # measure env_step time
                     step_start = time.time()
+                    if rollback_to_checkpoint_flag:
+                        load_checkpoint(env, args_cli.checkpoint_path)
+                        rollback_to_checkpoint_flag = False
+
+                    if isinstance(teleop_interface, VRController):
+                        if teleop_interface.tv.left_controller_state["b_button"]:
+                            if teleop_interface.get_rollback_action() is not None:
+                                actions = teleop_interface.get_rollback_action()
+                            else:
+                                # no action to roll back, continue
+                                continue
+
                     with trace_profile(f"env_step_frame_{frame_count:06d}"):
-                        carb.profiler.begin(1, "evn_step")
+                        carb.profiler.begin(1, "env_step")
+                        if actions is None:
+                            # TODO find where the actions is None
+                            continue
                         obs, *_ = env.step(actions)
                         carb.profiler.end(1)
                     step_time = time.time() - step_start
                     frame_analyzer.record_stage('env_step', step_time)
+
+                    # Update motion warnings in UI if available
+                    if hasattr(env_cfg, 'get_warning_text'):
+                        update_motion_warnings(env, env_cfg.get_warning_text())
 
                 # Recorded
                 if env_cfg.enable_cameras and start_record_state and video_recorder is not None:

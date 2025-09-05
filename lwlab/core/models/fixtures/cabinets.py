@@ -141,7 +141,7 @@ class Drawer(Cabinet):
         is inside the drawer or when placing an object inside an open drawer.
 
         TODO: (1) Drawer assets require inner volume and outer volume. (floorplan2usd)
-        TODO: (2) In runtime to get the world coordinates and dimensions of the geometric 
+        TODO: (2) In runtime to get the world coordinates and dimensions of the geometric
                   centroids of the inner and outer volumes in real time, and is to be time
                   consuming small. (fixture controller)
 

@@ -18,7 +18,7 @@ from .observations import *  # noqa: F401, F403
 from .actions import *  # noqa: F401, F403
 
 
-_reset_scene_to_default = reset_scene_to_default
+_reset_scene_to_default = reset_scene_to_default  # noqa: F405
 
 # override the default reset_scene_to_default
 

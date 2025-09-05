@@ -13,7 +13,6 @@ else
     export POLICY_GPU=1
 fi
 
-export LWLAB_ENV_MODE="dev"
 python ./lwlab/scripts/rl/train.py \
     --task_config="$task_config" \
     --headless \

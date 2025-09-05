@@ -1,5 +1,4 @@
-from lwlab.core.models.fixtures import *
-from lwlab.core.models.fixtures.fixture import FixtureType
+from lwlab.core.models.fixtures import FixtureType
 
 
 def fixture_is_type(fixture, fixture_type):
@@ -11,7 +10,9 @@ def fixture_is_type(fixture, fixture_type):
 
         fixture_type (FixtureType): The type to check against
     """
-    if isinstance(fixture, FixtureType):
+    if fixture is None:
+        return False
+    elif isinstance(fixture, FixtureType):
         return fixture == fixture_type
     else:
         return fixture._is_fixture_type(fixture_type)
