@@ -1,0 +1,16 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: PIPolicy
+
+train_config_name: pi05_lora_lwlab_so101_pick_orange
+checkpoint: /home/zsy/pi05_checkpoints/pi05_lora_lwlab_so101_pick_orange/lwlab_pi05_lora_so101_pick_orange/29999
+instruction: "PnPOrange"
+
+observation_config:
+  custom_mapping:
+    images/front: global_camera
+    images/wrist: hand_camera
+    state: joint_pos
+    action: joint_target_pos
+
+record_camera: ["global_camera"]
+time_out_limit: 500

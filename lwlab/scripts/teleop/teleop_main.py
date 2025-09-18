@@ -216,8 +216,9 @@ def main():
     """Rest everything follows."""
     import gymnasium as gym
     import numpy as np
-    from lwlab.core.devices import VRController, VRHand, LwOpenXRDevice, KEYCONTROLLER_MAP
-    from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
+    if not args_cli.headless:
+        from lwlab.core.devices import VRController, VRHand, LwOpenXRDevice, KEYCONTROLLER_MAP
+        from isaaclab.devices import Se3Keyboard, Se3SpaceMouse
     if app_launcher_args.get("xr"):
         from isaacsim.xr.openxr import OpenXRSpec
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
@@ -228,7 +229,7 @@ def main():
     from multiprocessing import Process, shared_memory
     from lwlab.utils.video_recorder import VideoRecorder, get_camera_images
     from lwlab.utils.teleop_utils import save_checkpoint, load_checkpoint, quick_rewind
-
+    from lwlab.utils.place_utils.env_utils import set_seed
     import carb
 
     # get directory path and file name (without extension) from cli arguments
@@ -284,7 +285,10 @@ def main():
                 enable_cameras=app_launcher._enable_cameras,
                 execute_mode=ExecuteMode.TELEOP,
                 usd_simplify=args_cli.usd_simplify,
-                object_init_offset=object_init_offset
+                object_init_offset=object_init_offset,
+                max_scene_retry=args_cli.max_scene_retry,
+                max_object_placement_retry=args_cli.max_object_placement_retry,
+                seed=args_cli.seed,
             )
             if hasattr(args_cli, "reset_objects_enabled"):
                 env_cfg.reset_objects_enabled = args_cli.reset_objects_enabled
@@ -305,6 +309,7 @@ def main():
     # create environment
     with trace_profile("gymmake"):
         env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
+        set_seed(env_cfg.seed, env)
 
     if args_cli.enable_optimization:
         optimize_rendering(env)
@@ -313,11 +318,14 @@ def main():
 
     # create controller
     if args_cli.teleop_device.lower() == "keyboard":
-        device_type = KEYCONTROLLER_MAP[args_cli.teleop_device.lower() + "-" + args_cli.robot.lower().split("-")[0]]
-        teleop_interface = device_type(
-            pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity,
-            base_sensitivity=0.5 * args_cli.sensitivity, base_yaw_sensitivity=0.8 * args_cli.sensitivity
-        )
+        if args_cli.headless:
+            teleop_interface = None
+        else:
+            device_type = KEYCONTROLLER_MAP[args_cli.teleop_device.lower() + "-" + args_cli.robot.lower().split("-")[0]]
+            teleop_interface = device_type(
+                pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity,
+                base_sensitivity=0.5 * args_cli.sensitivity, base_yaw_sensitivity=0.8 * args_cli.sensitivity
+            )
     elif args_cli.teleop_device.lower() == "spacemouse":
         teleop_interface = Se3SpaceMouse(env,
                                          pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.2 * args_cli.sensitivity
@@ -390,7 +398,7 @@ def main():
             nonlocal rollback_to_checkpoint_flag
             rollback_to_checkpoint_flag = True
 
-        if isinstance(teleop_interface, LwOpenXRDevice):
+        if not args_cli.headless and isinstance(teleop_interface, LwOpenXRDevice):
             teleoperation_active = False
             teleop_interface.add_callback("RESET", reset_recording_instance)
             teleop_interface.add_callback("START", start_teleoperation)
@@ -399,7 +407,7 @@ def main():
             teleop_interface.add_callback("LOAD", lambda: load_checkpoint(env, args_cli.checkpoint_path))
             # Add new shortcut: quick rewind 10 frames
             teleop_interface.add_callback("REWIND", lambda: quick_rewind(env, 10))
-        else:
+        elif teleop_interface is not None:
             teleoperation_active = True
             teleop_interface.add_callback("R", reset_recording_instance)
             teleop_interface.add_callback("T", flush_recorder_manager)
@@ -407,20 +415,23 @@ def main():
             teleop_interface.add_callback("N", rollback_to_checkpoint)
             # Add new shortcut: quick rewind 10 frames
             teleop_interface.add_callback("B", lambda: quick_rewind(env, 10))
+        else:
+            teleoperation_active = False
         print(teleop_interface)
 
         rate_limiter = RateLimiter(args_cli.step_hz)
 
         # reset environment
         env.reset()
-        teleop_interface.reset()
+        if teleop_interface is not None:
+            teleop_interface.reset()
         # auto load checkpoint if enabled
         if getattr(args_cli, "auto_load_checkpoint", False) and os.path.exists(args_cli.checkpoint_path):
             load_checkpoint()
 
         from lwlab.utils.env import setup_cameras, setup_task_description_ui, spawn_robot_vis_helper_general, destroy_robot_vis_helper
 
-        if env_cfg.enable_cameras and args_cli.enable_multiple_viewports:
+        if not args_cli.headless and env_cfg.enable_cameras and args_cli.enable_multiple_viewports:
             viewports = setup_cameras(env)
             for key, v_p in viewports.items():
                 res = v_p.viewport_api.get_texture_resolution()
@@ -429,8 +440,8 @@ def main():
                 env.sim.render()
                 res_new = v_p.viewport_api.get_texture_resolution()
                 print(f"Viewport {key} resolution: {res}, scale: {sca}, new resolution: {res_new}")
-
-        overlay_window = setup_task_description_ui(env_cfg, env)
+        if not args_cli.headless:
+            overlay_window = setup_task_description_ui(env_cfg, env)
 
         current_recorded_demo_count = 0
         success_step_count = 0
@@ -479,7 +490,11 @@ def main():
             # run everything in inference mode
             # with torch.inference_mode():
             teleop_start = time.time()
-            actions = teleop_interface.advance()
+            if teleop_interface is None:
+                import torch
+                actions = torch.zeros(env.action_space.shape)
+            else:
+                actions = teleop_interface.advance()
             teleop_time = time.time() - teleop_start
             frame_analyzer.record_stage('teleop_advance', teleop_time)
             if actions is None or should_reset_recording_instance:
@@ -502,15 +517,16 @@ def main():
                     if video_recorder is not None:
                         video_recorder.stop_recording()
 
-            elif (isinstance(actions, bool) and not actions) or (not teleoperation_active):
+            elif not args_cli.headless and ((isinstance(actions, bool) and not actions) or (not teleoperation_active)):
                 env.render()
             # apply actions
             else:
                 if not start_record_state:
-                    print("Start Recording!!!")
+                    print("Start Recording!!!", flush=True)
                     start_record_state = True
 
-                    vis_helper_prims = spawn_robot_vis_helper_general(env)
+                    if not args_cli.headless:
+                        vis_helper_prims = spawn_robot_vis_helper_general(env)
                     # Initialize video recording
                     if video_recorder is not None:
                         camera_data, camera_name = get_camera_images(env)
@@ -519,7 +535,7 @@ def main():
                             video_recorder.start_recording(camera_name, image_shape)
 
                 # warmup rendering
-                if env.common_step_counter <= 1:
+                if not args_cli.headless and env.common_step_counter <= 1:
                     for _ in range(env.cfg.warmup_steps):
                         env.cfg.update_sensors(env, env.physics_dt)
 
@@ -541,7 +557,7 @@ def main():
                         load_checkpoint(env, args_cli.checkpoint_path)
                         rollback_to_checkpoint_flag = False
 
-                    if isinstance(teleop_interface, VRController):
+                    if not args_cli.headless and isinstance(teleop_interface, VRController):
                         if teleop_interface.tv.left_controller_state["b_button"]:
                             if teleop_interface.get_rollback_action() is not None:
                                 actions = teleop_interface.get_rollback_action()
@@ -560,7 +576,7 @@ def main():
                     frame_analyzer.record_stage('env_step', step_time)
 
                     # Update motion warnings in UI if available
-                    if hasattr(env_cfg, 'get_warning_text'):
+                    if not args_cli.headless and hasattr(env_cfg, 'get_warning_text'):
                         update_motion_warnings(env, env_cfg.get_warning_text())
 
                 # Recorded
@@ -579,7 +595,7 @@ def main():
                     print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
                     break
 
-            if teleoperation_active:
+            if not args_cli.headless and teleoperation_active:
                 env.sim.render()
 
             # only use rate_limiter when needed, don't let it limit rendering

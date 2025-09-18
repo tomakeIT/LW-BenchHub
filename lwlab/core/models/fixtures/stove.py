@@ -22,7 +22,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 from .fixture_types import FixtureType
-import lwlab.utils.math_utils.transform_utils.numpy_impl as T
+import lwlab.utils.math_utils.transform_utils.torch_impl as T
 import lwlab.utils.object_utils as OU
 
 STOVE_LOCATIONS = [
@@ -91,14 +91,12 @@ class Stove(Fixture):
                     if burner_site[env_idx] is not None:
                         burner_site[env_idx].GetAttribute("visibility").Set("invisible")
 
-    def set_knob_state(self, env, rng, knob, mode="on", env_ids=None):
+    def set_knob_state(self, env, knob, mode="on", env_ids=None):
         """
         Sets the state of the knob joint based on the mode parameter
 
         Args:
             env (ManagerBasedRLEnv): environment
-
-            rng (np.random.RandomState): random number generator
 
             knob (str): location of the knob
 
@@ -111,10 +109,10 @@ class Stove(Fixture):
             if mode == "off":
                 joint_val = 0.0
             else:
-                if rng.uniform() < 0.5:
-                    joint_val = rng.uniform(0.50, np.pi / 2)
+                if self.rng.uniform() < 0.5:
+                    joint_val = self.rng.uniform(0.50, np.pi / 2)
                 else:
-                    joint_val = rng.uniform(2 * np.pi - np.pi / 2, 2 * np.pi - 0.50)
+                    joint_val = self.rng.uniform(2 * np.pi - np.pi / 2, 2 * np.pi - 0.50)
             knob_joint_id = env.scene.articulations[self.name].data.joint_names.index(f"knob_{knob}_joint")
             if knob not in self._knob_joint_ranges:
                 self._knob_joint_ranges[knob] = env.scene.articulations[self.name].data.joint_limits[:, knob_joint_id]
@@ -259,7 +257,7 @@ class Stove(Fixture):
 
     def _init_reset_regions(self, prim):
         regions = dict()
-        prim_pos = np.array(list(prim.GetAttribute("xformOp:translate").Get()))
+        prim_pos = torch.tensor(list(prim.GetAttribute("xformOp:translate").Get()), device=self.device)
         for location in self.valid_locations:
             site = usd.get_prim_by_name(prim, f"burner_{location}_place_site", only_xform=False)
             site = site[0] if site else None
@@ -271,9 +269,9 @@ class Stove(Fixture):
                 continue
 
             reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(site)
-            reg_pos = np.array(reg_pos)
-            reg_quat = np.array(reg_quat)
-            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - prim_pos)
+            reg_pos = torch.tensor(reg_pos, device=self.device)
+            reg_quat = torch.tensor(reg_quat, device=self.device)
+            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (reg_pos - prim_pos)
             regions[location] = {
                 "offset": reg_rel_pos.tolist(),
                 "size": [0.10, 0.10],

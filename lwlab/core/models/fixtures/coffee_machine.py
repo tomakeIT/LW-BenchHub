@@ -50,7 +50,7 @@ class CoffeeMachine(Fixture):
 
         receptacle_pouring_prims = usd.get_prim_by_name(self.prim, "receptacle_place_site", only_xform=False)
         for pouring_prim in receptacle_pouring_prims:
-            site_pos = tuple(pouring_prim.GetAttribute("xformOp:translate").Get() * self.scale)
+            site_pos = usd.get_prim_pos_rot_in_world(pouring_prim)[0]
             self._receptacle_pouring_site = {"pos": site_pos}
 
     def get_reset_regions(self, *args, **kwargs):
@@ -124,10 +124,9 @@ class CoffeeMachine(Fixture):
             bool: True if object is placed under coffee machine, False otherwise
         """
         obj_poses = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
-        pour_site_poses = self.pos + np.array(self.get_reset_regions()["bottom"]["offset"])
-        pour_site_poses = torch.tensor(pour_site_poses, device=self.device) + env.scene.env_origins
-        xy_check = torch.norm(obj_poses[:, 0:2] - pour_site_poses[0:2], dim=-1) < xy_thresh
-        z_check = torch.abs(obj_poses[:, 2:3] - pour_site_poses[:, 2:3], dim=-1) < 0.10
+        pour_site_poses = torch.tensor(self.get_reset_regions()["bottom"]["offset"], device=self.device) + env.scene.env_origins
+        xy_check = torch.norm(obj_poses[:, 0:2] - pour_site_poses[:, 0:2], dim=-1) < xy_thresh
+        z_check = torch.abs(obj_poses[:, 2] - pour_site_poses[:, 2]) < 0.10
         return xy_check & z_check
 
     def gripper_button_far(self, env, th=0.15):
@@ -144,8 +143,8 @@ class CoffeeMachine(Fixture):
         result = torch.tensor([True] * env.num_envs, dtype=torch.bool, device=env.device)
         gripper_site_pos = env.scene["ee_frame"].data.target_pos_w  # (env_num, ee_num, 3)
         for name in self._start_button_names:
-            button_idx = env.scene.articulations[self.name].data.body_names(name)
-            button_pos = env.scene.articulations[self.name].data.body_com_pos_w[:, button_idx:button_idx + 1, :]  # (env_num, 1, 3)
+            button_pos = torch.tensor([usd.get_prim_pos_rot_in_world(self.start_button_infos[name][0])[0]], device=env.device) + env.scene.env_origins  # (env_num, 3)
+            button_pos = button_pos.unsqueeze(1)  # (env_num, 1, 3)
             gripper_button_far = torch.norm(gripper_site_pos - button_pos, dim=-1) > th  # (env_num, ee_num)
             result &= torch.all(gripper_button_far, dim=-1)  # (env_num,)
 
@@ -185,14 +184,14 @@ class CoffeeMachine(Fixture):
         start_button_infos = {}
         for prim_path in self.prim_paths:
             root_prim = self._env.sim.stage.GetObjectAtPath(prim_path)
-            button_prims = usd.get_prim_by_prefix(root_prim, "start_button")
+            button_prims = usd.get_prim_by_prefix(root_prim, "start_button", only_xform=False)
             for button_prim in button_prims:
                 if button_prim is not None and button_prim.IsValid():
                     if button_prim.GetName() not in start_button_infos:
                         start_button_infos[button_prim.GetName()] = [button_prim]
                     else:
                         start_button_infos[button_prim.GetName()].append(button_prim)
-        assert len(start_button_infos) > 0, f"Microwave Start Button not found!"
+        assert len(start_button_infos) > 0, f"Coffee Machine Start Button not found!"
         return start_button_infos
 
     @property

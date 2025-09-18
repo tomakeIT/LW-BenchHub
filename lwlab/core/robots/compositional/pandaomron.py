@@ -53,6 +53,7 @@ class PandaOmronEnvCfg(BaseRobotCfg):
     robot_scale: float = MISSING
     robot_cfg: ArticulationCfg = FRANKA_OMRON_CFG
     offset_config = OFFSET_CONFIG
+    robot_base_link: str = "mobilebase0_wheeled_base"
     observation_cameras: dict = {
         "agentview_left_camera": {
             "camera_cfg": TiledCameraCfg(

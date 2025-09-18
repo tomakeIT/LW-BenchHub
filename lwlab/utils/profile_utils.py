@@ -188,3 +188,22 @@ def debug_print(*args, **kwargs):
 
 
 DEBUG_FRAME_ANALYZER = DebugFrameAnalyzer()
+
+
+def tictoc(name):
+    def wrapper(func):
+        return func
+
+        def wrapper_inner(*args, **kwargs):
+            start_time = datetime.now()
+            result = func(*args, **kwargs)
+            end_time = datetime.now()
+            print(f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S.%f')}: {name}{args[1:]} took {(end_time - start_time).total_seconds()*1000:.2f}ms")
+            return result
+        return wrapper_inner
+    if isinstance(name, str):
+        return wrapper
+    else:
+        func = name
+        name = func.__name__
+        return wrapper(func=func)

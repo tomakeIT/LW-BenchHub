@@ -1,0 +1,12 @@
+_base_: [teleop_base]
+task: PnPOrange                # Task name
+robot: LeRobot-AbsJointGripper-RL                # Robot type
+layout: robocasakitchen-2-2  # Scene layout
+num_envs: 1
+usd_simplify: false # USD simplify enable
+enable_cameras: true
+video: false
+distributed: false
+seed: 42
+width: 224
+height: 224

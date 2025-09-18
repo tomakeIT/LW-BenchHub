@@ -62,6 +62,7 @@ def main(args):
     import numpy as np
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab_tasks.utils import parse_env_cfg
+    from lwlab.utils.place_utils.env_utils import set_seed
 
     if "-" in args_cli.task:
         env_cfg = parse_env_cfg(
@@ -100,6 +101,7 @@ def main(args):
     env_cfg.terminations.time_out = None
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
+    set_seed(env_cfg.seed, env.unwrapped, args.torch_deterministic)
     from policy.maniskill_ppo.agent import PPOArgs, PPO, observation
 
     # override configurations with non-hydra CLI arguments
@@ -110,16 +112,6 @@ def main(args):
     if args_cli.distributed:
         env_cfg.sim.device = f"cuda:{app_launcher.local_rank}"
 
-    def set_seed(seed, torch_deterministic):
-        random.seed(seed)
-        np.random.seed(seed)
-        torch.manual_seed(seed)
-        torch.backends.cudnn.deterministic = torch_deterministic
-
-    # randomly sample a seed if seed = -1
-    if args_cli.seed == -1:
-        args_cli.seed = 42
-    set_seed(args.seed, args.torch_deterministic)
     env.reset()
     next_obs, _ = env.reset()
     next_obs = observation(next_obs['policy'])

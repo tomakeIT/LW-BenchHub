@@ -108,15 +108,15 @@ class Fridge(Fixture):
 
 
 class FridgeFrenchDoor(Fridge):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg):
+        super().setup_cfg(cfg)
 
 
 class FridgeSideBySide(Fridge):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg):
+        super().setup_cfg(cfg)
 
 
 class FridgeBottomFreezer(Fridge):
-    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg, root_prim):
-        super().setup_cfg(cfg, root_prim)
+    def setup_cfg(self, cfg: ManagerBasedRLEnvCfg):
+        super().setup_cfg(cfg)

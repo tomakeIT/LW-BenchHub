@@ -11,9 +11,11 @@ from lwlab.utils.math_utils.transform_utils.numpy_impl import (
     mat2quat,
     quat_multiply,
     rotate_2d_point,
+    quat2mat,
 )
 
 from lwlab.utils.object_utils import obj_in_region, objs_intersect
+from lwlab.utils.errors import SamplingError
 
 
 class ObjectPositionSampler:
@@ -39,6 +41,7 @@ class ObjectPositionSampler:
     def __init__(
         self,
         name,
+        seed,
         mujoco_objects=None,
         ensure_object_boundary_in_range=True,
         ensure_valid_placement=True,
@@ -46,11 +49,9 @@ class ObjectPositionSampler:
         reference_pos=(0, 0, 0),
         reference_rot=0,
         z_offset=0.0,
-        rng=None,
     ):
-        if rng is None:
-            rng = np.random.default_rng()
-        self.rng = rng
+        self.seed = seed
+        self.rng = np.random.default_rng(self.seed)
 
         # Setup attributes
         self.name = name
@@ -179,6 +180,7 @@ class UniformRandomSampler(ObjectPositionSampler):
     def __init__(
         self,
         name,
+        seed,
         mujoco_objects=None,
         x_ranges=[(0, 0)],
         y_ranges=[(0, 0)],
@@ -190,7 +192,6 @@ class UniformRandomSampler(ObjectPositionSampler):
         reference_pos=(0, 0, 0),
         reference_rot=0,
         z_offset=0.0,
-        rng=None,
         side="all",
     ):
         self.x_ranges = x_ranges
@@ -205,6 +206,7 @@ class UniformRandomSampler(ObjectPositionSampler):
 
         super().__init__(
             name=name,
+            seed=seed,
             mujoco_objects=mujoco_objects,
             ensure_object_boundary_in_range=ensure_object_boundary_in_range,
             ensure_valid_placement=ensure_valid_placement,
@@ -212,7 +214,6 @@ class UniformRandomSampler(ObjectPositionSampler):
             reference_pos=reference_pos,
             reference_rot=reference_rot,
             z_offset=z_offset,
-            rng=rng,
         )
 
     def _sample_x(self, obj_size=None):
@@ -335,10 +336,10 @@ class UniformRandomSampler(ObjectPositionSampler):
             ), "Invalid reference received. Current options are: {}, requested: {}".format(
                 placed_objects.keys(), reference
             )
-            ref_pos, _, ref_obj = placed_objects[reference]
+            ref_pos, ref_quat, ref_obj = placed_objects[reference]
             base_offset = np.array(ref_pos)
             if on_top:
-                base_offset += np.array((0, 0, ref_obj.top_offset[-1]))
+                base_offset[-1] += abs(quat2mat(ref_quat) @ ref_obj.top_offset)[-1]
         else:
             base_offset = np.array(reference)
             assert (
@@ -361,7 +362,7 @@ class UniformRandomSampler(ObjectPositionSampler):
 
             if (
                 isinstance(obj, USDObject) or isinstance(obj, Fixture)
-            ) and self.rotation_axis == "z":
+            ):
                 obj_points = obj.get_bbox_points()
                 p0 = obj_points[0]
                 px = obj_points[1]
@@ -426,7 +427,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 object_y = object_y + base_offset[1]
                 object_z = self.z_offset + base_offset[2]
                 if on_top:
-                    object_z += abs(obj.bottom_offset[-1])
+                    object_z += abs(quat2mat(quat) @ obj.bottom_offset)[-1]
 
                 quat = quat_multiply(ref_quat, quat)
 
@@ -467,7 +468,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 if location_valid:
                     # location is valid, put the object down
                     pos = (object_x, object_y, object_z)
-                    placed_objects[obj.task_name] = (pos, convert_quat(quat, to="wxyz"), obj)
+                    placed_objects[obj.task_name] = (pos, quat, obj)
                     success = True
                     break
 
@@ -477,7 +478,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 debug_info += f"  X range: {self.x_range}\n"
                 debug_info += f"  Y range: {self.y_range}\n"
                 debug_info += f"  Placed objects count: {len(placed_objects)}\n"
-                raise Exception(debug_info)
+                raise SamplingError(debug_info)
 
         return placed_objects
 
@@ -492,13 +493,13 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         name (str): Name of this sampler.
     """
 
-    def __init__(self, name, rng=None):
+    def __init__(self, name, seed):
         # Samplers / args will be filled in later
         self.samplers = collections.OrderedDict()
         self.sample_args = collections.OrderedDict()
         self.samplers_with_args = []
 
-        super().__init__(name=name, rng=rng)
+        super().__init__(name=name, seed=seed)
 
     def append_sampler(self, sampler, sample_args=None):
         """
@@ -524,6 +525,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
         # sort samplers by object size (large -> small)
         self.samplers_with_args = list(zip(self.samplers.values(), self.sample_args.values()))
         self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
+        self.samplers_with_args = self.adjust_order_by_container(self.samplers_with_args)
 
     def hide(self, mujoco_objects):
         """
@@ -645,57 +647,12 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             return np.array([o.size for o in sampler.mujoco_objects]).max()
         return np.inf
 
-
-class MultiRegionSampler(ObjectPositionSampler):
-    def __init__(
-        self,
-        name,
-        regions,
-        side="all",
-        mujoco_objects=None,
-        rotation=None,
-        rotation_axis="z",
-        ensure_object_boundary_in_range=True,
-        ensure_valid_placement=True,
-        rng=None,
-        z_offset=0.0,
-    ):
-        if len(regions) != 4:
-            raise ValueError(
-                "Exactly four sites (one for each quadrant) must be provided."
-            )
-        if side not in self.valid_sides:
-            raise ValueError(
-                "Invalid value for side, must be one of:", self.valid_sides
-            )
-
-        # initialize sides and regions
-        if side in self.sides_combinations:
-            self.sides = self.sides_combinations[side]
-        else:
-            self.sides = [side]
-        self.regions = regions
-
-        # create a list of uniform samplers (one for each site)
-        self.samplers = list()
-        for s in self.sides:
-            site = self.regions[s]
-            sampler = UniformRandomSampler(
-                name=name,
-                mujoco_objects=mujoco_objects,
-                reference_pos=site["pos"],
-                x_range=site["x_range"],
-                y_range=site["y_range"],
-                rotation=rotation,
-                rotation_axis=rotation_axis,
-                ensure_object_boundary_in_range=ensure_object_boundary_in_range,
-                ensure_valid_placement=ensure_valid_placement,
-                z_offset=z_offset,
-                rng=rng,
-            )
-            self.samplers.append(sampler)
-
-    def sample(self, fixtures=None, reference=None, on_top=True):
-        # randomly picks a sampler and calls its sample function
-        sampler = self.rng.choice(self.samplers)
-        return sampler.sample(fixtures=fixtures, reference=reference, on_top=on_top)
+    def adjust_order_by_container(self, sample_with_args):
+        sample_num = len(sample_with_args)
+        for i in range(sample_num):
+            for j in range(i + 1, sample_num):
+                if sample_with_args[i][1] is None:
+                    continue
+                if sample_with_args[i][1]["reference"] in (o.task_name for o in sample_with_args[j][0].mujoco_objects):
+                    sample_with_args[i], sample_with_args[j] = sample_with_args[j], sample_with_args[i]
+        return sample_with_args

@@ -31,10 +31,7 @@ class KitchenArena:
 
         style_id (int or StyleType): style of the kitchen to load
 
-        rng (np.random.Generator): random number generator used for initializing
-            fixture state in the KitchenArena
-
-        enable_fixtures (list of str): any fixtures to enable (some are disabled by default)
+        scene_cfg (RoboCasaSceneCfg): scene configuration
     """
 
     def __init__(self, layout_id=None, style_id=None, scene_cfg=None):
@@ -58,7 +55,7 @@ class KitchenArena:
             self.usd_path = new_path
 
         # load fixtures
-        self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.device)
+        self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.seed, scene_cfg.device)
 
     def get_fixture_cfgs(self):
         """
@@ -84,11 +81,11 @@ class KitchenArena:
         start_time = time.time()
         print(f"load floorplan usd", end="...")
         if layout_id is None:
-            res = floorplan_loader.acquire_usd(version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_name.split("-")[0], version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
         elif style_id is None:
-            res = floorplan_loader.acquire_usd(layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_name.split("-")[0], layout_id=layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
         else:
-            res = floorplan_loader.acquire_usd(layout_id, style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_name.split("-")[0], layout_id=layout_id, style_id=style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
         usd_path, self.floorplan_meta = res.result()
         self.usd_path = str(usd_path)
         self.backend = self.floorplan_meta.get("backend")

@@ -52,6 +52,7 @@ EPS = np.finfo(float).eps * 4.0
 import torch
 from lwlab.sim2real.lerobot_follower.so100_follower import SO100Follower
 from lwlab.sim2real.lerobot_follower.so101_follower import SO101Follower
+from lwlab.utils.place_utils.env_utils import set_seed
 
 
 def find_available_camera(max_cams=5):
@@ -175,6 +176,7 @@ def main():
     env_cfg.terminations.time_out = None
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
+    set_seed(env_cfg.seed, env.unwrapped)
     from policy.maniskill_ppo.agent import PPOArgs, PPO, observation
 
     # override configurations with non-hydra CLI arguments

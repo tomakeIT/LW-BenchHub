@@ -104,6 +104,7 @@ if not args_cli.headless:
     from lwlab.core.devices.keyboard.se3_keyboard import Se3Keyboard
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
+from lwlab.utils.place_utils.env_utils import set_seed
 
 is_paused = False
 
@@ -208,6 +209,7 @@ def main():
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.REPLAY_ACTION if args_cli.replay_mode == "action" else ExecuteMode.REPLAY_JOINT_TARGETS,
             usd_simplify=usd_simplify,
+            seed=env_args["seed"] if "seed" in env_args else None,
         )
         env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(
@@ -228,6 +230,7 @@ def main():
 
     # create environment from loaded config
     env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
+    set_seed(env_cfg.seed, env)
 
     if app_launcher._enable_cameras:
         teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)

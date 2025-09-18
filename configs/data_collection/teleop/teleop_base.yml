@@ -20,6 +20,7 @@ task: OpenDrawer
 layout: robocasakitchen
 usd_simplify: false
 use_fabric: false
+seed: null
 
 # =========================
 # Data Collection Settings
@@ -45,3 +46,9 @@ enable_cameras: false
 save_video: false
 video_save_dir: ./videos
 video_fps: 30
+
+# =========================
+# Object Placement Retry Settings
+# =========================
+max_scene_retry: 4
+max_object_placement_retry: 3

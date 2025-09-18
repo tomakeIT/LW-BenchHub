@@ -51,26 +51,24 @@ class Sink(Fixture):
             else:
                 site.GetAttribute("visibility").Set("invisible")
 
-    def set_handle_state(self, env, rng, mode="on"):
+    def set_handle_state(self, env, mode="on"):
         """
         Sets the state of the handle_joint based on the mode parameter
 
         Args:
             env (ManagerBasedRLEnv): environment
 
-            rng (np.random.Generator): random number generator
-
             mode (str): "on", "off", or "random"
         """
         assert mode in ["on", "off", "random"]
         for env_id, _ in enumerate(self.prim_paths):
             if mode == "random":
-                mode = rng.choice(["on", "off"])
+                mode = self.rng.choice(["on", "off"])
 
             if mode == "off":
                 joint_val = 0.0
             elif mode == "on":
-                joint_val = rng.uniform(0.40, 0.50)
+                joint_val = self.rng.uniform(0.40, 0.50)
 
             joint_id = env.scene.articulations[self.name].data.joint_names.index("handle_joint")
             env.scene.articulations[self.name].write_joint_position_to_sim(

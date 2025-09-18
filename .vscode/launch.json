@@ -41,6 +41,23 @@
             },
         },
         {
+            "name": "run_env",
+            "type": "python",
+            "request": "launch",
+            "args": [
+                "--task_config=pnp-orange", // policy/skrl/task_config/default.yml
+                "--headless",
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/policy/env_serve.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "ENV_GPU": "0",
+                "POLICY_GPU": "0",
+                "LW_API_ENDPOINT":"http://usdcache-dev.lightwheel.net:30807"
+            },
+        },
+        {
             "name": "camera_alignment",
             "type": "python",
             "request": "launch",

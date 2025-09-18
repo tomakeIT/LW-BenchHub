@@ -238,3 +238,47 @@ BI_SO101_FOLLOWER_CFG = ArticulationCfg(
     },
     soft_joint_pos_limit_factor=1.0,
 )
+
+
+"""Configuration for the LERobot."""
+SO101_FOLLOWER_YELLOW_ASSET_PATH = LWLAB_DATA_PATH / "assets" / "so101_follower_yellow.usd"
+
+SO101_FOLLOWER_YELLOW_CFG = ArticulationCfg(
+    spawn=sim_utils.UsdFileCfg(
+        usd_path=str(SO101_FOLLOWER_YELLOW_ASSET_PATH),
+        activate_contact_sensors=True,
+        rigid_props=sim_utils.RigidBodyPropertiesCfg(
+            disable_gravity=False,
+        ),
+        articulation_props=sim_utils.ArticulationRootPropertiesCfg(
+            enabled_self_collisions=True,
+            solver_position_iteration_count=4,
+            solver_velocity_iteration_count=4,
+            fix_root_link=True,
+            sleep_threshold=0.00005,  # follow isaacsim 5.0.0 tutorial 7 setting
+            stabilization_threshold=0.00001,
+        ),
+    ),
+    init_state=ArticulationCfg.InitialStateCfg(
+        pos=(-0.20, 0.40, 0.71),
+        rot=(0.0, 0.0, 0.0, 1.0),
+        joint_pos={
+            "shoulder_pan": 0.0,
+            "shoulder_lift": 0.0,
+            "elbow_flex": 0.0,
+            "wrist_flex": 0.0,
+            "wrist_roll": 0.0,
+            "gripper": 0.0
+        }
+    ),
+    actuators={
+        "sts3215": ImplicitActuatorCfg(
+            joint_names_expr=[".*"],
+            effort_limit_sim=10,
+            velocity_limit_sim=10.0,
+            stiffness=17.8,
+            damping=0.60,
+        )
+    },
+    soft_joint_pos_limit_factor=1,
+)

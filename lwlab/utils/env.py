@@ -18,7 +18,6 @@ import inspect
 import os
 import enum
 import yaml
-from pathlib import Path
 
 from isaaclab.utils.configclass import configclass
 from isaaclab.envs import DirectRLEnvCfg, ManagerBasedRLEnvCfg
@@ -173,6 +172,10 @@ def parse_env_cfg(
     enable_cameras: bool = False,
     usd_simplify: bool = False,
     object_init_offset: list[float] = [0.0, 0.0],
+    max_scene_retry: int = 5,
+    max_object_placement_retry: int = 3,
+    seed: int | None = None,
+    **kwargs,
 ) -> ManagerBasedRLEnvCfg | DirectRLEnvCfg:
     """Parse configuration for an environment and override based on inputs.
 
@@ -239,17 +242,22 @@ def parse_env_cfg(
     RobocasaEnvCfg.enable_cameras = enable_cameras
     RobocasaEnvCfg.object_init_offset = object_init_offset
 
+    RobocasaEnvCfg.max_scene_retry = max_scene_retry
+    RobocasaEnvCfg.max_object_placement_retry = max_object_placement_retry
+
     if scene_type == "USD":
         cfg = RobocasaEnvCfg(
             execute_mode=execute_mode,
             usd_path=scene_name,
             robot_scale=robot_scale,
+            seed=seed,
         )
     else:
         cfg = RobocasaEnvCfg(
             execute_mode=execute_mode,
             scene_name=scene_name,
             robot_scale=robot_scale,
+            seed=seed,
         )
 
     # check that it is not a dict
@@ -802,10 +810,10 @@ def check_valid_robot_pose(env, robot_pos, env_ids=None):
             scene_prim = prim
     scene_bbox = usd_utils.get_prim_aabb_bounding_box(scene_prim) if scene_prim else None
 
-    # if scene_bbox is not None:
-    #     if detect_robot_out_of_scene(robot_bbox, scene_bbox):
-    #         print(f"Robot pose: {robot_pos} is out of the scene bounds: {scene_bbox.GetMin()} - {scene_bbox.GetMax()}")
-    #         return False
+    if scene_bbox is not None:
+        if detect_robot_out_of_scene(robot_bbox, scene_bbox):
+            print(f"Robot pose: {robot_pos} is out of the scene bounds: {scene_bbox.GetMin()} - {scene_bbox.GetMax()}")
+            return False
 
     # 3. check if the robot is in overlap with the objects in the scene
     # all rigid prim in the scene except the robot

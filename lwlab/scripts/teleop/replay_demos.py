@@ -80,6 +80,7 @@ def main():
     from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
     from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
     from lwlab.utils.env import set_camera_follow_pose
+    from lwlab.utils.place_utils.env_utils import set_seed
 
     # Load dataset
     if not os.path.exists(args_cli.dataset_file):
@@ -127,6 +128,7 @@ def main():
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.REPLAY_STATE,
             usd_simplify=usd_simplify,
+            seed=env_args["seed"] if "seed" in env_args else None,
         )
         env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(
@@ -144,6 +146,7 @@ def main():
 
     # create environment from loaded config
     env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
+    set_seed(env_cfg.seed, env)
 
     # reset before starting
     env.reset()

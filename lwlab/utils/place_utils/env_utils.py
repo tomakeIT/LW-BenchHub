@@ -1,3 +1,5 @@
+import torch
+import random
 import numpy as np
 import contextlib
 from pathlib import Path
@@ -9,6 +11,10 @@ from lwlab.utils.place_utils.placement_samplers import (
     UniformRandomSampler,
 )
 from lightwheel_sdk.loader import object_loader
+from lwlab.utils.env import ExecuteMode
+from lwlab.utils.hdf5_utils import load_placement
+from lwlab.utils.errors import SamplingError
+from lwlab.utils.place_utils.kitchen_object_utils import extract_failed_object_name, recreate_object
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
@@ -582,7 +588,7 @@ def _check_cfg_is_valid(cfg):
         ), f"got invaild key \"{k}\" in placement config for {cfg['name']}"
 
 
-def _get_placement_initializer(env, cfg_list, z_offset=0.01):
+def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
     """
     Creates a placement initializer for the objects/fixtures based on the specifications in the configurations list.
 
@@ -596,7 +602,7 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.01):
 
     from lwlab.core.models.fixtures import FixtureType, fixture_is_type
 
-    placement_initializer = SequentialCompositeSampler(name="SceneSampler", rng=env.rng)
+    placement_initializer = SequentialCompositeSampler(name="SceneSampler", seed=seed)
 
     for (obj_i, cfg) in enumerate(cfg_list):
         _check_cfg_is_valid(cfg)
@@ -627,7 +633,7 @@ def _get_placement_initializer(env, cfg_list, z_offset=0.01):
         sampler_kwargs = dict(
             name="{}_Sampler".format(cfg["name"]),
             mujoco_objects=mj_obj,
-            rng=env.rng,
+            seed=seed,
             ensure_object_boundary_in_range=ensure_object_boundary_in_range,
             ensure_valid_placement=ensure_valid_placement,
             rotation_axis=rotation_axis,
@@ -955,6 +961,8 @@ def create_obj(env, cfg, version=None):
 
     if not isinstance(obj_groups, list) and isinstance(obj_groups, tuple):
         obj_groups = list(obj_groups)
+    if isinstance(exclude_obj_groups, str):
+        exclude_obj_groups = list(exclude_obj_groups)
 
     object_cfgs["task_name"] = cfg.get("name")
     object_cfgs["obj_groups"] = obj_groups
@@ -979,7 +987,7 @@ def create_obj(env, cfg, version=None):
         elif fixture_is_type(ref_fixture, FixtureType.STOVE):
             if any(
                 cat in obj_groups
-                for cat in ["pan", "kettle_electric", "pot", "saucepan", "cookware"]
+                for cat in ["pan", "kettle_electric", "pot", "saucepan", "cookware", "kettle_non_electric"]
             ):
                 object_properties["cookable"] = False
             else:
@@ -1007,6 +1015,65 @@ def create_obj(env, cfg, version=None):
         rotate_upright=cfg.get("rotate_upright", False),
         object_version=version,
     )
+
+
+def sample_object_placements(env, need_retry=True):
+    if env.execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
+        return load_placement(env)
+
+    if not need_retry:
+        return env.placement_initializer.sample(
+            placed_objects=env.fxtr_placements,
+            max_attempts=15000,
+        )
+
+    # Check if scene retry count exceeds max
+    if env.scene_retry_count >= env.max_scene_retry:
+        raise RuntimeError(f"Maximum scene retries ({env.max_scene_retry}) exceeded. Failed to place objects after {env.max_scene_retry} scene reloads.")
+
+    # Check if object retry count exceeds max
+    if env.object_retry_count >= env.max_object_placement_retry:
+        env.scene_retry_count += 1
+        print(f"All object placement retries failed, reloading entire model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
+        env._load_model()
+
+    try:
+        env.placement_initializer = _get_placement_initializer(env, env.object_cfgs, env.seed)
+        return env.placement_initializer.sample(
+            placed_objects=env.fxtr_placements,
+            max_attempts=15000,
+        )
+
+    except SamplingError as e:
+        error_message = str(e)
+        print(f"Placement failed: {error_message}")
+
+        failed_obj_name = extract_failed_object_name(error_message)
+
+        if failed_obj_name:
+            if failed_obj_name.endswith('.usd'):
+                print(f"Failed object {failed_obj_name} can not be replaced, directly reloading model")
+                env.scene_retry_count += 1
+                env._load_model()
+                return env.object_placements
+            else:
+                # No cached versions, try to replace object
+                print(f"Attempting to replace failed object: {failed_obj_name}")
+                if recreate_object(env, failed_obj_name):
+                    env.object_retry_count += 1
+                    return sample_object_placements(env, need_retry)
+                else:
+                    # If recreate failed, increment scene retry and reload model
+                    env.scene_retry_count += 1
+                    print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
+                    env._load_model()
+                    return env.object_placements
+        else:
+            print("Could not identify failed object, falling back to model reload")
+            env.scene_retry_count += 1
+            print(f"Reloading model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
+            env._load_model()
+            return env.object_placements
 
 
 @contextlib.contextmanager
@@ -1059,3 +1126,14 @@ def set_robot_to_position(env, global_pos):
         ] = (undo_pos[1] + local_pos[1])
 
         env.sim.forward()
+
+
+def set_seed(seed, env=None, torch_deterministic=True):
+    if seed is not None:
+        torch.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+        np.random.seed(seed)
+        random.seed(seed)
+        if env is not None:
+            env.seed(seed)
+    torch.backends.cudnn.deterministic = torch_deterministic

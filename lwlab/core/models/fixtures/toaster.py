@@ -45,23 +45,6 @@ class Toaster(Fixture):
             print("toaster setup_env failed")
             return
 
-    def set_joint_state(self, min: float, max: float, env: ManagerBasedRLEnv, env_id: int, joint_names: list[str]):
-        assert 0 <= min <= 1 and 0 <= max <= 1 and min <= max
-
-        joint_qpos_all = env.scene.articulations[self.name].data.joint_pos.clone()
-        for j_name in joint_names:
-            joint_idx = env.scene.articulations[self.name].data.joint_names.index(j_name)
-            joint_range = env.scene.articulations[self.name].data.joint_pos_limits[0, joint_idx, :]
-            joint_min, joint_max = joint_range[0], joint_range[1]
-            if joint_min >= 0:
-                desired_min = joint_min + (joint_max - joint_min) * min
-                desired_max = joint_min + (joint_max - joint_min) * max
-            else:
-                desired_min = joint_min + (joint_max - joint_min) * (1 - max)
-                desired_max = joint_min + (joint_max - joint_min) * (1 - min)
-            joint_qpos_all[:, joint_idx] = self.rng.uniform(float(desired_min), float(desired_max))
-        env.scene.articulations[self.name].write_joint_position_to_sim(joint_qpos_all, env_ids=[env_id])
-
     def get_reset_region_names(self):
         return (
             "slotL",
@@ -85,7 +68,7 @@ class Toaster(Fixture):
         val = torch.clip(value, 0.0, 1.0)
         self._state[slot_pair]["knob"] = val
 
-        jn = self._joint_names.get(f"knob_{slot_pair}")
+        jn = self.joint_names.get(f"knob_{slot_pair}")
         if jn and jn in env.scene.articulations[self.name].data.joint_names:
             self.set_joint_state(
                 env=env,
@@ -108,7 +91,7 @@ class Toaster(Fixture):
         val = torch.clip(value, 0.0, 1.0)
         self._state[slot_pair]["lever"] = val
 
-        jn = self._joint_names.get(f"lever_{slot_pair}")
+        jn = self.joint_names.get(f"lever_{slot_pair}")
         if jn and jn in env.scene.articulations[self.name].data.joint_names:
             self.set_joint_state(
                 env=env,
@@ -125,7 +108,7 @@ class Toaster(Fixture):
         for sp in self.slot_pairs:
             for control in self._controls:
                 key = f"{control}_{sp}"
-                jn = self._joint_names.get(key)
+                jn = self.joint_names.get(key)
                 if jn and jn in env.scene.articulations[self.name].data.joint_names:
                     q = self.get_joint_state(env, [jn])[jn]
                     self._state[sp][control] = torch.clip(q, 0.0, 1.0)
@@ -282,7 +265,7 @@ class Toaster(Fixture):
     def joint_names(self):
         joint_names_dict = {}
         for prim_path in self.prim_paths:
-            unfix_joint_prims = usd.get_all_joints_without_fixed(prim_path)
+            unfix_joint_prims = usd.get_all_joints_without_fixed(self._env.sim.stage.GetObjectAtPath(prim_path))
             unfix_joint_names = [prim.GetName() for prim in unfix_joint_prims]
         for ctrl, tag in self._controls.items():
             names = sorted([tag in name for name in unfix_joint_names])

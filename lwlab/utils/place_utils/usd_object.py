@@ -36,19 +36,18 @@ class USDObject():
         self.rotate_upright = rotate_upright
         self.init_quat = np.array([0, 0, 0, 1])  # xyzw
         self._regions = dict()
-        self._setup_region_dict()
-
-    def _setup_region_dict(self):
-        reg_dict = dict()
         usd = Usd(self.obj_path)
+        self._setup_region_dict(usd)
         usd.scale_size(scale_factor=self.object_scale)
-        if self.rotate_upright:
-            self.init_quat = np.array([0.5, 0.5, 0.5, 0.5])
-
+        usd.set_contact_force_threshold(name=self.name, contact_force_threshold=0.0)
         usd.export(self.obj_path)
 
+    def _setup_region_dict(self, usd):
+        if self.rotate_upright:
+            self.init_quat = np.array([0.5, 0.5, 0.5, 0.5])
         reg_bboxes = usd.get_prim_by_prefix("reg_", only_xform=False)
         for reg_bbox in reg_bboxes:
+            reg_dict = dict()
             if reg_bbox.GetTypeName() == "Cylinder" or reg_bbox.GetTypeName() == "Mesh":
                 reg_halfsize = np.array(reg_bbox.GetAttribute("extent").Get()[1])
             else:
@@ -90,15 +89,11 @@ class USDObject():
 
     @property
     def bottom_offset(self):
-        pos = self._regions[self.bounded_region_name]["reg_pos"]
-        half_size = self._regions[self.bounded_region_name]["reg_halfsize"]
-        return np.array([pos[0], pos[1], pos[2] - half_size[2]])
+        return -1 * self._regions[self.bounded_region_name]["reg_halfsize"]
 
     @property
     def top_offset(self):
-        pos = self._regions[self.bounded_region_name]["reg_pos"]
-        half_size = self._regions[self.bounded_region_name]["reg_halfsize"]
-        return np.array([pos[0], pos[1], pos[2] + half_size[2]])
+        return self._regions[self.bounded_region_name]["reg_halfsize"]
 
     def get_bbox_points(self, trans=None, rot=None, name=None):
         """

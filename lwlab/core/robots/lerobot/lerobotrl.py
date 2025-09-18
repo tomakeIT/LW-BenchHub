@@ -16,7 +16,7 @@ from lwlab.core.robots.base import BaseRobotCfg
 ##
 # Pre-defined configs
 ##
-from .assets_cfg import SO101_FOLLOWER_CFG, SO100_FOLLOWER_CFG  # isort: skip
+from .assets_cfg import SO101_FOLLOWER_CFG, SO100_FOLLOWER_CFG, SO101_FOLLOWER_YELLOW_CFG  # isort: skip
 from lwlab.utils.lerobot_utils import convert_action_from_so101_leader
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from lwlab.utils.math_utils import transform_utils as T
@@ -60,7 +60,8 @@ class BaseLERobotEnvCfg(BaseRobotCfg):
         "global_camera": {
             "camera_cfg": TiledCameraCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/camera_base/global_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.25, -0.55, 0.27), rot=(0.74698, 0.54011, 0.23182, 0.31074), convention="opengl"),
+                # offset=TiledCameraCfg.OffsetCfg(pos=(0.25, -0.55, 0.27), rot=(0.74698, 0.54011, 0.23182, 0.31074), convention="opengl"), # RL
+                offset=TiledCameraCfg.OffsetCfg(pos=(0.2, -0.65, 0.3), rot=(0.8, 0.5, 0.16657, 0.2414), convention="opengl"),  # IL
                 data_types=["rgb"],
                 spawn=sim_utils.PinholeCameraCfg(
                     focal_length=40.6,
@@ -274,8 +275,48 @@ class AbsJointActionsCfg:
 
 
 class LERobotAbsJointGripperEnvRLCfg(LERobotEnvRLCfg):
+    robot_cfg: ArticulationCfg = SO101_FOLLOWER_YELLOW_CFG
     robot_name: str = "LeRobot-AbsJointGripper-RL"
     actions: AbsJointActionsCfg = AbsJointActionsCfg()
+    robot_base_offset = {"pos": [-0.8, -0.75, 0.9], "rot": [0.0, 0.0, torch.pi / 2]}
+    observation_cameras: dict = {
+        "hand_camera": {
+            "camera_cfg": TiledCameraCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/gripper/wrist_camera",
+                offset=TiledCameraCfg.OffsetCfg(pos=(-0.001, 0.1, -0.04), rot=(-0.404379, -0.912179, -0.0451242, 0.0486914), convention="ros"),  # wxyz
+                data_types=["rgb"],
+                spawn=sim_utils.PinholeCameraCfg(
+                    focal_length=36.5,
+                    focus_distance=400.0,
+                    horizontal_aperture=73,  # For a 75° FOV (assuming square image)
+                    clipping_range=(0.01, 50.0),
+                    lock_camera=True
+                ),
+                width=480,
+                height=480,
+                update_period=0.05,
+            ),
+            "tags": ["rl", "teleop"]
+        },
+        "global_camera": {
+            "camera_cfg": TiledCameraCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/base/global_camera",
+                offset=TiledCameraCfg.OffsetCfg(pos=(0.2, -0.6, 0.4), rot=(0.93651, 0.32921, 0.07888, 0.09137), convention="opengl"),
+                data_types=["rgb"],
+                spawn=sim_utils.PinholeCameraCfg(
+                    focal_length=40.6,
+                    focus_distance=400.0,
+                    horizontal_aperture=73,  # For a 78° FOV (assuming square image)
+                    clipping_range=(0.01, 3.0),
+                    lock_camera=True
+                ),
+                width=480,
+                height=480,
+                update_period=0.05,
+            ),
+            "tags": ["rl", "teleop"]
+        }
+    }
 
     def __post_init__(self):
         super().__post_init__()

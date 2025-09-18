@@ -67,6 +67,7 @@ from policy.skrl.env_wrapper import SkrlVecEnvWrapper
 
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
+from lwlab.utils.place_utils.env_utils import set_seed
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
@@ -94,6 +95,7 @@ def main():
         execute_mode=ExecuteMode.EVAL,
         for_rl=True,
         rl_variant=args_cli.variant,
+        seed=args_cli.seed,
     )
     task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 
@@ -135,6 +137,7 @@ def main():
     env_cfg.observations.policy.concatenate_terms = True
     # create isaac environment
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    set_seed(env_cfg.seed, env.unwrapped)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:

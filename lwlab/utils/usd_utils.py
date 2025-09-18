@@ -195,6 +195,15 @@ class OpenUsd:
             xformable.AddScaleOp().Set((scale_factor[0], scale_factor[1], scale_factor[2]))
 
     @staticmethod
+    def set_contact_force_threshold(stage, root_prim, name, contact_force_threshold=0.0):
+        prim = OpenUsd.get_prim_by_name(root_prim, name)[0]
+        if not prim.HasAPI(PhysxSchema.PhysxContactReportAPI):
+            cr_api = PhysxSchema.PhysxContactReportAPI.Apply(prim)
+        else:
+            cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, prim.GetPrimPath())
+        cr_api.CreateThresholdAttr().Set(contact_force_threshold)
+
+    @staticmethod
     def export(stage, path):
         """Export prim to path"""
         stage.Export(path)
@@ -303,6 +312,36 @@ class OpenUsd:
         return result
 
     @staticmethod
+    def get_prim_by_subname(prim, subname):
+        """Get prim by subname"""
+        result = []
+        if subname in prim.GetName():
+            result.append(prim)
+        for child in prim.GetAllChildren():
+            result.extend(OpenUsd.get_prim_by_subname(child, subname))
+        return result
+
+    @staticmethod
+    def get_prim_by_subname_and_type(prim, subname, type):
+        """Get prim by subname and type"""
+        result = []
+        if subname in prim.GetName() and prim.GetTypeName() == type:
+            result.append(prim)
+        for child in prim.GetAllChildren():
+            result.extend(OpenUsd.get_prim_by_subname_and_type(child, subname, type))
+        return result
+
+    @staticmethod
+    def get_prim_by_types(prim, types):
+        """Get prim by types"""
+        result = []
+        if prim.GetTypeName() in types:
+            result.append(prim)
+        for child in prim.GetAllChildren():
+            result.extend(OpenUsd.get_prim_by_types(child, types))
+        return result
+
+    @staticmethod
     def has_contact_reporter(prim):
         """Check if prim has contact reporter"""
         return prim.HasAPI(PhysxSchema.PhysxContactReportAPI)
@@ -375,7 +414,7 @@ class OpenUsd:
         fixture_placements = {}
         for fxr_cfg in fixture_cfgs:
             if "ProcGenFixture" not in [cls.__name__ for cls in fxr_cfg["model"].__class__.mro()] and \
-               "room" not in fxr_cfg["name"].lower():
+               "room" not in fxr_cfg["name"].lower():  # room fixture doesnt have reg_*
                 valid_fixture_names.append(fxr_cfg["name"])
 
         for name in valid_fixture_names:
@@ -432,6 +471,9 @@ class OpenUsdWrapper:
     def scale_size(self, scale_factor=(1.0, 1.0, 1.0)):
         return self._usd.scale_size(self.root_prim, scale_factor)
 
+    def set_contact_force_threshold(self, name, contact_force_threshold=0.0):
+        return self._usd.set_contact_force_threshold(self.stage, self.root_prim, name, contact_force_threshold)
+
     def export(self, path):
         return self._usd.export(self.stage, path)
 
@@ -474,6 +516,21 @@ class OpenUsdWrapper:
         if prim is None:
             prim = self.root_prim
         return self._usd.get_prim_by_suffix_and_type(prim, suffix, type)
+
+    def get_prim_by_subname(self, subname, prim=None):
+        if prim is None:
+            prim = self.root_prim
+        return self._usd.get_prim_by_subname(prim, subname)
+
+    def get_prim_by_subname_and_type(self, subname, type, prim=None):
+        if prim is None:
+            prim = self.root_prim
+        return self._usd.get_prim_by_subname_and_type(prim, subname, type)
+
+    def get_prim_by_types(self, types, prim=None):
+        if prim is None:
+            prim = self.root_prim
+        return self._usd.get_prim_by_types(prim, types)
 
     def get_all_child_commonprefix_name(self, prim=None):
         if prim is None:

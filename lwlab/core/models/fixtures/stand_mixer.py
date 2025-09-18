@@ -115,14 +115,14 @@ class StandMixer(Fixture):
                 for site in int_sites:
                     site += cfg.env.scene.env_origins[env_id].cpu().numpy()
                 p0, px, py, pz = int_sites
-                u, v, w = px - p0, py - p0, pz - p0
-                mid = p0 + 0.5 * (pz - p0)
+                u, v, w = px[env_id] - p0[env_id], py[env_id] - p0[env_id], pz[env_id] - p0[env_id]
+                mid = p0[env_id] + 0.5 * (pz[env_id] - p0[env_id])
                 for pt_id in range(pts.shape[0]):
                     cu, cv, cw = np.dot(u, pts[pt_id]), np.dot(v, pts[pt_id]), np.dot(w, pts[pt_id])
                     if not (
-                        (np.dot(u, p0) - tol <= cu <= np.dot(u, px) + tol)
-                        and (np.dot(v, p0) - tol <= cv <= np.dot(v, py) + tol)
-                        and (np.dot(w, p0) - tol <= cw <= np.dot(w, mid) + tol)
+                        (np.dot(u, p0[env_id]) - tol <= cu <= np.dot(u, px[env_id]) + tol)
+                        and (np.dot(v, p0[env_id]) - tol <= cv <= np.dot(v, py[env_id]) + tol)
+                        and (np.dot(w, p0[env_id]) - tol <= cw <= np.dot(w, mid[env_id]) + tol)
                     ):
                         all_in[env_id] = False
                         break

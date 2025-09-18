@@ -71,8 +71,6 @@ class Fixture:
         self.prim = prim
         self.num_envs = num_envs
         self.device = device
-        # if pos is not None:
-        #     self.set_pos(pos)
 
         # Preserve existing regions if they exist
         if not hasattr(self, '_regions'):
@@ -110,7 +108,7 @@ class Fixture:
                 reg_scale = np.array(geom_prim.GetAttribute("xformOp:scale").Get())
                 reg_halfsize = np.where(abs(reg_extent) > abs(reg_scale), reg_scale, reg_extent)
                 reg_halfsize = reg_halfsize * self.scale
-                reg_rel_pos = (T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos)) * self.scale
+                reg_rel_pos = (T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos))
 
             p0 = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             px = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
@@ -121,6 +119,7 @@ class Fixture:
             reg_dict["px"] = px
             reg_dict["py"] = py
             reg_dict["pz"] = pz
+            reg_dict["per_env_offset"] = np.zeros((num_envs, 3))
             self._regions[g_name.replace("reg_", "")] = reg_dict
 
         # add outer bounding box region(reg_main)
@@ -131,12 +130,13 @@ class Fixture:
             reg_pos = np.array(reg_pos)
             reg_quat = np.array(reg_quat)
             reg_halfsize = np.fromstring(prim.GetAttribute("size").Get(), sep=',') / 2
-            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos) * self.scale
+            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos)
             reg_dict = {}
             reg_dict["p0"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             reg_dict["px"] = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             reg_dict["py"] = reg_rel_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
             reg_dict["pz"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], reg_halfsize[2]]
+            reg_dict["per_env_offset"] = np.zeros((num_envs, 3))
             self._regions["main"] = reg_dict
 
         # if size is not None:
@@ -182,9 +182,15 @@ class Fixture:
         self._joint_infos = dict()
         joint_prims = usd.get_all_joints_without_fixed(prim)
         for jnt in joint_prims:
-            self._joint_infos[jnt.GetName()] = {} if jnt.GetAttribute("physics:lowerLimit").Get() is None \
-                else {"range": torch.tensor([jnt.GetAttribute("physics:lowerLimit").Get() * torch.pi / 180,
-                                             jnt.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
+            jnt_range = {}
+            if jnt.GetAttribute("physics:lowerLimit").Get() is not None:
+                if jnt.GetTypeName() == "PhysicsRevoluteJoint":
+                    jnt_range = {"range": torch.tensor([jnt.GetAttribute("physics:lowerLimit").Get() * torch.pi / 180,
+                                                        jnt.GetAttribute("physics:upperLimit").Get() * torch.pi / 180])}
+                else:
+                    jnt_range = {"range": torch.tensor([jnt.GetAttribute("physics:lowerLimit").Get(),
+                                                        jnt.GetAttribute("physics:upperLimit").Get()])}
+            self._joint_infos[jnt.GetName()] = jnt_range
 
     def get_reset_region_names(self):
         return ("int", )
@@ -330,7 +336,7 @@ class Fixture:
 
         return joint_state
 
-    def set_joint_state(self, min, max, env, joint_names, env_ids=None, rng=None):
+    def set_joint_state(self, min, max, env, joint_names, env_ids=None):
         """
         Sets how open the door is. Chooses a random amount between min and max.
         Min and max are percentages of how open the door is
@@ -340,7 +346,6 @@ class Fixture:
             env (ManagerBasedRLEnv): environment
         """
         assert 0 <= min <= 1 and 0 <= max <= 1 and min <= max
-        rng = self.rng if rng is None else rng
 
         for j_name in joint_names:
             joint_idx = env.scene.articulations[self.name].data.joint_names.index(j_name)
@@ -353,7 +358,7 @@ class Fixture:
                 desired_min = joint_min + (joint_max - joint_min) * (1 - max)
                 desired_max = joint_min + (joint_max - joint_min) * (1 - min)
             env.scene.articulations[self.name].write_joint_position_to_sim(
-                torch.tensor([[rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
+                torch.tensor([[self.rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
                 torch.tensor([joint_idx]).to(env.device),
                 torch.as_tensor(env_ids).to(env.device) if env_ids is not None else None
             )
@@ -380,20 +385,20 @@ class Fixture:
             is_closed = is_closed & (norm_qpos <= th)
         return is_closed
 
-    def open_door(self, env, min=0.90, max=1.0, env_ids=None, rng=None):
+    def open_door(self, env, min=0.90, max=1.0, env_ids=None):
         """
         helper function to open the door. calls set_door_state function
         """
         self.set_joint_state(
-            env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids, rng=rng
+            env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids
         )
 
-    def close_door(self, env, min=0.0, max=0.0, env_ids=None, rng=None):
+    def close_door(self, env, min=0.0, max=0.0, env_ids=None):
         """
         helper function to close the door. calls set_door_state function
         """
         self.set_joint_state(
-            env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids, rng=rng
+            env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids
         )
 
     def get_door_state(self, env, joint_names=None, env_ids=None):
@@ -401,7 +406,7 @@ class Fixture:
             joint_names = self.door_joint_names
         return self.get_joint_state(env, joint_names, env_ids=env_ids)
 
-    def set_door_state(self, min, max, env, env_ids=None, rng=None):
+    def set_door_state(self, min, max, env, env_ids=None):
         """
         Sets how open the door is. Chooses a random amount between min and max.
         Min and max are percentages of how open the door is
@@ -414,7 +419,7 @@ class Fixture:
             env (MujocoEnv): environment
         """
         self.set_joint_state(
-            env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids, rng=rng
+            env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids
         )
 
     def get_reset_regions(self, env=None, reset_region_names=None, z_range=(0.45, 1.50)):
@@ -445,6 +450,9 @@ class Fixture:
             }
 
         return reset_regions
+
+    def update_state(self, env):
+        pass
 
     @cached_property
     def width(self):
@@ -595,6 +603,8 @@ class Fixture:
                     np.array([px[0], p0[1], pz[2]]),
                 ]
 
+            sites = [s + reg_dict["per_env_offset"] for s in sites]
+
             if relative is False:
                 sites = [OU.get_pos_after_rel_offset(self, offset) for offset in sites]
 
@@ -673,7 +683,7 @@ class Fixture:
 
         if len(valid_regions) < 1:
             raise SamplingError(
-                f"Could not find suitable region to sample from for {self.name}"
+                f"Could not find suitable region to sample from {self.name}"
             )
         return valid_regions
 

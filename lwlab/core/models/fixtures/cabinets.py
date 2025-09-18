@@ -42,7 +42,10 @@ class Cabinet(ProcGenFixture):
         super().__init__(name, prim, num_envs, **kwargs)
         self.is_corner_cab = is_corner_cab
 
-    def set_door_state(self, min, max, env, env_ids=None, rng=None):
+    def get_reset_region_names(self):
+        return ("int", "int_0", "int_1", "int_2", "int_3", "int_4", "int_5")
+
+    def set_door_state(self, min, max, env, env_ids=None):
         pass
 
 
@@ -69,7 +72,7 @@ class HingeCabinet(Cabinet):
             state[joint_name] = env.scene.articulations[self.name].data.joint_pos[:, i]
         return state
 
-    def set_door_state(self, min, max, env, env_ids=None, rng=None):
+    def set_door_state(self, min, max, env, env_ids=None):
         """
         Sets how open the doors are. Chooses a random amount between min and max.
         Min and max are percentages of how open the doors are
@@ -80,8 +83,6 @@ class HingeCabinet(Cabinet):
             max (float): maximum percentage of how open the door is
 
             env (ManagerBasedRLEnv): environment
-
-            rng (np.random.Generator): random number generator
         """
         assert 0 <= min <= 1 and 0 <= max <= 1 and min <= max
 
@@ -91,7 +92,7 @@ class HingeCabinet(Cabinet):
         desired_min = joint_min + (joint_max - joint_min) * min
         desired_max = joint_min + (joint_max - joint_min) * max
 
-        uniform_values = [rng.uniform(float(desired_min), float(desired_max)) for _ in self._joint_infos.keys()]
+        uniform_values = [self.rng.uniform(float(desired_min), float(desired_max)) for _ in self._joint_infos.keys()]
 
         env.scene.articulations[self.name].write_joint_position_to_sim(
             torch.tensor([uniform_values]).to(env.device),
@@ -148,7 +149,11 @@ class Drawer(Cabinet):
         Args:
             env (ManagerBasedRLEnv): environment
         """
-        int_sites = {}
+        door_joint_id = env.scene.articulations[self.name].joint_names.index(self.door_joint_names[0])
+        door_qpos = env.scene.articulations[self.name].data.joint_pos[:, door_joint_id].cpu().numpy()
+        # suppose drawer joint direction(in its local frame) is along -y axis
+        door_qpos = np.stack([np.zeros_like(door_qpos), -door_qpos, np.zeros_like(door_qpos)], axis=-1)
+        self._regions["int"]["per_env_offset"] = door_qpos
 
     def open_door(self, env, env_ids=None, min=0.9, max=1, partial_open=False):
         if partial_open:
@@ -156,7 +161,7 @@ class Drawer(Cabinet):
             max *= 0.3
         return super().open_door(env, min, max, env_ids=env_ids)
 
-    def set_door_state(self, min, max, env, env_ids=None, rng=None):
+    def set_door_state(self, min, max, env, env_ids=None):
         """
         Sets how open the drawer is. Chooses a random amount between min and max.
         Min and max are percentages of how open the drawer is.
@@ -171,8 +176,6 @@ class Drawer(Cabinet):
             env (ManagerBasedRLEnv): environment
 
             env_ids (torch.Tensor): environment ids
-
-            rng (np.random.Generator): random number generator
         """
         assert 0 <= min <= 1 and 0 <= max <= 1 and min <= max
 

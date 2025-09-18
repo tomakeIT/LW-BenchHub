@@ -70,3 +70,18 @@ def ee_pose(env: ManagerBasedRLEnv, make_quat_unique: bool = True) -> torch.Tens
         The pose is a tensor of shape (num_envs, 7) where the last dimension is [x, y, z, qw, qx, qy, qz].
     """
     return torch.cat([ee_pos(env), ee_quat(env, make_quat_unique)], dim=-1)
+
+
+def get_target_qpos(
+    env: ManagerBasedRLEnv,
+    action_name: str = 'arm_action'
+) -> torch.Tensor:
+    """The last input action to the environment.
+
+       The name of the action term for which the action is required. If None, the
+       entire action tensor is returned.
+       """
+    if action_name is None:
+        return env.action_manager.action
+    else:
+        return env.scene['robot']._data.joint_pos_target

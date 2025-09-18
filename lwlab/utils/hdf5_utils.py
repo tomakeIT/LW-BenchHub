@@ -438,6 +438,26 @@ def save_downsampled_data(original_path, all_downsampled_data, ratio):
     return new_path
 
 
+def load_placement(env):
+
+    with h5py.File(env.hdf5_path, 'r') as f:
+        demo_keys = [k for k in f["data"].keys() if k.startswith("demo_")]
+        last_demo = sorted(demo_keys, key=lambda x: int(x.split("_")[1]))[-1]
+        objects_placement = {}
+        rigid_objects_path = f"data/{last_demo}/initial_state/rigid_object"
+        rigid_objects_group = f[rigid_objects_path]
+
+        for obj_name in rigid_objects_group.keys():
+            if obj_name in env.objects:
+                pose_path = f"{rigid_objects_path}/{obj_name}"
+                obj_group = f[pose_path]
+                objects_placement[obj_name] = (
+                    tuple(obj_group["root_pose"][0, 0:3].tolist()), np.array(obj_group["root_pose"][0, 3:7], dtype=np.float32), env.objects[obj_name]
+                )
+
+    return objects_placement
+
+
 def print_usage_examples():
     """
     Print usage examples for the HDF5 processing tool.

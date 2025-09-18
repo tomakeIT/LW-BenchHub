@@ -1,15 +1,8 @@
 from lightwheel_sdk.loader import object_loader
-
-SOURCE_MAPPING = {
-    "objaverse": "objaverse",
-    "aigen_objs": "aigen",
-    "lightwheel": "lightwheel",
-}
-
 OBJ_CATEGORIES = object_loader.list_registry()
 
 
-def get_cats_by_type(types, obj_registries=None):
+def get_cats_by_type(types, obj_registries=[]):
     """
     Retrieves a list of item keys from the global `OBJ_CATEGORIES` dictionary based on the specified types.
 
@@ -24,26 +17,24 @@ def get_cats_by_type(types, obj_registries=None):
 
     res = []
     for obj_cat in OBJ_CATEGORIES:
-        # check if category is in one of valid object registries
         if (
-            obj_cat["registryType"] != "objects" or
-            "FILE_TYPE_USD" not in obj_cat["fileTypes"] or
-            "types" not in obj_cat["property"] or
-            any(s not in SOURCE_MAPPING for s in obj_cat["sources"])
+            obj_cat["registryType"] != "objects"
+            or "FILE_TYPE_USD" not in obj_cat["fileTypes"]
+            or "types" not in obj_cat["property"]
         ):
             continue
-        if obj_registries is not None:
+
+        if obj_registries:
             if isinstance(obj_registries, str):
                 obj_registries = [obj_registries]
-            if any([reg in obj_cat["property"]["types"] for reg in obj_registries]) is False:
+            if not any(s in obj_registries for s in obj_cat["sources"]):
                 continue
 
         cat_types = obj_cat["property"]["types"]
         if isinstance(cat_types, str):
             cat_types = [cat_types]
         cat_types = set(cat_types)
-        # Access the "types" key in the dictionary using the correct syntax
-        if len(cat_types.intersection(types)) > 0:
+        if len(types & cat_types) > 0:
             res.append(obj_cat["name"])
 
     return res
@@ -126,3 +117,9 @@ OBJ_GROUPS["oven_ready"] = [
     "eggplant",
     "broccoli",
 ]
+
+SOURCE_MAPPING = {
+    "objaverse": "objaverse",
+    "aigen_objs": "aigen",
+    "lightwheel": "lightwheel",
+}

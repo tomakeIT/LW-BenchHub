@@ -34,11 +34,12 @@ def obj_inside_of(env, obj_name, fixture_id, partial_check=False):
     fixtr_int_regions = fixture.get_int_sites(relative=False)
     check = []
     for i in range(env.cfg.scene.num_envs):
-        for (fixtr_p0, fixtr_px, fixtr_py, fixtr_pz) in fixtr_int_regions.values():
+        for reset_region in fixtr_int_regions.values():
             inside_of = True
-            u = fixtr_px - fixtr_p0
-            v = fixtr_py - fixtr_p0
-            w = fixtr_pz - fixtr_p0
+            fixtr_p0, fixtr_px, fixtr_py, fixtr_pz = [r + env.scene.env_origins[i].cpu().numpy() for r in reset_region]
+            u = fixtr_px[i] - fixtr_p0[i]
+            v = fixtr_py[i] - fixtr_p0[i]
+            w = fixtr_pz[i] - fixtr_p0[i]
 
             # get the position and quaternion of object
             obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[i, 0, :].cpu().numpy()
@@ -57,13 +58,13 @@ def obj_inside_of(env, obj_name, fixture_id, partial_check=False):
 
             for obj_p in obj_points_to_check:
                 check1 = (
-                    np.dot(u, fixtr_p0) - th <= np.dot(u, obj_p) <= np.dot(u, fixtr_px) + th
+                    np.dot(u, fixtr_p0[i]) - th <= np.dot(u, obj_p) <= np.dot(u, fixtr_px[i]) + th
                 )
                 check2 = (
-                    np.dot(v, fixtr_p0) - th <= np.dot(v, obj_p) <= np.dot(v, fixtr_py) + th
+                    np.dot(v, fixtr_p0[i]) - th <= np.dot(v, obj_p) <= np.dot(v, fixtr_py[i]) + th
                 )
                 check3 = (
-                    np.dot(w, fixtr_p0) - th <= np.dot(w, obj_p) <= np.dot(w, fixtr_pz) + th
+                    np.dot(w, fixtr_p0[i]) - th <= np.dot(w, obj_p) <= np.dot(w, fixtr_pz[i]) + th
                 )
 
                 if not (check1 and check2 and check3):
@@ -159,12 +160,21 @@ def get_fixture_to_point_rel_offset(fixture, point, rot=None):
 
 def get_pos_after_rel_offset(fixture, offset):
     """
-    get global position of a fixture, after applying offset relative to center of fixture
+    Get the global position after applying an offset relative to the center of the fixture.
+    Supports offset of shape (3,) or (N, 3).
     """
     fixture_rot = np.array([0, 0, fixture.rot])
     fixture_mat = T.euler2mat(fixture_rot)
 
-    return fixture.pos + np.dot(fixture_mat, offset)
+    offset = np.asarray(offset)
+    if offset.ndim == 1:
+        # (3,)
+        return fixture.pos + np.dot(fixture_mat, offset)
+    elif offset.ndim == 2 and offset.shape[1] == 3:
+        # (N, 3)
+        return fixture.pos + np.dot(offset, fixture_mat.T)
+    else:
+        raise ValueError("offset must have shape (3,) or (N, 3)")
 
 
 def project_point_to_line(P, A, B):
@@ -276,65 +286,35 @@ def objs_intersect(
     """
     check if two objects intersect using Separating Axis Theorem (SAT)
     """
-    from lwlab.core.models.fixtures import Fixture
-
-    bbox_check = (isinstance(obj, USDObject) or isinstance(obj, Fixture)) and (
-        isinstance(other_obj, USDObject) or isinstance(other_obj, Fixture)
+    obj_points = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
+    other_obj_points = other_obj.get_bbox_points(
+        trans=other_obj_pos, rot=other_obj_quat
     )
-    if bbox_check:
-        obj_points = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
-        other_obj_points = other_obj.get_bbox_points(
-            trans=other_obj_pos, rot=other_obj_quat
-        )
 
-        face_normals = [
-            obj_points[1] - obj_points[0],
-            obj_points[2] - obj_points[0],
-            obj_points[3] - obj_points[0],
-            other_obj_points[1] - other_obj_points[0],
-            other_obj_points[2] - other_obj_points[0],
-            other_obj_points[3] - other_obj_points[0],
-        ]
+    face_normals = [
+        obj_points[1] - obj_points[0],
+        obj_points[2] - obj_points[0],
+        obj_points[3] - obj_points[0],
+        other_obj_points[1] - other_obj_points[0],
+        other_obj_points[2] - other_obj_points[0],
+        other_obj_points[3] - other_obj_points[0],
+    ]
 
-        intersect = True
+    intersect = True
 
-        # noramlize length of normals
-        for normal in face_normals:
-            normal = np.array(normal) / np.linalg.norm(normal)
+    # noramlize length of normals
+    for normal in face_normals:
+        normal = np.array(normal) / np.linalg.norm(normal)
 
-            obj_projs = [np.dot(p, normal) for p in obj_points]
-            other_obj_projs = [np.dot(p, normal) for p in other_obj_points]
+        obj_projs = [np.dot(p, normal) for p in obj_points]
+        other_obj_projs = [np.dot(p, normal) for p in other_obj_points]
 
-            # see if gap detected
-            if np.min(other_obj_projs) > np.max(obj_projs) or np.min(
-                obj_projs
-            ) > np.max(other_obj_projs):
-                intersect = False
-                break
-    else:
-        """
-        old code from placement_samplers.py
-        """
-        obj_x, obj_y, obj_z = obj_pos
-        other_obj_x, other_obj_y, other_obj_z = other_obj_pos
-        xy_collision = (
-            np.linalg.norm((obj_x - other_obj_x, obj_y - other_obj_y))
-            <= other_obj.horizontal_radius + obj.horizontal_radius
-        )
-        if obj_z > other_obj_z:
-            z_collision = (
-                obj_z - other_obj_z <= other_obj.top_offset[-1] - obj.bottom_offset[-1]
-            )
-        else:
-            z_collision = (
-                other_obj_z - obj_z <= obj.top_offset[-1] - other_obj.bottom_offset[-1]
-            )
-
-        if xy_collision and z_collision:
-            intersect = True
-        else:
+        # see if gap detected
+        if np.min(other_obj_projs) > np.max(obj_projs) or np.min(
+            obj_projs
+        ) > np.max(other_obj_projs):
             intersect = False
-
+            break
     return intersect
 
 

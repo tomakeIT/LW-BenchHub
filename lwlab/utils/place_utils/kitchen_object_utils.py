@@ -1,7 +1,8 @@
 import numpy as np
 from lightwheel_sdk.loader import object_loader
 from lwlab.utils.place_utils.usd_object import USDObject
-from lwlab.utils.place_utils.kitchen_objects import OBJ_CATEGORIES, OBJ_GROUPS, SOURCE_MAPPING
+from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS
+import lwlab.utils.place_utils.env_utils as EnvUtils
 
 
 class ObjInfo:
@@ -17,7 +18,7 @@ class ObjInfo:
         exclude=[],
         obj_version=None,
     ):
-        self.source = SOURCE_MAPPING[source]
+        self.source = source
         self.name = name
         self.types = types
         self.category = category
@@ -82,6 +83,7 @@ def sample_kitchen_object(
                 "objects",
                 registry_name=[category],
                 file_name=filename,
+                source=list(source) if source is not None else [],
             )
         else:
             category = object_cfgs["obj_groups"]
@@ -105,7 +107,7 @@ def sample_kitchen_object(
             name=obj_name,
             types=obj_res["property"]["types"] if "types" in obj_res["property"] else [],
             category=sampled_category,
-            source=obj_res["source"],
+            source=SOURCE_MAPPING[obj_res["source"]],
             rotate_upright=rotate_upright,
             obj_path=obj_path,
             obj_version=obj_res.get("fileVersionId", None),
@@ -176,3 +178,36 @@ def find_most_similar_category(filename):
         return candidates[idx]
     else:
         return None
+
+
+def extract_failed_object_name(error_message):
+    import re
+    match = re.search(r"Failed to place object '([^']+)'", error_message)
+    if match:
+        return match.group(1)
+    return None
+
+
+def recreate_object(env, failed_obj_name):
+    try:
+        obj_cfg = next((cfg for cfg in env.object_cfgs if cfg.get("name") == failed_obj_name), None)
+        if not obj_cfg:
+            print(f"Could not find config for failed object: {failed_obj_name}")
+            return False
+
+        env.objects.pop(failed_obj_name, None)
+        obj_cfg.pop("info", None)
+
+        model, info = EnvUtils.create_obj(env, obj_cfg)
+        obj_cfg["info"] = info
+        env.objects[model.task_name] = model
+        for obj_version in env.cache_usd_version["objects_version"]:
+            if failed_obj_name in obj_version:
+                obj_version.update({failed_obj_name: info.get("obj_version", None)})
+                break
+
+        print(f"Successfully replaced object: {failed_obj_name} with {model.name} (from {info.get('source', 'unknown')})")
+        return True
+    except Exception as e:
+        print(f"Failed to replace object {failed_obj_name}: {str(e)}")
+        return False

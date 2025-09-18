@@ -216,29 +216,6 @@ class ToasterOven(Fixture):
 
         return joint_state
 
-    def set_joint_state(self, min, max, env, joint_names, env_ids=None, rng=None):
-        """
-        Sets how open the door is. Chooses a random amount between min and max.
-        Min and max are percentages of how open the door is
-        Args:
-            min (float): minimum percentage of how open the door is
-            max (float): maximum percentage of how open the door is
-            env (ManagerBasedRLEnv): environment
-        """
-        assert 0 <= min <= 1 and 0 <= max <= 1 and min <= max
-        rng = self.rng if rng is None else rng
-        for j_name in joint_names:
-            joint_idx = env.scene.articulations[self.name].data.joint_names.index(j_name)
-            joint_range = env.scene.articulations[self.name].data.joint_pos_limits[0, joint_idx, :]
-            joint_min, joint_max = joint_range[0], joint_range[1]
-            desired_min = joint_min + (joint_max - joint_min) * min
-            desired_max = joint_min + (joint_max - joint_min) * max
-            env.scene.articulations[self.name].write_joint_position_to_sim(
-                torch.tensor([[rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
-                torch.tensor([joint_idx]).to(env.device),
-                torch.tensor(env_ids).to(env.device) if env_ids is not None else None
-            )
-
     def update_state(self, env):
         if not isinstance(self._rack, dict):
             self._rack = {}

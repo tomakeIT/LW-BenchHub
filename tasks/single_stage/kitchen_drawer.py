@@ -104,6 +104,7 @@ class ManipulateDrawer(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
             self.drawer.open_door(env=self.env, env_ids=env_ids)
         # set the door state then place the objects otherwise objects initialized in opened drawer will fall down before the drawer is opened
         super()._setup_scene(env_ids)
+        self.drawer.update_state(self.env)
 
     def _setup_kitchen_references(self):
         """
@@ -184,9 +185,9 @@ class ManipulateDrawer(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
         success = torch.tensor([True], device=self.env.scene.device).repeat(self.env.num_envs)
         door_joint_pos = torch.stack(list(door_state.values()), dim=0)
         if self.behavior == "open":
-            success = (door_joint_pos >= 0.95).all(dim=0)
+            success = (door_joint_pos >= 0.99).all(dim=0)
         elif self.behavior == "close":
-            success = (door_joint_pos <= 0.05).all(dim=0)
+            success = (door_joint_pos <= 0.01).all(dim=0)
         return success
 
 

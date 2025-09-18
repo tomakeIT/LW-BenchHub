@@ -90,6 +90,7 @@ from isaaclab_rl.rsl_rl import RslRlOnPolicyRunnerCfg, RslRlVecEnvWrapper
 
 from isaaclab_tasks.utils import get_checkpoint_path
 from isaaclab_tasks.utils.hydra import hydra_task_config
+from lwlab.utils.place_utils.env_utils import set_seed
 
 # PLACEHOLDER: Extension template (do not remove this comment)
 
@@ -189,6 +190,7 @@ def main():
     # create isaac environment
     env_cfg.observations.policy.concatenate_terms = True
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
+    set_seed(env_cfg.seed, env.unwrapped)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):

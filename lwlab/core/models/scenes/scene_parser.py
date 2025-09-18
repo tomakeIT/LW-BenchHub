@@ -18,7 +18,7 @@ from lwlab.core.models.fixtures.fixture import FIXTURES
 from lwlab.utils.usd_utils import OpenUsd as usd
 
 
-def parse_fixtures(stage, num_envs, device):
+def parse_fixtures(stage, num_envs, rng, device):
     """
     Parses fixtures from the given stage
 
@@ -32,6 +32,9 @@ def parse_fixtures(stage, num_envs, device):
     root_prim = stage.GetPseudoRoot().GetChildren()[0]
     xform_infos = usd.get_child_xform_infos(root_prim)
     for info in xform_infos:
-        if info["type"] in FIXTURES:
-            fixtures[info["name"]] = FIXTURES[info["type"]](info["name"], info["prim"], num_envs, device=device)
+        if info["prim"].GetAttribute("size").Get() is None:
+            continue
+        fixture_type = info["type"] if info["type"] in FIXTURES else "Accessory"
+        fixtures[info["name"]] = FIXTURES[fixture_type](info["name"], info["prim"], num_envs, rng=rng, device=device)
+
     return fixtures

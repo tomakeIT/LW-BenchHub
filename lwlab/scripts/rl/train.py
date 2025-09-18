@@ -71,7 +71,7 @@ from isaaclab.utils.assets import retrieve_file_path
 
 from datetime import datetime
 from isaaclab.utils.dict import print_dict
-
+from lwlab.utils.place_utils.env_utils import set_seed
 
 from policy.skrl.env_wrapper import SkrlVecEnvWrapper
 
@@ -110,6 +110,7 @@ def main():
             usd_simplify=args_cli.usd_simplify,
             for_rl=True,
             rl_variant=args_cli.variant,
+            seed=args_cli.seed,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 
@@ -133,6 +134,7 @@ def main():
     env_cfg.terminations.time_out = None
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)  # .unwrapped
+    set_seed(env_cfg.seed, env.unwrapped)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:
