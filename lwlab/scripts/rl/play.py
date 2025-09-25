@@ -96,6 +96,8 @@ def main():
         for_rl=True,
         rl_variant=args_cli.variant,
         seed=args_cli.seed,
+        sources=args_cli.sources,
+        object_projects=args_cli.object_projects,
     )
     task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 

@@ -163,7 +163,7 @@ class Stove(Fixture):
                         dist = torch.norm(burner_pos[:2] - obj_pos[env_id][:2])
                         obj_on_site = dist < threshold
                         knob_on = (
-                            (0.35 <= torch.abs(knobs_state[location]) <= 2 * torch.pi - 0.35)
+                            (0.35 <= torch.abs(knobs_state[location][env_id]) <= 2 * torch.pi - 0.35)
                             if location in knobs_state
                             else False
                         )

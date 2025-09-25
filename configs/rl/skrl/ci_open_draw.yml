@@ -1,4 +1,5 @@
-_base_: [rl_base]
+_base_:
+  - rl_base
 # Environment Configuration
 task: OpenDrawer               # Task name
 layout: robocasakitchen-20-20  # Scene layout

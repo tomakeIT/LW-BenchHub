@@ -201,7 +201,23 @@ class LERobotBiARMEnvRLCfg(BaseRobotCfg):
             debug_vis=False,
             filter_prim_paths_expr=[f"{{ENV_REGEX_NS}}/Scene/floor*"],
         )
+        left_gripper_contact = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Robot/left/gripper",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[],
+        )
+        right_gripper_contact = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Robot/right/gripper",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[],
+        )
         setattr(self.scene, "base_contact", base_contact)
+        setattr(self.scene, "left_gripper_contact", left_gripper_contact)
+        setattr(self.scene, "right_gripper_contact", right_gripper_contact)
         self.viewport_cfg = {
             "offset": [-1.0, 0.0, 2.0],
             "lookat": [1.0, 0.0, -0.7]

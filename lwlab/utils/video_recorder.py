@@ -16,6 +16,10 @@ import mediapy as media
 import torch
 from pathlib import Path
 from datetime import datetime
+import queue
+import threading
+import numpy as np
+import cv2
 
 
 class VideoRecorder:
@@ -132,3 +136,100 @@ def _combine_camera_images(camera_data, camera_names):
         import traceback
         traceback.print_exc()
         return None
+
+
+class VideoProcessor:
+    """Independent video processing thread for ordered frame handling"""
+
+    def __init__(self, replay_mp4_path, video_height, video_width, args_cli):
+        self.replay_mp4_path = replay_mp4_path
+        self.video_height = video_height
+        self.video_width = video_width
+        self.args_cli = args_cli
+        self.frame_queue = queue.Queue(maxsize=100)
+        self.running = True
+        self.v = None
+        self.thread = threading.Thread(target=self._process_frames_worker, daemon=True)
+        self.thread.start()
+
+    def add_frame(self, obs, camera_names):
+        """Add a frame to the processing queue"""
+        if not self.running:
+            return
+        self.frame_queue.put_nowait((obs, camera_names))
+
+    def _process_frames_worker(self):
+        """Worker thread that processes frames in order"""
+        self.v = media.VideoWriter(path=self.replay_mp4_path, shape=(self.video_height, self.video_width), fps=30)
+        self.v.__enter__()
+
+        frame_count = 0
+        try:
+            while self.running:
+                if not self.frame_queue.empty():
+                    obs, camera_names = self.frame_queue.get_nowait()
+                    self._process_single_frame(obs, camera_names)
+                    frame_count += 1
+                    self.frame_queue.task_done()
+                else:
+                    import time
+                    time.sleep(0.01)
+
+            # Process remaining frames after shutdown signal
+            while not self.frame_queue.empty():
+                obs, camera_names = self.frame_queue.get_nowait()
+                self._process_single_frame(obs, camera_names)
+                frame_count += 1
+                self.frame_queue.task_done()
+
+        except Exception as e:
+            print(f"Video processing error: {e}")
+        finally:
+            if self.v:
+                self.v.__exit__(None, None, None)
+
+    def _process_single_frame(self, obs, camera_names):
+        """Process a single frame"""
+        camera_images = [obs['policy'][name].cpu().numpy() for name in camera_names]
+        if not camera_images:
+            return
+
+        camera_images = [img.squeeze(0) for img in camera_images]
+        num_cameras = len(camera_images)
+
+        if num_cameras > 4:
+            cameras_per_row = (num_cameras + 1) // 2
+            first_row = camera_images[:cameras_per_row]
+            first_row_final = np.concatenate(first_row, axis=1)
+            second_row = camera_images[cameras_per_row:]
+            if second_row:
+                second_row_final = np.concatenate(second_row, axis=1)
+                full_image = np.concatenate([first_row_final, second_row_final], axis=0)
+            else:
+                full_image = first_row_final
+        else:
+            full_image = np.concatenate(camera_images, axis=1)
+
+        self.v.add_image(full_image)
+        if not self.args_cli.without_image:
+            cv2.imshow("replay", full_image[..., ::-1])
+            cv2.waitKey(1)
+
+    def shutdown(self):
+        """Shutdown the video processor"""
+        self.running = False
+        import time
+        start_time = time.time()
+        while not self.frame_queue.empty() and time.time() - start_time < 10.0:
+            time.sleep(0.1)
+
+        try:
+            self.frame_queue.join()
+        except Exception:
+            pass
+
+        self.thread.join(timeout=3.0)
+
+    def get_video_path(self):
+        """Get the video file path"""
+        return self.replay_mp4_path

@@ -19,6 +19,8 @@ import numpy as np
 import torch
 from dataclasses import MISSING
 from copy import deepcopy
+from pathlib import Path
+import shutil
 import traceback
 from collections import namedtuple
 
@@ -31,27 +33,29 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from ..base import BaseSceneEnvCfg
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
-from lwlab.utils.env import set_camera_follow_pose, ExecuteMode
+from lwlab.utils.env import ExecuteMode
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lightwheel_sdk.loader import ENDPOINT
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 import lwlab.utils.math_utils.transform_utils.torch_impl as Tt
 from lwlab.utils.log_utils import get_error_logger
-from lwlab.core.checks.checker_factory import get_checkers_from_cfg
+from lwlab.core.checks.checker_factory import get_checkers_from_cfg, form_checker_result
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from lwlab.utils.place_utils.kitchen_object_utils import extract_failed_object_name, recreate_object
 from lwlab.core.scenes.kitchen.kitchen_arena import KitchenArena
-from lwlab.utils.hdf5_utils import load_placement
 from lwlab.utils.errors import SamplingError
 from lwlab.core.models.fixtures.fixture import FixtureType
 from lwlab.utils.fixture_utils import fixture_is_type
+from lwlab.utils.place_utils.env_utils import set_robot_to_position, sample_robot_base_helper, get_safe_robot_anchor
 
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
     """Configuration for the robocasa kitchen environment."""
     fixtures: Dict[str, Any] = {}
     scene_name: str = MISSING
+    scene_group: int = None
     enable_fixtures: Optional[List[str]] = None
+    removable_fixtures: Optional[List[str]] = None
 
     style_id: int = None
     layout_id: int = None
@@ -71,6 +75,8 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
     SHELVES_INCLUDED_LAYOUT = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
 
+    DOUBLE_CAB_EXCLUDED_LAYOUTS = [32, 41, 59]
+
     def __post_init__(self):
         self.cache_usd_version = {}
         self._ep_meta = {}
@@ -80,11 +86,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                 self.cache_usd_version = self._ep_meta["cache_usd_version"]
             if "hdf5_path" in self.replay_cfgs:
                 self.hdf5_path = self.replay_cfgs["hdf5_path"]
-        self.sources = (
-            "objaverse",
-            "lightwheel",
-            "aigen_objs",
-        )
+
         self.obj_instance_split = None
         self.fixture_refs = {}
 
@@ -109,6 +111,11 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         # Initialize retry counts
         self.scene_retry_count = 0
         self.object_retry_count = 0
+
+        if self.execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
+            self.is_replay_mode = True
+        else:
+            self.is_replay_mode = False
 
         self._load_model()
 
@@ -135,6 +142,8 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
             # at the begining of the episode, dont check success for stabilization
             success_check_result = self._check_success()
+            assert isinstance(success_check_result, torch.Tensor), f"_check_success must be a torch.Tensor, but got {type(success_check_result)}"
+            assert len(success_check_result.shape) == 1 and success_check_result.shape[0] == self.num_envs, f"_check_success must be a torch.Tensor of shape ({self.num_envs},), but got {success_check_result.shape}"
             success_check_result &= (env.episode_length_buf >= self.start_success_check_count)
 
             # success delay
@@ -145,26 +154,51 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             return self.success_cache >= self.success_count
 
         def camera_pose_update(env):
-            set_camera_follow_pose(env, self.viewport_cfg["offset"], self.viewport_cfg["lookat"])
+            EnvUtils.set_camera_follow_pose(env, self.viewport_cfg["offset"], self.viewport_cfg["lookat"])
             return torch.tensor([False], device=self.device, dtype=torch.bool).repeat(self.num_envs)
 
         self.events.init_kitchen = EventTerm(func=init_kitchen, mode="startup")
         self.terminations.success = DoneTerm(func=check_success_caller)
         if self.first_person_view:
-            self.terminations.camera_pose_update = DoneTerm(func=camera_pose_update)
-
-        # checkers
-        self.checkers_cfg = {
-            "motion": {
-                "warning_on_screen": True
-            }
-        }
-
+            self.terminations.camera_pose_update = DoneTerm(func=camera_pose_update, time_out=True)
+        self.init_checkers_cfg()
         self.checkers = get_checkers_from_cfg(self.checkers_cfg)
-        self.checkers_results = {}
+        self.checkers_results = form_checker_result(self.checkers_cfg)
 
         # self.lwlab_arena.stage can not deepcopy
         del self.lwlab_arena
+
+    def init_checkers_cfg(self):
+        # checkers
+        if self.execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
+            print("INFO: Running in Replay Mode. Using replay-specific checker config.")
+            self.checkers_cfg = {
+                "motion": {
+                    "warning_on_screen": False
+                },
+                "kitchen_clipping": {
+                    "warning_on_screen": False
+                },
+                "velocity_jump": {
+                    "warning_on_screen": False
+                }
+            }
+        else:
+            print("INFO: Running in Teleop Mode. Using default checker config.")
+            self.checkers_cfg = {
+                "motion": {
+                    "warning_on_screen": False
+                },
+                "kitchen_clipping": {
+                    "warning_on_screen": False
+                },
+                "velocity_jump": {
+                    "warning_on_screen": False
+                },
+                "start_object_move": {
+                    "warning_on_screen": False
+                }
+            }
 
     def apply_object_init_offset(self, cfgs):
         if hasattr(self, "object_init_offset"):
@@ -172,25 +206,30 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             for cfg in cfgs:
                 if "placement" in cfg and "pos" in cfg["placement"]:
                     pos = cfg["placement"]["pos"]
-                    cfg["placement"]["pos"] = ((object_init_offset[0] + pos[0]) if isinstance(pos[0], float) else pos[0],
-                                               (object_init_offset[1] + pos[1]) if isinstance(pos[1], float) else pos[1])
+                    cfg["placement"]["pos"] = ((object_init_offset[0] + pos[0]) if (isinstance(pos[0], float) or isinstance(pos[0], int)) else pos[0],
+                                               (object_init_offset[1] + pos[1]) if (isinstance(pos[1], float) or isinstance(pos[1], int)) else pos[1])
+        return cfgs
 
     def _setup_model(self):
         self._curr_gen_fixtures = self._ep_meta.get("gen_textures")
         layout_id = None
         style_id = None
+        scene = "robocasakitchen"
         if "layout_id" in self._ep_meta and "style_id" in self._ep_meta:
             layout_id = self._ep_meta["layout_id"]
             style_id = self._ep_meta["style_id"]
+            self.scene_type = self._ep_meta["scene_type"] if "scene_type" in self._ep_meta else "robocasakitchen"
         else:
             assert self.scene_name.startswith("robocasa"), "Only robocasa scenes are supported"
             # scene name is of the form robocasa-kitchen-<layout_id>
             scene_name_split = self.scene_name.split("-")
             if len(scene_name_split) == 3:
-                _, layout_id, style_id = scene_name_split
+                self.scene_type, layout_id, style_id = scene_name_split
             elif len(scene_name_split) == 2:
-                _, layout_id = scene_name_split
-            elif len(scene_name_split) != 1:
+                self.scene_type, layout_id = scene_name_split
+            elif len(scene_name_split) == 1:
+                self.scene_type = scene_name_split[0]
+            else:
                 raise ValueError(f"Invalid scene name: {self.scene_name}")
             if len(scene_name_split) in (2, 3):
                 if int(layout_id) in self.EXCLUDE_LAYOUTS:
@@ -202,13 +241,43 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             layout_id=layout_id,
             style_id=style_id,
             scene_cfg=self,
+            scene=self.scene_type,
         )
 
         self.usd_path = self.lwlab_arena.usd_path
         self.layout_id = self.lwlab_arena.layout_id
         self.style_id = self.lwlab_arena.style_id
+        self.scene_type = self.lwlab_arena.scene_type
         self.fixture_cfgs = self.lwlab_arena.get_fixture_cfgs()
         self.cache_usd_version.update({"floorplan_version": self.lwlab_arena.version_id})
+
+    def _load_placement(self):
+        import h5py
+        ep_names = self.replay_cfgs["ep_names"]
+        if len(ep_names) > 1:
+            ep_name = ep_names[0]
+        else:
+            ep_name = ep_names[-1]
+        with h5py.File(self.hdf5_path, 'r') as f:
+            objects_placement = {}
+            rigid_objects_path = f"data/{ep_name}/initial_state/rigid_object"
+
+            # Check if rigid_objects_path exists in the file
+            if rigid_objects_path not in f:
+                return objects_placement
+
+            rigid_objects_group = f[rigid_objects_path]
+
+            for obj_name in rigid_objects_group.keys():
+                if obj_name not in self.objects.keys():
+                    continue
+                pose_path = f"{rigid_objects_path}/{obj_name}"
+                obj_group = f[pose_path]
+                objects_placement[obj_name] = (
+                    tuple(obj_group["root_pose"][0, 0:3].tolist()), np.array(obj_group["root_pose"][0, 3:7], dtype=np.float32), self.objects[obj_name]
+                )
+
+        return objects_placement
 
     def _load_model(self):
         # Reset scene retry count at start of load model
@@ -224,17 +293,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     break
                 self._setup_model()
         self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
-
-        dummy_robot = namedtuple("dummy_robot", ["robot_model"])
-
-        class DummyRobot:
-            def set_base_xpos(self, pos):
-                self.pos = tuple(pos)
-
-            def set_base_ori(self, ori):
-                self.ori = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(ori)), "wxyz")
-
-        self.robots = [dummy_robot(DummyRobot())]
 
         # setup references related to fixtures
         self._setup_kitchen_references()
@@ -261,24 +319,10 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                         obj_rot = self.fix_object_pose_cfg[obj_name]["rot"]
                     self.object_placements[obj_name] = (obj_pos, obj_rot, obj_placement[2])
 
-        (
-            self.init_robot_base_pos_anchor,
-            self.init_robot_base_ori_anchor,
-        ) = EnvUtils.init_robot_base_pose(self)
-
-        if hasattr(self, "robot_base_offset"):
-            try:
-                self.init_robot_base_pos_anchor += np.array(self.robot_base_offset["pos"])
-                self.init_robot_base_ori_anchor += np.array(self.robot_base_offset["rot"])
-            except KeyError:
-                raise ValueError("offset value is not correct !! please make sure offset has key pos and rot !!")
-
-        # set the robot way out of the scene at the start, it will be placed correctly later
-        self.robots[0].robot_model.set_base_xpos(self.init_robot_base_pos_anchor)
-        self.robots[0].robot_model.set_base_ori(self.init_robot_base_ori_anchor)
-        # will set again in _reset_internal func
-        self.robot_pos = tuple(self.robots[0].robot_model.pos)
-        self.robot_ori = tuple(self.robots[0].robot_model.ori)
+        if not self.is_replay_mode:
+            self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor()
+            self.robot_cfg.init_state.pos = self.init_robot_base_pos_anchor
+            self.robot_cfg.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
 
     def set_ep_meta(self, meta):
         self._ep_meta = meta
@@ -327,12 +371,21 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                         if cfg["name"] in obj_version:
                             object_version = obj_version[cfg["name"]]
                             break
+                        # TODO(geng.wang): temp code for task_1w_dev data, will be deleted in the future
+                        else:
+                            if "mjcf_path" in cfg.get("info", {}).keys():
+                                xml_path = cfg.get("info", {})["mjcf_path"]
+                                name = xml_path.split("/")[-2]
+                                if name in obj_version:
+                                    object_version = obj_version[name]
+                                    break
+                        ##
                 model, info = EnvUtils.create_obj(self, cfg, version=object_version)
                 cfg["info"] = info
                 self.objects[model.task_name] = model
         else:
             self.object_cfgs = self._get_obj_cfgs()
-            self.apply_object_init_offset(self.object_cfgs)
+            self.object_cfgs = self.apply_object_init_offset(self.object_cfgs)
             addl_obj_cfgs = []
             for obj_num, cfg in enumerate(self.object_cfgs):
                 cfg["type"] = "object"
@@ -403,6 +456,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             return new_dict
 
         ep_meta.update(deepcopy(self._ep_meta))
+        ep_meta["scene_type"] = self.scene_type
         ep_meta["layout_id"] = (
             self.layout_id if isinstance(self.layout_id, dict) else int(self.layout_id)
         )
@@ -438,6 +492,8 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             ep_meta["init_robot_base_pos"] = list(self.init_robot_base_pos)
             ep_meta["init_robot_base_ori"] = list(self.init_robot_base_ori)
         ep_meta["cache_usd_version"] = self.cache_usd_version
+        ep_meta["sources"] = self.sources
+        ep_meta["object_projects"] = self.object_projects
         return ep_meta
 
     def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None):
@@ -583,9 +639,12 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         return metrics_data
 
     def get_warning_text(self):
+        warning_text = ""
         for checker in self.checkers:
             if self.checkers_results[checker.type].get("warning_text"):
-                return self.checkers_results[checker.type].get("warning_text")
+                warning_text += self.checkers_results[checker.type].get("warning_text")
+                warning_text += "\n"
+        return warning_text
 
     def _spawn_objects(self):
         for pos, rot, obj in self.object_placements.values():
@@ -619,6 +678,9 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         Resets simulation internal configurations.
         """
         super()._reset_internal(env_ids)
+
+        for checker in self.checkers:
+            checker.reset()
 
         # set up the scene (fixtures, variables, etc)
         self._setup_scene(env_ids)
@@ -664,6 +726,15 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             )
         return torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
 
+    def calculate_contact_force(self, geom) -> torch.Tensor:
+        """
+        calculate the contact force on the geom
+        """
+        if f"{geom}_contact" in self.env.scene.sensors:
+            return torch.max(self.env.scene.sensors[f"{geom}_contact"].data.net_forces_w, dim=-1).values
+        else:
+            return torch.tensor([0.0], device=self.env.device).repeat(self.env.num_envs)
+
     def get_obj_lang(self, obj_name="obj", get_preposition=False):
         """
         gets a formatted language string for the object (replaces underscores with spaces)
@@ -688,44 +759,54 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             object_placements[obj_name] = updated_placement
         return object_placements
 
+    def get_robot_anchor(self):
+        (
+            robot_base_pos_anchor,
+            robot_base_ori_anchor,
+        ) = EnvUtils.init_robot_base_pose(self)
+
+        if hasattr(self, "robot_base_offset"):
+            try:
+                robot_base_pos_anchor += np.array(self.robot_base_offset["pos"])
+                robot_base_ori_anchor += np.array(self.robot_base_offset["rot"])
+            except KeyError:
+                raise ValueError("offset value is not correct !! please make sure offset has key pos and rot !!")
+
+        # Intercept the unsafe anchor and make it safe
+        safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
+            cfg=self,
+            unsafe_anchor_pos=robot_base_pos_anchor,
+            unsafe_anchor_ori=robot_base_ori_anchor
+        )
+
+        return safe_anchor_pos, safe_anchor_ori
+
+    def sample_robot_base(self, env, env_ids=None):
+        # set the robot here
+        if "init_robot_base_pos" in self._ep_meta:
+            assert "init_robot_base_ori" in self._ep_meta, "init_robot_base_ori is required when init_robot_base_pos is provided"
+            self.init_robot_base_pos = self._ep_meta["init_robot_base_pos"]
+            self.init_robot_base_ori = self._ep_meta["init_robot_base_ori"]
+            if len(self.init_robot_base_ori) == 4:  # xyzw
+                self.init_robot_base_ori = Tn.mat2euler(Tn.quat2mat(self.init_robot_base_ori)).tolist()
+        else:
+            robot_pos = sample_robot_base_helper(
+                env=env,
+                anchor_pos=self.init_robot_base_pos_anchor,
+                anchor_ori=self.init_robot_base_ori_anchor,
+                rot_dev=self.robot_spawn_deviation_rot,
+                pos_dev_x=self.robot_spawn_deviation_pos_x,
+                pos_dev_y=self.robot_spawn_deviation_pos_y,
+                env_ids=env_ids,
+                execute_mode=self.execute_mode,
+            )
+            self.init_robot_base_pos = robot_pos
+            self.init_robot_base_ori = self.init_robot_base_ori_anchor
+
     def reset_root_state(self, env, env_ids=None):
         """
         reset the root state of objects and robot in the environment
         """
-
-        def place_robot(self):
-            # set the robot here
-            from lwlab.utils.env import set_robot_to_position, sample_robot_base, get_safe_robot_anchor
-            if "init_robot_base_pos" in self._ep_meta:
-                self.init_robot_base_pos = self._ep_meta["init_robot_base_pos"]
-                # if user provides orientation, use it; otherwise fallback to anchor orientation
-                if "init_robot_base_ori" in self._ep_meta and self._ep_meta["init_robot_base_ori"] is not None:
-                    self.init_robot_base_ori = self._ep_meta["init_robot_base_ori"]
-                else:
-                    self.init_robot_base_ori = self.init_robot_base_ori_anchor
-                # directly set pose using provided xyz (world) and wxyz (world)
-                set_robot_to_position(self.env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)
-            else:
-                # Intercept the unsafe anchor and make it safe
-                safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
-                    env=self.env,
-                    unsafe_anchor_pos=self.init_robot_base_pos_anchor,
-                    unsafe_anchor_ori=self.init_robot_base_ori_anchor
-                )
-
-                robot_pos = sample_robot_base(
-                    env=self.env,
-                    anchor_pos=safe_anchor_pos,
-                    anchor_ori=safe_anchor_ori,
-                    rot_dev=self.robot_spawn_deviation_rot,
-                    pos_dev_x=self.robot_spawn_deviation_pos_x,
-                    pos_dev_y=self.robot_spawn_deviation_pos_y,
-                    env_ids=env_ids,
-                    execute_mode=self.execute_mode,
-                )
-                self.init_robot_base_pos = robot_pos
-                self.init_robot_base_ori = self.init_robot_base_ori_anchor
-
         if env.cfg.reset_objects_enabled and self.fix_object_pose_cfg is None:
             if env_ids is None:
                 env_ids = torch.arange(env.num_envs, device=self.device, dtype=torch.int64)
@@ -744,4 +825,5 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             env.sim.forward()
 
         if env.cfg.reset_robot_enabled:
-            place_robot(self)
+            self.sample_robot_base(env, env_ids)
+            set_robot_to_position(env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)

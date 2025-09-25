@@ -1,5 +1,4 @@
-import gymnasium as gym
-from lwlab.core import LwBaseCfg
+from lwlab.core.cfg import LwBaseCfg
 from isaaclab.utils import configclass
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from lwlab.core import mdp
@@ -36,18 +35,3 @@ class BaseRLEnvCfg(LwBaseCfg):
         self.sim.physx.bounce_threshold_velocity = 0.2
         self.sim.physx.bounce_threshold_velocity = 0.01
         self.sim.physx.friction_correlation_distance = 0.00625
-
-
-def register_rl_env(robot_name, task_name, env_cfg_entry_point, skrl_cfg_entry_point, rsl_rl_cfg_entry_point, variant=None):
-    if variant:
-        task_name = f"{task_name}-{variant}"
-    gym.register(
-        id=f"Robocasa-Rl-{robot_name}-{task_name}",
-        entry_point="isaaclab.envs:ManagerBasedRLEnv",
-        kwargs={
-            "env_cfg_entry_point": env_cfg_entry_point,
-            "skrl_cfg_entry_point": skrl_cfg_entry_point,
-            "rsl_rl_cfg_entry_point": rsl_rl_cfg_entry_point,
-        },
-        disable_env_checker=True,
-    )

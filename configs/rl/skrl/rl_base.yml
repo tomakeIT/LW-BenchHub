@@ -1,8 +1,17 @@
+remote_protocal: ipc         # restful or ipc
+for_rl: true
+concatenate_terms: false
 disable_fabric: false        # Disable fabric and use USD I/O operations
+device: cuda:0
 
 # Environment Configuration
 num_envs: 10                 # Number of environments to simulate
 layout: robocasakitchen      # Scene layout
+sources:                     # Object source name
+  - objaverse
+  - lightwheel
+  - aigen_objs
+object_projects: []          # Object project name
 robot: null                  # Robot cfg name
 task: null                   # Task cfg name
 variant: null                # RL variant name, define when register the RL config
@@ -36,3 +45,4 @@ checkpoint: null
 use_pretrained_checkpoint: false
 real_time: false
 enable_cameras: false
+check_success: true

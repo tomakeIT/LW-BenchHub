@@ -15,7 +15,7 @@ from isaaclab.assets import RigidObjectCfg
 # SPDX-License-Identifier: BSD-3-Clause
 import torch
 
-from tasks.base import BaseTaskEnvCfg
+from lwlab.core.tasks.base import BaseTaskEnvCfg
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
@@ -28,7 +28,7 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from lwlab.core.rl.base import BaseRLEnvCfg
 
-from tasks.single_stage.lift_obj import LiftObj
+from lwlab_tasks.single_stage.lift_obj import LiftObj
 from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
 
 from . import mdp
@@ -203,14 +203,14 @@ class BaseLiftObjRLEnvCfg(BaseRLEnvCfg, LiftObj):
         self.sim.physx.friction_correlation_distance = 0.00625
 
         self.terminations.object_dropping = DoneTerm(
-            func=mdp.root_height_below_minimum, params={"minimum_height": 0.9, "asset_cfg": SceneEntityCfg("object")}  # TODO
+            func=mdp.root_height_below_minimum, params={"minimum_height": 0.9, "asset_cfg": SceneEntityCfg("object")}, time_out=True  # TODO
         )
 
 
 class G1StateLiftObjRLEnvCfg(UnitreeG1HandEnvRLCfg, BaseLiftObjRLEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        # for Lerobot-RL
+        # for LeRobot-RL
         # self.commands.object_pose.body_name = "gripper"
         # for G1-RL
         self.commands.object_pose.body_name = "right_wrist_yaw_link"
@@ -271,7 +271,7 @@ from lwlab.core.robots.lerobot.lerobotrl import LERobotEnvRLCfg, LERobot100EnvRL
 
 
 @configclass
-class LerobotLiftobjRewardsCfg:
+class LeRobotLiftobjRewardsCfg:
     """Reward terms for the MDP."""
     reaching_reward = RewTerm(func=mdp.object_ee_distance_maniskill, weight=1.0)
     grasp_reward = RewTerm(func=mdp.object_is_grasped_maniskill, weight=1.0)
@@ -280,7 +280,7 @@ class LerobotLiftobjRewardsCfg:
 
 
 @configclass
-class LerobotStateObservationsCfg:
+class LeRobotStateObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
@@ -300,14 +300,14 @@ class LerobotStateObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-class LerobotStateLiftObjRLEnvCfg(LERobotEnvRLCfg, BaseLiftObjRLEnvCfg):
-    observations: LerobotStateObservationsCfg = LerobotStateObservationsCfg()
-    rewards: LerobotLiftobjRewardsCfg = LerobotLiftobjRewardsCfg()
+class LeRobotStateLiftObjRLEnvCfg(LERobotEnvRLCfg, BaseLiftObjRLEnvCfg):
+    observations: LeRobotStateObservationsCfg = LeRobotStateObservationsCfg()
+    rewards: LeRobotLiftobjRewardsCfg = LeRobotLiftobjRewardsCfg()
     fix_object_pose_cfg: dict = {"object": {"pos": (2.94, -4.08, 0.95)}}  # y- near to robot
 
     def __post_init__(self):
         super().__post_init__()
-        # for Lerobot-RL
+        # for LeRobot-RL
         self.commands.object_pose.body_name = "gripper"
         # for G1-RL
         # self.commands.object_pose.body_name = "right_wrist_yaw_link"
@@ -315,15 +315,15 @@ class LerobotStateLiftObjRLEnvCfg(LERobotEnvRLCfg, BaseLiftObjRLEnvCfg):
         # self.commands.object_pose.body_name = "panda_hand"
 
 
-class Lerobot100StateLiftObjRLEnvCfg(LERobot100EnvRLCfg, LerobotStateLiftObjRLEnvCfg):
+class LeRobot100StateLiftObjRLEnvCfg(LERobot100EnvRLCfg, LeRobotStateLiftObjRLEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        # for Lerobot-RL
+        # for LeRobot-RL
         self.commands.object_pose.body_name = "Fixed_Jaw_tip"
 
 
 @configclass
-class LerobotVisualObservationsCfg:
+class LeRobotVisualObservationsCfg:
     """Observation specifications for the MDP."""
 
     @configclass
@@ -360,14 +360,14 @@ class LerobotVisualObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-class LerobotVisualLiftObjRLEnvCfg(LerobotStateLiftObjRLEnvCfg):
-    observations: LerobotVisualObservationsCfg = LerobotVisualObservationsCfg()
+class LeRobotVisualLiftObjRLEnvCfg(LeRobotStateLiftObjRLEnvCfg):
+    observations: LeRobotVisualObservationsCfg = LeRobotVisualObservationsCfg()
 
 
-class Lerobot100VisualLiftObjRLEnvCfg(LERobot100EnvRLCfg, LerobotVisualLiftObjRLEnvCfg):
+class LeRobot100VisualLiftObjRLEnvCfg(LERobot100EnvRLCfg, LeRobotVisualLiftObjRLEnvCfg):
     def __post_init__(self):
         super().__post_init__()
-        # for Lerobot-RL
+        # for LeRobot-RL
         self.commands.object_pose.body_name = "Fixed_Jaw_tip"
 
 
@@ -400,7 +400,7 @@ class DigitalTwinObservationCfg:
 
 
 @configclass
-class LerobotLiftObjDigitalTwinCfg(LerobotStateLiftObjRLEnvCfg):
+class LeRobotLiftObjDigitalTwinCfg(LeRobotStateLiftObjRLEnvCfg):
     """A dictionary of rgb overlay paths.
 
     The key is the name of the rgb sensor, and the value is the path to the background image.
@@ -482,9 +482,9 @@ class LerobotLiftObjDigitalTwinCfg(LerobotStateLiftObjRLEnvCfg):
 
 
 @configclass
-class Lerobot100LiftObjDigitalTwinCfg(LERobot100EnvRLCfg, LerobotLiftObjDigitalTwinCfg):
+class LeRobot100LiftObjDigitalTwinCfg(LERobot100EnvRLCfg, LeRobotLiftObjDigitalTwinCfg):
 
     def __post_init__(self):
         super().__post_init__()
-        # for Lerobot-RL
+        # for LeRobot-RL
         self.commands.object_pose.body_name = "Fixed_Jaw_tip"

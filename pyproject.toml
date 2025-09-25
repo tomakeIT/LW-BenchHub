@@ -10,12 +10,14 @@ name = "lwlab"
 version = "0.1.0"
 description = "Isaac Lab based Benchmark for Robotics"
 dependencies = [
-    "lightwheel-sdk>=0.10a0",
+    "lightwheel-sdk>=0.15",
     "pin-pink==3.1.0",
     "grpcio>1.73",
     "protobuf>6",
+    "pynput",
     "mediapy",
-    "tqdm"
+    "tqdm",
+    "vuer[all]==0.0.41"
 ]
 
 [project.optional-dependencies]
@@ -25,3 +27,9 @@ lerobot = [
     "deepdiff>=7.0.1,<9.0.0",
     "feetech-servo-sdk>=1.0.0"
 ]
+
+[project.entry-points.lwlab_modules]
+lwlab_scences = "lwlab.core.scenes"
+lwlab_robots = "lwlab.core.robots"
+lwlab_tasks = "lwlab_tasks"
+lwlab_rl = "lwlab_rl"

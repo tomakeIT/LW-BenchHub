@@ -25,7 +25,7 @@ from isaaclab.utils.datasets.episode_data import EpisodeData
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
 from lwlab.utils.isaaclab_utils import get_robot_joint_target_from_scene
-from lwlab.core import LwBaseCfg
+from lwlab.core.cfg import LwBaseCfg
 
 
 OFFSET_CONFIG = {
@@ -138,18 +138,13 @@ class BaseRobotCfg(LwBaseCfg):
     def __post_init__(self):
         super().__post_init__()
         self.robot_cfg = self.robot_cfg.copy().replace(prim_path="{ENV_REGEX_NS}/Robot")
-        if self.robot_pos is not None:
-            self.robot_cfg.init_state.pos = self.robot_pos
-        if self.robot_ori is not None:
-            self.robot_cfg.init_state.rot = self.robot_ori
-
         self.scene.robot = self.robot_cfg
 
         self.viewport_cfg = {
             "offset": [-0.4, 0.0, 0.8],
             "lookat": [1.0, 0.0, -0.85]
         }
-        if self.execute_mode == ExecuteMode.TELEOP:
+        if self.execute_mode in [ExecuteMode.TELEOP, ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS]:
             self.recorders = RecorderManagerCfg()
 
         # Initialize last_pos for action filtering

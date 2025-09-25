@@ -19,7 +19,6 @@
 
 import argparse
 from pathlib import Path
-import mediapy as media
 import tqdm
 from itertools import count
 
@@ -27,12 +26,15 @@ import json
 from PIL import Image, ImageDraw, ImageFont
 import numpy as np
 import os
+import copy
 
 from isaaclab.app import AppLauncher
 
 from lwlab.utils.isaaclab_utils import get_robot_joint_target_from_scene
 
 from lwlab.utils.log_utils import get_default_logger, get_logger
+
+from lwlab.utils.video_recorder import VideoProcessor
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
@@ -70,6 +72,7 @@ parser.add_argument("--replay_mode", type=str, default="action", help="replay mo
 parser.add_argument("--layout", type=str, default=None, help="layout name")
 parser.add_argument("--replay_all_clips", action="store_true", help="replay all clips, otherwise only replay the last clips")
 parser.add_argument("--record", action="store_true", default=False, help="record the replayed actions")
+parser.add_argument("--demo", type=int, default=-1, help="demo num in hdf5.")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -98,9 +101,7 @@ import contextlib
 import gymnasium as gym
 import torch
 
-
 if not args_cli.headless:
-    # from isaaclab.devices import Se3Keyboard
     from lwlab.core.devices.keyboard.se3_keyboard import Se3Keyboard
 from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
@@ -153,15 +154,7 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
 
 def main():
     """Replay episodes loaded from a file."""
-    global is_paused  # noqa: F824
     from isaaclab.envs import ManagerBasedRLEnv
-
-    # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
-    from isaaclab_tasks.utils import import_packages
-    # The blacklist is used to prevent importing configs from sub-packages
-    _BLACKLIST_PKGS = ["utils", ".mdp"]
-    # Import all configs in this package
-    import_packages("tasks", _BLACKLIST_PKGS)
 
     # Load dataset
     if not os.path.exists(args_cli.dataset_file):
@@ -181,9 +174,19 @@ def main():
         else:
             episode_indices_to_replay = list(range(episode_count))
 
+    episode_names = list(dataset_file_handler.get_episode_names())
+    episode_names.sort(key=lambda x: int(x.split("_")[-1]))
+    replayed_episode_count = 0
+
+    episode_names_to_replay = []
+    for idx in episode_indices_to_replay:
+        episode_names_to_replay.append(episode_names[idx])
+
     num_envs = args_cli.num_envs
 
     env_args = json.loads(dataset_file_handler._hdf5_data_group.attrs["env_args"])
+    if "LW_API_ENDPOINT" in env_args.keys():
+        os.environ["LW_API_ENDPOINT"] = env_args["LW_API_ENDPOINT"]
     usd_simplify = env_args["usd_simplify"] if 'usd_simplify' in env_args else False
     if "-" in env_args["env_name"] and not env_args["env_name"].startswith("Robocasa"):
         env_cfg = parse_env_cfg(
@@ -193,23 +196,39 @@ def main():
     else:  # robocasa
         from lwlab.utils.env import parse_env_cfg, ExecuteMode
         task_name = env_args["task_name"] if args_cli.task is None else args_cli.task
+        # TODO delete the hardcoded task names
+        if task_name == "PutButterInBasket":
+            if "PutButterInBasket2" in env_args["env_name"]:
+                task_name = "PutButterInBasket2"
+        if task_name == "Libero90PutBlackBowlOnPlate":
+            if "Libero90PutBlackBowlOnCabinet" in env_args["env_name"]:
+                task_name = "Libero90PutBlackBowlOnCabinet"
+        if task_name == "PickBowlOPickBowlOnCabinetPlaceOnPlatenStovePlaceOnPlate":
+            task_name = "PickBowlOnCabinetPlaceOnPlate"
+
         robot_name = env_args["robot_name"]
         if robot_name == "double_piper_abs":
             robot_name = "DoublePiper-Abs"
         if robot_name == "double_piper_rel":
             robot_name = "DoublePiper-Rel"
+        if "robocasalibero" in env_args["usd_path"]:
+            scene_name = "robocasalibero"
+        else:
+            scene_name = "robocasakitchen"
         env_cfg = parse_env_cfg(
             task_name=task_name,
             robot_name=robot_name,
-            scene_name=f"robocasakitchen-{env_args['layout_id']}-{env_args['style_id']}" if args_cli.layout is None else args_cli.layout,
+            scene_name=f"{scene_name}-{env_args['layout_id']}-{env_args['style_id']}" if args_cli.layout is None else args_cli.layout,
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True,
-            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height)},
+            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height), "ep_names": episode_names_to_replay},
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.REPLAY_ACTION if args_cli.replay_mode == "action" else ExecuteMode.REPLAY_JOINT_TARGETS,
             usd_simplify=usd_simplify,
             seed=env_args["seed"] if "seed" in env_args else None,
+            sources=env_args["sources"] if "sources" in env_args else None,
+            object_projects=env_args["object_projects"] if "object_projects" in env_args else None,
         )
         env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(
@@ -232,7 +251,7 @@ def main():
     env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
     set_seed(env_cfg.seed, env)
 
-    if app_launcher._enable_cameras:
+    if app_launcher._enable_cameras and not args_cli.headless:
         teleop_interface = Se3Keyboard(pos_sensitivity=0.1, rot_sensitivity=0.1)
         teleop_interface.add_callback("N", play_cb)
         teleop_interface.add_callback("B", pause_cb)
@@ -256,9 +275,12 @@ def main():
     else:
         raise ValueError(f"Invalid replay mode: {args_cli.replay_mode}, can only be 'action' or 'joint_target'")
 
+    import carb
+    settings = carb.settings.get_settings()
+    settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", True)
     # reset before starting
     env.reset()
-    if app_launcher._enable_cameras:
+    if app_launcher._enable_cameras and not args_cli.headless:
         teleop_interface.reset()
     font = ImageFont.load_default()
     if hasattr(font, 'font_variant'):
@@ -272,16 +294,6 @@ def main():
     import h5py
 
     # simulate environment -- run everything in inference mode
-    episode_names = list(dataset_file_handler.get_episode_names())
-    episode_names.sort(key=lambda x: int(x.split("_")[-1]))
-    replayed_episode_count = 0
-    pose_divergence_ep = []
-    ee_poses = []
-    joint_pos_list = []
-    joint_target_list = []
-    gt_joint_target_list = []
-    episode_name: str = None
-    gt_joint_pos = None
     num_cameras = sum(env.cfg.task_type in c["tags"] for c in env.cfg.observation_cameras.values())
     if num_cameras > 4:
         # two rows layout: height is twice the original, width is the maximum width of each row
@@ -292,6 +304,17 @@ def main():
         # single row layout: original calculation
         video_height = args_cli.height
         video_width = num_cameras * args_cli.width
+
+    # Initialize async image processor
+    video_processor = None
+    joint_pos_list = None
+    episode_name = None
+    ee_poses = None
+    joint_target_list = None
+    gt_joint_target_list = None
+    gt_joint_pos = None
+    obj_states = None
+    obj_force_states = None
 
     for i in episode_indices_to_replay:
         episode_indices_to_replay_tmp = [i]
@@ -306,9 +329,15 @@ def main():
             gt_ee_poses_f = h5py.File(ee_poses_path, "r")
         else:
             gt_ee_poses_f = None
+
+        # Initialize video processor (manages VideoWriter internally)
+        if app_launcher._enable_cameras:
+            video_processor = VideoProcessor(replay_mp4_path, video_height, video_width, args_cli)
+        else:
+            video_processor = None
+
         with (
             contextlib.suppress(KeyboardInterrupt),
-            media.VideoWriter(path=replay_mp4_path, shape=(video_height, video_width), fps=30) as v,
             h5py.File(save_dir / f"isaac_replay_action_{args_cli.replay_mode}_pose_divergence.hdf5", "w") as pose_divergence_f,
             h5py.File(save_dir / f"isaac_replay_action_{args_cli.replay_mode}_obj_pose_divergence.hdf5", "w") as obj_divergence_f,
             h5py.File(save_dir / f"isaac_replay_action_{args_cli.replay_mode}_obj_force.hdf5", "w") as obj_force_f
@@ -336,45 +365,51 @@ def main():
                                 break
                             next_episode_index = None
 
-                        if replayed_episode_count and isinstance(joint_pos_list, list):
+                        if replayed_episode_count and joint_pos_list is not None and isinstance(joint_pos_list, list):
                             # compare ee_poses with gt_ee_poses, calculate pose divergence
-                            if gt_ee_poses_f is not None:
+                            if gt_ee_poses_f is not None and episode_name is not None:
                                 gt_ee_poses = gt_ee_poses_f["data"][episode_name]["ee_poses"][:]
-                                ee_poses = np.concatenate(ee_poses, axis=0)
-                                pose_divergence = np.linalg.norm(ee_poses[:-1, :, :3] - gt_ee_poses[:len(ee_poses) - 1, :, :3], axis=-1)
-                                pose_divergence_norm = np.linalg.norm(pose_divergence, axis=-1)
-                                print(f"Pose divergence: last step: {pose_divergence[-1].tolist()}, mean: {np.mean(pose_divergence,axis=0).tolist()} max: {np.max(pose_divergence,axis=0).tolist()}")
-                                success_info[episode_name] = {
-                                    "pose_divergence_last_step": pose_divergence[-1].tolist(),
-                                    "pose_divergence_mean": np.mean(pose_divergence, axis=0).tolist(),
-                                    "pose_divergence_max": np.max(pose_divergence, axis=0).tolist(),
-                                    "pose_divergence_norm_last_step": pose_divergence_norm[-1].tolist(),
-                                    "pose_divergence_norm_mean": np.mean(pose_divergence_norm, axis=0).tolist(),
-                                    "pose_divergence_norm_max": np.max(pose_divergence_norm, axis=0).tolist(),
-                                    "success": has_success
-                                }
-                                # save pose divergence to hdf5
-                                pose_divergence_f.create_dataset(f"data/{episode_name}/ee_poses", data=ee_poses[:])
-                                pose_divergence_f.create_dataset(f"data/{episode_name}/pose_divergence", data=pose_divergence)
-                                pose_divergence_f.create_dataset(f"data/{episode_name}/pose_divergence_norm", data=pose_divergence_norm)
+                                if ee_poses is not None:
+                                    ee_poses = np.concatenate(ee_poses, axis=0)
+                                    pose_divergence = np.linalg.norm(ee_poses[:-1, :, :3] - gt_ee_poses[:len(ee_poses) - 1, :, :3], axis=-1)
+                                    pose_divergence_norm = np.linalg.norm(pose_divergence, axis=-1)
+                                    print(f"Pose divergence: last step: {pose_divergence[-1].tolist()}, mean: {np.mean(pose_divergence,axis=0).tolist()} max: {np.max(pose_divergence,axis=0).tolist()}")
+                                    success_info[episode_name] = {
+                                        "pose_divergence_last_step": pose_divergence[-1].tolist(),
+                                        "pose_divergence_mean": np.mean(pose_divergence, axis=0).tolist(),
+                                        "pose_divergence_max": np.max(pose_divergence, axis=0).tolist(),
+                                        "pose_divergence_norm_last_step": pose_divergence_norm[-1].tolist(),
+                                        "pose_divergence_norm_mean": np.mean(pose_divergence_norm, axis=0).tolist(),
+                                        "pose_divergence_norm_max": np.max(pose_divergence_norm, axis=0).tolist(),
+                                        "success": has_success
+                                    }
+                                    # save pose divergence to hdf5
+                                    pose_divergence_f.create_dataset(f"data/{episode_name}/ee_poses", data=ee_poses[:])
+                                    pose_divergence_f.create_dataset(f"data/{episode_name}/pose_divergence", data=pose_divergence)
+                                    pose_divergence_f.create_dataset(f"data/{episode_name}/pose_divergence_norm", data=pose_divergence_norm)
                             else:
-                                success_info[episode_name] = {
-                                    "success": has_success
-                                }
+                                if episode_name is not None:
+                                    success_info[episode_name] = {
+                                        "success": has_success
+                                    }
 
                             # compare joint_pos_list with gt_joint_pos, calculate joint divergence
-                            joint_pos_list = np.concatenate(joint_pos_list, axis=0)
-                            joint_divergence = joint_pos_list[:-1] - gt_joint_pos.cpu().numpy()[:len(joint_pos_list) - 1]
-                            # print(f"Joint divergence: last step: {joint_divergence[-1]}, mean: {joint_divergence.mean()} max: {joint_divergence.max()}")
-                            # save joint divergence to hdf5
-                            pose_divergence_f.create_dataset(f"data/{episode_name}/joint_pos", data=joint_pos_list[:])
-                            pose_divergence_f.create_dataset(f"data/{episode_name}/joint_pos_divergence", data=joint_divergence[:])
-                            if args_cli.replay_mode == "joint_target":
-                                joint_target_list = np.concatenate(joint_target_list, axis=0)
-                                gt_joint_target_list = np.concatenate(gt_joint_target_list, axis=0)
-                                joint_target_divergence = joint_target_list - gt_joint_target_list
-                                pose_divergence_f.create_dataset(f"data/{episode_name}/joint_target", data=joint_target_list[:])
-                                pose_divergence_f.create_dataset(f"data/{episode_name}/joint_target_divergence", data=joint_target_divergence[:])
+                            if gt_joint_pos is not None:
+                                joint_pos_list = np.concatenate(joint_pos_list, axis=0)
+                                joint_divergence = joint_pos_list[:-1] - gt_joint_pos.cpu().numpy()[:len(joint_pos_list) - 1]
+                                # print(f"Joint divergence: last step: {joint_divergence[-1]}, mean: {joint_divergence.mean()} max: {joint_divergence.max()}")
+                                # save joint divergence to hdf5
+                                if episode_name is not None:
+                                    pose_divergence_f.create_dataset(f"data/{episode_name}/joint_pos", data=joint_pos_list[:])
+                                    pose_divergence_f.create_dataset(f"data/{episode_name}/joint_pos_divergence", data=joint_divergence[:])
+                                if args_cli.replay_mode == "joint_target" and joint_target_list is not None and gt_joint_target_list is not None:
+                                    joint_target_list = np.concatenate(joint_target_list, axis=0)
+                                    gt_joint_target_list = np.concatenate(gt_joint_target_list, axis=0)
+                                    joint_target_divergence = joint_target_list - gt_joint_target_list
+                                    if episode_name is not None:
+                                        pose_divergence_f.create_dataset(f"data/{episode_name}/joint_target", data=joint_target_list[:])
+                                        pose_divergence_f.create_dataset(f"data/{episode_name}/gt_joint_target", data=gt_joint_target_list[:])
+                                        pose_divergence_f.create_dataset(f"data/{episode_name}/joint_target_divergence", data=joint_target_divergence[:])
 
                         if next_episode_index is not None:
                             ee_poses = []
@@ -398,22 +433,16 @@ def main():
                                 gt_joint_pos = episode_data._data["states"]["articulation"]["robot"]["joint_position"]
                             elif args_cli.replay_mode == "joint_target":
                                 gt_joint_pos = episode_data._data["states"]["articulation"]["robot"]["joint_position"]
-                                gt_joint_target = episode_data._data["joint_targets"]["joint_pos_target"]
                             else:
                                 raise ValueError(f"Invalid replay mode: {args_cli.replay_mode}, can only be 'action' or 'joint_target'")
                             # Set initial state for the new episode
-                            # env.step(actions)
                             initial_state = episode_data.get_initial_state()
                             env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=False)
 
-                            # env.step(actions)
-
                             # Get the first action for the new episode
-                            env_next_action = env_episode_data_map[env_id].get_next_action()
                             env_next_action = env_episode_data_map[env_id].get_next_action()
                             if args_cli.replay_mode == "joint_target":
                                 env_next_joint_target = env_episode_data_map[env_id].get_next_joint_target()
-                                # env_next_joint_target = env_episode_data_map[env_id].get_next_joint_target()
                             has_next_action = True
                         else:
                             continue
@@ -490,39 +519,13 @@ def main():
                 joint_pos_list.append(obs["policy"]["joint_pos"].cpu().numpy())
                 if args_cli.replay_mode == "joint_target":
                     joint_target_list.append(get_robot_joint_target_from_scene(env.scene)["joint_pos_target"].cpu().numpy())
-                    gt_joint_target_list.append(actions.reshape(env.cfg.decimation, -1)[-1:, ...].cpu().numpy())
-                if app_launcher._enable_cameras:
-                    # get all camera images
-                    camera_images = [obs['policy'][name].cpu().numpy() for name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]]
-                    num_cameras = len(camera_images)
+                    gt_actions = copy.deepcopy(actions)
+                    gt_joint_target_list.append(gt_actions.reshape(env.cfg.decimation, -1)[-1:, ...].cpu().numpy())
+                if app_launcher._enable_cameras and video_processor:
+                    camera_names = [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]
+                    # Process images asynchronously
+                    video_processor.add_frame(obs, camera_names)
 
-                    # if camera number is more than 4, split into two rows
-                    if num_cameras > 4:
-                        # get the number of cameras per row
-                        cameras_per_row = (num_cameras + 1) // 2
-
-                        # first row of cameras
-                        first_row = camera_images[:cameras_per_row]
-                        first_row_images = np.concatenate(first_row, axis=0).transpose(0, 2, 1, 3)
-                        first_row_reshaped = first_row_images.reshape(-1, *first_row_images.shape[2:]).transpose(1, 0, 2)
-
-                        # second row of cameras
-                        second_row = camera_images[cameras_per_row:]
-                        if second_row:  # ensure second row has cameras
-                            second_row_images = np.concatenate(second_row, axis=0).transpose(0, 2, 1, 3)
-                            second_row_reshaped = second_row_images.reshape(-1, *second_row_images.shape[2:]).transpose(1, 0, 2)
-
-                            # vertically concatenate two rows of images
-                            full_image = np.concatenate([first_row_reshaped, second_row_reshaped], axis=0)
-                        else:
-                            full_image = first_row_reshaped
-                    else:
-                        full_image = np.concatenate(camera_images, axis=0).transpose(0, 2, 1, 3)
-                        full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
-                    v.add_image(full_image)
-                    if not args_cli.without_image:
-                        cv2.imshow("replay", full_image[..., ::-1])
-                        cv2.waitKey(1)
                 state_from_dataset = env_episode_data_map[0].get_next_state()
                 if state_validation_enabled:
                     if state_from_dataset is not None:
@@ -540,7 +543,7 @@ def main():
                 if ter:
                     has_success = True
                     env_episode_data_map[env_id]._next_action_index += 9999999999
-            if "obj_force_states" in locals() and obj_force_states:
+            if obj_force_states is not None and obj_force_states:
                 for obj_name, obj_force_data in obj_force_states.items():
                     if len(obj_force_data['obj_force']) > 0:
                         obj_force_array = np.concatenate(obj_force_data['obj_force'], axis=0)
@@ -549,7 +552,7 @@ def main():
                         get_default_logger().warning(f"Object {obj_name} has no force data")
                         continue
 
-            if 'obj_states' in locals() and obj_states:
+            if obj_states is not None and obj_states:
                 get_default_logger().info(f"Processing {len(obj_states)} objects for episode {episode_name}")
                 for obj_name, obj_data in obj_states.items():
                     if obj_data['obj_root_pose'] and obj_data['ref_root_pose']:
@@ -587,10 +590,38 @@ def main():
             # save pose divergence to hdf5
             with open(replay_json_path, 'w') as f:
                 json.dump(success_info, f, indent=4)
+
+    print("Closing process start")
+    # Wait for all video processing tasks to complete and cleanup
+    if video_processor:
+        video_processor.shutdown()
+        print("Shut down video processor")
+
+    def save_metrics():
+        """Save metrics data to JSON file"""
+        metrics_data = {}
+        if hasattr(env_cfg, 'get_metrics'):
+            metrics_data = env_cfg.get_metrics()
+
+        # Save metrics to JSON file
+        if metrics_data:
+            metrics_file_path = os.path.join(save_dir, "metrics.json")
+            try:
+                with open(metrics_file_path, 'w') as f:
+                    json.dump(metrics_data, f, indent=2)
+                print(f"Metrics saved to: {metrics_file_path}")
+            except Exception as e:
+                print(f"Failed to save metrics: {e}")
+
+    save_metrics()
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.")
+    if args_cli.record:
+        env.recorder_manager.export_episodes()
+
     env.close()
+    print("Close simulation env")
 
 
 if __name__ == "__main__":

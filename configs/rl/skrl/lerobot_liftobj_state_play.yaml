@@ -1,6 +1,7 @@
-_base_: [rl_base]
+_base_:
+  - rl_base
 task: LiftObj                # Task name
-robot: Lerobot-RL                 # Robot type
+robot: LeRobot-RL                 # Robot type
 layout: robocasakitchen-9-8  # Scene layout
 num_envs: 1
 usd_simplify: true # USD simplify enable

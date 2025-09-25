@@ -324,8 +324,8 @@ def patch_step():
         self.common_step_counter += 1  # total step (common for all envs)
         # -- check terminations
         self.reset_buf = self.termination_manager.compute()
-        self.reset_terminated = self.termination_manager.terminated
         self.reset_time_outs = self.termination_manager.time_outs
+        self.extras["is_success"] = self.termination_manager._terminated_buf
         # -- reward computation
         self.reward_buf = self.reward_manager.compute(dt=self.step_dt)
 
@@ -365,7 +365,7 @@ def patch_step():
         self.obs_buf = self.observation_manager.compute(update_history=True)
 
         # return observations, rewards, resets and extras
-        return self.obs_buf, self.reward_buf, self.reset_terminated, self.reset_time_outs, self.extras
+        return self.obs_buf, self.reward_buf, self.reset_buf, self.reset_time_outs, self.extras
 
     ManagerBasedRLEnv.step = step
 

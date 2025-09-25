@@ -60,7 +60,7 @@ def log_scene_rigid_objects(env):
         })
 
     # 3. Define log folder path
-    log_dir = os.path.join(os.getcwd(), "log")  # log folder under program root directory
+    log_dir = os.path.join(os.getcwd(), LOG_ROOT_DIR)  # Use consistent log directory
     if not os.path.exists(log_dir):
         os.makedirs(log_dir)
         print(f"Created log directory: {log_dir}")
@@ -155,11 +155,11 @@ def handle_exception_and_log(e, final_filename):
     Args:
         e (Exception): Caught exception object.
         final_filename (str): Main data filename (without path), e.g., "my_data.json".
-                              Expected to be in "log" folder under current working directory.
+                              Expected to be in LOG_ROOT_DIR folder under current working directory.
         simulation_app: Isaac Sim application object for shutdown during exceptions.
     """
     # 1. Construct full log file path
-    log_dir = os.path.join(os.getcwd(), "log")  # Consistent with log_scene_rigid_objects
+    log_dir = os.path.join(os.getcwd(), LOG_ROOT_DIR)  # Use consistent log directory
     full_log_file_path = os.path.join(log_dir, final_filename)
 
     print(f"An error occurred: {e}. Attempting to log into {full_log_file_path}")
@@ -236,6 +236,11 @@ _log_queue = None
 _backend_handlers = {}
 _is_initialized = False
 
+# Log mode configuration
+LOG_MODE_OVERWRITE = "overwrite"  # Default: overwrite mode
+LOG_MODE_TIMESTAMP = "timestamp"  # Time-isolated mode
+_current_log_mode = LOG_MODE_OVERWRITE
+
 # Default logger configurations
 DEFAULT_LOG_CONFIG = {
     'log': {'level': logging.DEBUG},
@@ -280,6 +285,97 @@ class _LogDispatcher:
                 root_handler.handle(record)
 
 
+def set_log_mode(mode):
+    """
+    Set the logging mode.
+
+    Args:
+        mode (str): Logging mode. Can be:
+            - LOG_MODE_OVERWRITE: Overwrite mode (default) - each run creates fresh logs
+            - LOG_MODE_TIMESTAMP: Timestamp mode - creates time-isolated folders
+    """
+    global _current_log_mode
+
+    if mode not in [LOG_MODE_OVERWRITE, LOG_MODE_TIMESTAMP]:
+        raise ValueError(f"Invalid log mode: {mode}. Must be '{LOG_MODE_OVERWRITE}' or '{LOG_MODE_TIMESTAMP}'")
+
+    _current_log_mode = mode
+    print(f"Log mode set to: {mode}")
+
+
+def get_log_mode():
+    """
+    Get the current logging mode.
+
+    Returns:
+        str: Current logging mode
+    """
+    return _current_log_mode
+
+
+def configure_log_mode_from_args(args=None, log_mode_arg='log_mode'):
+    """
+    Configure log mode from command line arguments or configuration.
+
+    Args:
+        args: Argument parser object or dictionary containing log mode configuration
+        log_mode_arg (str): Name of the argument/parameter for log mode
+
+    Returns:
+        str: The configured log mode
+    """
+
+    if args is None:
+        return _current_log_mode
+
+    # Handle different types of args
+    if hasattr(args, log_mode_arg):
+        # args is an argparse.Namespace object
+        mode = getattr(args, log_mode_arg)
+    elif isinstance(args, dict) and log_mode_arg in args:
+        # args is a dictionary
+        mode = args[log_mode_arg]
+    else:
+        # No log mode specified, keep current mode
+        return _current_log_mode
+
+    # Validate and set mode
+    if mode is not None:
+        if mode not in [LOG_MODE_OVERWRITE, LOG_MODE_TIMESTAMP]:
+            print(f"Warning: Invalid log mode '{mode}'. Using default '{LOG_MODE_OVERWRITE}'")
+            mode = LOG_MODE_OVERWRITE
+
+        set_log_mode(mode)
+        print(f"Log mode configured from arguments: {mode}")
+
+    return _current_log_mode
+
+
+def add_log_mode_argument(parser, arg_name='--log-mode', help_text=None):
+    """
+    Add log mode argument to an argument parser.
+
+    Args:
+        parser: ArgumentParser object
+        arg_name (str): Name of the argument (default: '--log-mode')
+        help_text (str): Help text for the argument
+
+    Returns:
+        ArgumentParser: The parser with log mode argument added
+    """
+    if help_text is None:
+        help_text = f"Log mode: '{LOG_MODE_OVERWRITE}' (overwrite logs each run) or '{LOG_MODE_TIMESTAMP}' (time-isolated folders)"
+
+    parser.add_argument(
+        arg_name,
+        choices=[LOG_MODE_OVERWRITE, LOG_MODE_TIMESTAMP],
+        default=LOG_MODE_OVERWRITE,
+        help=help_text
+    )
+
+    return parser
+
+
 def _ensure_initialized():
     """Ensure the logging system is initialized."""
     global _is_initialized  # noqa: F824
@@ -291,9 +387,18 @@ def _create_logger_config(logger_name, level=None, custom_config=None):
     """Create configuration for a specific logger."""
     global CURRENT_DATE_DIR
 
-    if CURRENT_DATE_DIR is None:
-        CURRENT_DATE_DIR = os.path.join(LOG_ROOT_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-        os.makedirs(CURRENT_DATE_DIR, exist_ok=True)
+    # Determine log directory based on mode
+    if _current_log_mode == LOG_MODE_OVERWRITE:
+        # Overwrite mode: use fixed directory, overwrite existing logs
+        log_dir = LOG_ROOT_DIR
+    else:  # LOG_MODE_TIMESTAMP
+        # Timestamp mode: create time-isolated directories
+        if CURRENT_DATE_DIR is None:
+            CURRENT_DATE_DIR = os.path.join(LOG_ROOT_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        log_dir = CURRENT_DATE_DIR
+
+    # Ensure log directory exists
+    os.makedirs(log_dir, exist_ok=True)
 
     # Use custom config if provided, otherwise use default
     if custom_config and 'level' in custom_config:
@@ -310,18 +415,20 @@ def _create_logger_config(logger_name, level=None, custom_config=None):
         filename = f"{logger_name}.log"
 
     return {
-        'file': os.path.join(CURRENT_DATE_DIR, filename),
+        'file': os.path.join(log_dir, filename),
         'level': log_level
     }
 
 
-def setup_async_module_logging(custom_config=None):
+def setup_async_module_logging(custom_config=None, args=None, log_mode_arg='log_mode'):
     """
     Setup the async module logging system.
 
     Args:
         custom_config (dict, optional): Custom logger configurations.
             Format: {'logger_name': {'level': logging.LEVEL}}
+        args: Argument parser object or dictionary containing log mode configuration
+        log_mode_arg (str): Name of the argument/parameter for log mode
     """
     global _log_listener, _log_queue, _backend_handlers, _is_initialized, CURRENT_DATE_DIR
 
@@ -329,10 +436,23 @@ def setup_async_module_logging(custom_config=None):
         print("Logging system already initialized.")
         return _log_listener
 
-    # Initialize date directory
-    if CURRENT_DATE_DIR is None:
-        CURRENT_DATE_DIR = os.path.join(LOG_ROOT_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
-        os.makedirs(CURRENT_DATE_DIR, exist_ok=True)
+    # Configure log mode from arguments if provided
+    if args is not None:
+        configure_log_mode_from_args(args, log_mode_arg)
+
+    # Initialize log directory based on mode
+    if _current_log_mode == LOG_MODE_OVERWRITE:
+        # Overwrite mode: use fixed directory
+        log_dir = LOG_ROOT_DIR
+        os.makedirs(log_dir, exist_ok=True)
+        print(f"Log mode: OVERWRITE - Logs will be saved to: {log_dir}/")
+    else:  # LOG_MODE_TIMESTAMP
+        # Timestamp mode: create time-isolated directory
+        if CURRENT_DATE_DIR is None:
+            CURRENT_DATE_DIR = os.path.join(LOG_ROOT_DIR, datetime.now().strftime("%Y-%m-%d_%H-%M-%S"))
+        log_dir = CURRENT_DATE_DIR
+        os.makedirs(log_dir, exist_ok=True)
+        print(f"Log mode: TIMESTAMP - Logs will be saved to: {log_dir}/")
 
     # --- A. Create central queue ---
     _log_queue = queue.Queue(-1)
@@ -352,7 +472,14 @@ def setup_async_module_logging(custom_config=None):
     _backend_handlers = {}
     for logger_name, config in merged_config.items():
         logger_config = _create_logger_config(logger_name, custom_config=config)
-        file_handler = logging.FileHandler(logger_config['file'], mode='a', encoding='utf-8')
+
+        # Choose file mode based on log mode
+        if _current_log_mode == LOG_MODE_OVERWRITE:
+            file_mode = 'w'  # Overwrite mode: start fresh each time
+        else:  # LOG_MODE_TIMESTAMP
+            file_mode = 'a'  # Timestamp mode: append to existing files
+
+        file_handler = logging.FileHandler(logger_config['file'], mode=file_mode, encoding='utf-8')
         file_handler.setLevel(logger_config['level'])
         file_handler.setFormatter(formatter)
         _backend_handlers[logger_name] = file_handler
@@ -424,7 +551,13 @@ def get_logger(name=None, level=None):
             datefmt='%Y-%m-%d %H:%M:%S'
         )
 
-        file_handler = logging.FileHandler(logger_config['file'], mode='a', encoding='utf-8')
+        # Choose file mode based on log mode
+        if _current_log_mode == LOG_MODE_OVERWRITE:
+            file_mode = 'w'  # Overwrite mode: start fresh each time
+        else:  # LOG_MODE_TIMESTAMP
+            file_mode = 'a'  # Timestamp mode: append to existing files
+
+        file_handler = logging.FileHandler(logger_config['file'], mode=file_mode, encoding='utf-8')
         file_handler.setLevel(logger_config['level'])
         file_handler.setFormatter(formatter)
 
@@ -462,6 +595,23 @@ def stop_logging():
         _log_listener.stop()
         _is_initialized = False
         print("Logging system stopped.")
+
+
+def reset_logging_system():
+    """Reset the logging system to allow mode changes."""
+    global _log_listener, _log_queue, _backend_handlers, _is_initialized, CURRENT_DATE_DIR
+
+    if _is_initialized:
+        stop_logging()
+
+    # Reset all global variables
+    _log_listener = None
+    _log_queue = None
+    _backend_handlers = {}
+    _is_initialized = False
+    CURRENT_DATE_DIR = None
+
+    print("Logging system reset. You can now change log mode and reinitialize.")
 
 
 def get_default_logger():

@@ -1,4 +1,5 @@
-_base_: [lerobot_liftobj_state]
+_base_:
+  - lerobot_liftobj_state
 num_envs: 200
 variant: Visual
 enable_cameras: true

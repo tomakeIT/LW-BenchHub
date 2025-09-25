@@ -1,4 +1,5 @@
-_base_: [teleop_base]
+_base_:
+  - teleop_base
 record: false
 task: OpenDishwasher
 layout: robocasakitchen-4-2

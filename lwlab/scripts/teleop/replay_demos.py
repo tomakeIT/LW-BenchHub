@@ -19,8 +19,6 @@
 import argparse
 import os
 import json
-
-import mediapy as media
 import tqdm
 from itertools import count
 import numpy as np
@@ -29,6 +27,8 @@ from pathlib import Path
 from isaaclab.app import AppLauncher
 import pinocchio  # noqa: F401
 from lwlab.scripts.teleop.teleop_launcher import get_video_duration
+from lwlab.utils.video_recorder import VideoProcessor
+
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Replay demonstrations in Isaac Lab environments.")
@@ -65,13 +65,6 @@ def main():
     app_launcher = AppLauncher(args_cli)
     simulation_app = app_launcher.app
 
-    # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
-    from isaaclab_tasks.utils import import_packages
-    # The blacklist is used to prevent importing configs from sub-packages
-    _BLACKLIST_PKGS = ["utils", ".mdp"]
-    # Import all configs in this package
-    import_packages("tasks", _BLACKLIST_PKGS)
-
     import contextlib
     import gymnasium as gym
     import torch
@@ -79,7 +72,7 @@ def main():
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
     from isaaclab_tasks.utils.parse_cfg import parse_env_cfg
-    from lwlab.utils.env import set_camera_follow_pose
+    from lwlab.utils.place_utils.env_utils import set_camera_follow_pose
     from lwlab.utils.place_utils.env_utils import set_seed
 
     # Load dataset
@@ -102,7 +95,18 @@ def main():
 
     num_envs = args_cli.num_envs
 
+    # prepare video writer
+    episode_names = list(dataset_file_handler.get_episode_names())
+    episode_names.sort(key=lambda x: int(x.split("_")[-1]))
+    replayed_episode_count = 0
+
+    episode_names_to_replay = []
+    for idx in episode_indices_to_replay:
+        episode_names_to_replay.append(episode_names[idx])
+
     env_args = json.loads(dataset_file_handler._hdf5_data_group.attrs["env_args"])
+    if "LW_API_ENDPOINT" in env_args.keys():
+        os.environ["LW_API_ENDPOINT"] = env_args["LW_API_ENDPOINT"]
     usd_simplify = env_args["usd_simplify"] if 'usd_simplify' in env_args else False
     if "-" in env_args["env_name"] and not env_args["env_name"].startswith("Robocasa"):
         env_cfg = parse_env_cfg(
@@ -112,23 +116,38 @@ def main():
     else:  # robocasa
         from lwlab.utils.env import parse_env_cfg, ExecuteMode
         task_name = env_args["task_name"] if args_cli.task is None else args_cli.task
+        # TODO delete the hardcoded task names
+        if task_name == "PutButterInBasket":
+            if "PutButterInBasket2" in env_args["env_name"]:
+                task_name = "PutButterInBasket2"
+        if task_name == "Libero90PutBlackBowlOnPlate":
+            if "Libero90PutBlackBowlOnCabinet" in env_args["env_name"]:
+                task_name = "Libero90PutBlackBowlOnCabinet"
+        if task_name == "PickBowlOPickBowlOnCabinetPlaceOnPlatenStovePlaceOnPlate":
+            task_name = "PickBowlOnCabinetPlaceOnPlate"
         robot_name = env_args["robot_name"]
         if robot_name == "double_piper_abs":
             robot_name = "DoublePiper-Abs"
         if robot_name == "double_piper_rel":
             robot_name = "DoublePiper-Rel"
+        if "robocasalibero" in env_args["usd_path"]:
+            scene_name = "robocasalibero"
+        else:
+            scene_name = "robocasakitchen"
         env_cfg = parse_env_cfg(
             task_name=task_name,
             robot_name=robot_name,
-            scene_name=f"robocasakitchen-{env_args['layout_id']}-{env_args['style_id']}",
+            scene_name=f"{scene_name}-{env_args['layout_id']}-{env_args['style_id']}",
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True,
-            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height)},
+            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height), "ep_names": episode_names_to_replay},
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.REPLAY_STATE,
             usd_simplify=usd_simplify,
             seed=env_args["seed"] if "seed" in env_args else None,
+            sources=env_args["sources"] if "sources" in env_args else None,
+            object_projects=env_args["object_projects"] if "object_projects" in env_args else None,
         )
         env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(
@@ -149,6 +168,10 @@ def main():
     set_seed(env_cfg.seed, env)
 
     # reset before starting
+    import carb
+    settings = carb.settings.get_settings()
+    settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", True)
+
     env.reset()
 
     # prepare video writer
@@ -171,8 +194,8 @@ def main():
         video_height = args_cli.height
         video_width = num_cameras * args_cli.width
 
-    # Collect next_state data for JSON output
-    next_state_data = {}
+    # Initialize video processor
+    video_processor = None
 
     def convert_tensors_to_serializable(obj):
         """Convert PyTorch tensors to JSON serializable format."""
@@ -187,20 +210,32 @@ def main():
         else:
             return obj
 
-    for i in tqdm.tqdm(episode_indices_to_replay, desc="Replaying"):
-        if args_cli.replay_all_clips:
-            save_dir = Path(args_cli.dataset_file).parent / 'replay_results' / f'{episode_names[i]}'
-        else:
-            save_dir = Path(args_cli.dataset_file).parent
-        save_dir.mkdir(parents=True, exist_ok=True)
-        replay_mp4_path = save_dir / "isaac_replay_state.mp4"
+    # Create a single video writer for all episodes
+    if args_cli.replay_all_clips:
+        save_dir = Path(args_cli.dataset_file).parent / 'replay_results'
+    else:
+        save_dir = Path(args_cli.dataset_file).parent
+    save_dir.mkdir(parents=True, exist_ok=True)
+    replay_mp4_path = save_dir / "isaac_replay_state.mp4"
 
-        with (
-            contextlib.suppress(KeyboardInterrupt),
-            media.VideoWriter(path=replay_mp4_path, shape=(video_height, video_width), fps=30) as v,
-            h5py.File(save_dir / f"replay_state_ee_poses.hdf5", "w") as ee_poses_hdf5_f,
-        ):
-            ee_poses_hdf5_f.create_group("data")
+    # Initialize video processor (manages VideoWriter internally)
+    if app_launcher._enable_cameras:
+        video_processor = VideoProcessor(replay_mp4_path, video_height, video_width, args_cli)
+    else:
+        video_processor = None
+
+    with (
+        contextlib.suppress(KeyboardInterrupt),
+        h5py.File(save_dir / f"replay_state_ee_poses.hdf5", "w") as ee_poses_hdf5_f,
+    ):
+        ee_poses_hdf5_f.create_group("data")
+        for i in tqdm.tqdm(episode_indices_to_replay, desc="Replaying"):
+            if args_cli.replay_all_clips:
+                episode_save_dir = save_dir / f'{episode_names[i]}'
+                episode_save_dir.mkdir(parents=True, exist_ok=True)
+            else:
+                episode_save_dir = save_dir
+
             env_episode_data_map = {index: EpisodeData() for index in range(num_envs)}
             env_id = 0
             ep = episode_names[i]
@@ -217,72 +252,40 @@ def main():
                 obs, _ = env.reset_to(next_state, torch.tensor([env_id], device=env.device), is_relative=True if env_args["robot_name"].endswith("Rel") else False)
                 env.sim.render()
                 next_state = env_episode_data_map[env_id].get_next_state()
-                # Collect next_state data instead of printing
-                if isinstance(next_state, dict):
-                    next_state["robot"] = next_state.get("articulation", {}).get("robot", {})
-                    next_state["robot"]["joint_names"] = env.scene.articulations["robot"].joint_names
-                    next_state_data[step_count] = convert_tensors_to_serializable(next_state)
                 step_count += 1
                 ee_poses.append(obs['policy']['ee_pose'].cpu().numpy())
-                if app_launcher._enable_cameras:
-                    # get all camera images
-                    camera_images = [obs['policy'][name].cpu().numpy() for name in [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]]
-                    num_cameras = len(camera_images)
+                if app_launcher._enable_cameras and video_processor:
+                    # Add frame to video processing queue
+                    camera_names = [n for n, c in env.cfg.observation_cameras.items() if env.cfg.task_type in c["tags"]]
+                    video_processor.add_frame(obs, camera_names)
 
-                    # if camera number is more than 4, split into two rows
-                    if num_cameras > 4:
-                        # get the number of cameras per row
-                        cameras_per_row = (num_cameras + 1) // 2
-
-                        # first row of cameras
-                        first_row = camera_images[:cameras_per_row]
-                        first_row_images = np.concatenate(first_row, axis=0).transpose(0, 2, 1, 3)
-                        first_row_reshaped = first_row_images.reshape(-1, *first_row_images.shape[2:]).transpose(1, 0, 2)
-
-                        # second row of cameras
-                        second_row = camera_images[cameras_per_row:]
-                        if second_row:  # ensure second row has cameras
-                            second_row_images = np.concatenate(second_row, axis=0).transpose(0, 2, 1, 3)
-                            second_row_reshaped = second_row_images.reshape(-1, *second_row_images.shape[2:]).transpose(1, 0, 2)
-
-                            # vertically concatenate two rows of images
-                            full_image = np.concatenate([first_row_reshaped, second_row_reshaped], axis=0)
-                        else:
-                            full_image = first_row_reshaped
-                    else:
-                        full_image = np.concatenate(camera_images, axis=0).transpose(0, 2, 1, 3)
-                        full_image = full_image.reshape(-1, *full_image.shape[2:]).transpose(1, 0, 2)
-                    v.add_image(full_image)
-                    if not args_cli.without_image:
-                        cv2.imshow("replay", full_image[..., ::-1])
-                        cv2.waitKey(1)
             if ee_poses:
                 ee_poses = np.concatenate(ee_poses, axis=0)
                 # save ee poses to hdf5 file
                 ee_poses_hdf5_f.create_dataset(f"data/{ep}/ee_poses", data=ee_poses)
-            # np.save(replay_mp4_path.parent / f"ee_poses.npy", ee_poses)
 
-        # Save next_state data to JSON file
-        next_state_json_path = save_dir / "next_state_data.json"
-        with open(next_state_json_path, 'w') as f:
-            json.dump(next_state_data, f, indent=2)
+    print("Closing process start")
+    # Wait for all video processing tasks to complete and cleanup
+    if video_processor:
+        video_processor.shutdown()
+        print("Shut down video processor")
 
-        # evaluate qa metrics
-        from lwlab.scripts.teleop.eval.eval import evaluate_qa_metrics
-        evaluate_qa_metrics(next_state_data, save_dir / "qa_results.json")
+        # Check video file after processing
+        video_path = video_processor.get_video_path()
+        if os.path.exists(video_path):
+            video_duration = get_video_duration(video_path)
+            print(f"Video duration: {video_duration} seconds")
+        else:
+            print(f"Video file not found: {video_path}")
 
-    if os.path.exists(replay_mp4_path):
-        video_duration = get_video_duration(replay_mp4_path)
-        print(f"Video duration: {video_duration} seconds")
-    else:
-        print(f"Video file not found: {replay_mp4_path}")
-
-    video_meta_json_path = replay_mp4_path.parent / "video_meta.json"
-    with open(video_meta_json_path, 'w') as f:
-        json.dump({"video_duration": video_duration}, f, indent=2)
+        video_meta_json_path = replay_mp4_path.parent / "video_meta.json"
+        with open(video_meta_json_path, 'w') as f:
+            json.dump({"video_duration": video_duration}, f, indent=2)
 
     print(f"Finished replaying {len(episode_names)} episode{'s' if replayed_episode_count > 1 else ''}.")
+
     env.close()
+    print("Close simulation env")
     simulation_app.close()
     if not args_cli.without_image:
         cv2.destroyAllWindows()

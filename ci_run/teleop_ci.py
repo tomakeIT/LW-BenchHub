@@ -8,8 +8,10 @@ import os
 import json
 import argparse
 import yaml
+from pathlib import Path
 
-os.environ["LW_API_ENDPOINT"] = "http://api-dev.lightwheel.net:30807"
+LWLAB_ROOT = Path(__file__).parent.parent.absolute()
+os.environ["LW_API_ENDPOINT"] = "https://api-dev.lightwheel.net"
 
 
 def cleanup_process(process):
@@ -49,7 +51,7 @@ def update_config_task(task_name):
     """Update the task field in teleop_ci.yml"""
     try:
         # Read the original teleop_ci.yml
-        config_path = "/workspace/lwlab/configs/data_collection/teleop/teleop_ci.yml"
+        config_path = f"{LWLAB_ROOT}/configs/data_collection/teleop/teleop_ci.yml"
         with open(config_path, 'r', encoding='utf-8') as f:
             config = yaml.safe_load(f)
 
@@ -71,11 +73,29 @@ def update_config_task(task_name):
         return None
 
 
+def send_keyboard_input(process, input_text):
+    """Send keyboard input to the process"""
+    try:
+        if process and process.poll() is None:
+            process.stdin.write(input_text + '\n')
+            process.stdin.flush()
+            print(f"Sent keyboard input: {input_text}")
+            return True
+        else:
+            print("Process is not running, cannot send input")
+            return False
+    except Exception as e:
+        print(f"Error sending keyboard input: {e}")
+        return False
+
+
 def parse_arguments():
     """Parse command line arguments"""
     parser = argparse.ArgumentParser(description='Monitor teleop_main.py execution')
     parser.add_argument('--task', type=str, default='SizeSorting',
                         help='Task name to use in the config (default: SizeSorting)')
+    parser.add_argument('--reset_num', type=int, default=1,
+                        help='Reset numbers (default: 1, to save check metrics file)')
     return parser.parse_args()
 
 
@@ -101,7 +121,8 @@ def main():
             return False
 
         process = subprocess.Popen(
-            ["python3", "-u", "/workspace/lwlab/lwlab/scripts/teleop/teleop_main.py", "--task_config=teleop_ci", "--headless"],
+            ["python3", "-u", f"{LWLAB_ROOT}/lwlab/scripts/teleop/teleop_main.py", "--task_config=teleop_ci", "--headless"],
+            stdin=subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             universal_newlines=True,
@@ -204,7 +225,19 @@ def main():
         if teleop_begins_detected:
             print("wait for 30 seconds...")
             wait_start = time.time()
+
+            reset_count = 0
+            reset_num_total = args.reset_num
+            reset_delay = 5     # first reset dalay time
+            reset_last_time = wait_start
+
             while time.time() - wait_start < 30:
+                if (reset_count < reset_num_total and time.time() - reset_last_time >= reset_delay):
+                    send_keyboard_input(process, "r")
+                    reset_count += 1
+                    reset_last_time += reset_delay
+                    reset_delay = 3     # subsequent reset delay time
+
                 if process.poll() is not None:
                     print(f"program exit in 30 seconds, exit code: {process.returncode}")
 
@@ -273,7 +306,32 @@ def main():
         generate_result_json(test_result)
 
 
+def update_result_json_from_metrics(test_result):
+    metrics_result_file = f"{LWLAB_ROOT}/datasets/metrics.json"
+    try:
+        if os.path.exists(metrics_result_file):
+            with open(metrics_result_file, "r") as f:
+                metric_json = json.load(f)
+            move_data = metric_json.get('start_object_move', {})
+            if not move_data:
+                print(f"warning: no start_object_move check result in {metrics_result_file}")
+            else:
+                print(f"info: get start_object_move check result in {metrics_result_file}: {move_data}")
+                start_object_move_success = move_data.get('success')
+                # start_object_move_info = move_data.get('move_info', {})
+                if start_object_move_success is False:
+                    test_result["success"] = False
+                    test_result["desc"] = test_result["desc"] + "\n[start_object_move] check failed"
+                    test_result["error"] = test_result["error"] + "\n[start_object_move] check failed"
+        else:
+            print(f"warning: no metrics.json file found at {metrics_result_file}")
+    except Exception as e:
+        print(f"fail to update result json from metrics: {e}")
+
+
 def generate_result_json(test_result):
+    update_result_json_from_metrics(test_result)
+
     try:
         os.makedirs("/output", exist_ok=True)
         with open("/output/result.json", "w", encoding="utf-8") as fp:

@@ -58,6 +58,8 @@ import os
 import time
 import yaml
 import json
+import select
+import sys
 from datetime import datetime
 from lwlab.utils.log_utils import log_scene_rigid_objects, handle_exception_and_log
 
@@ -205,13 +207,30 @@ def optimize_rendering(env):
 
 def main():
     """Running keyboard teleoperation with Isaac Lab manipulation environment."""
+
+    def save_metrics():
+        """Save metrics data to JSON file"""
+        metrics_data = {}
+        if hasattr(env_cfg, 'get_metrics'):
+            metrics_data = env_cfg.get_metrics()
+
+        # Save metrics to JSON file
+        if metrics_data:
+            metrics_file_path = os.path.join(output_dir, "metrics.json")
+            try:
+                with open(metrics_file_path, 'w') as f:
+                    json.dump(metrics_data, f, indent=2)
+                print(f"Metrics saved to: {metrics_file_path}")
+            except Exception as e:
+                print(f"Failed to save metrics: {e}")
+
     # launch omniverse app
     start_time = time.time()
     print("starting isaacsim")
     app_launcher = AppLauncher(app_launcher_args)
     simulation_app = app_launcher.app
     print(f"isaacsim started in {time.time() - start_time:.2f}s")
-    from lwlab.utils.env import parse_env_cfg, ExecuteMode, update_motion_warnings
+    from lwlab.utils.env import parse_env_cfg, ExecuteMode
 
     """Rest everything follows."""
     import gymnasium as gym
@@ -231,6 +250,7 @@ def main():
     from lwlab.utils.teleop_utils import save_checkpoint, load_checkpoint, quick_rewind
     from lwlab.utils.place_utils.env_utils import set_seed
     import carb
+    from termcolor import colored
 
     # get directory path and file name (without extension) from cli arguments
     output_dir = os.path.dirname(args_cli.dataset_file)
@@ -289,6 +309,8 @@ def main():
                 max_scene_retry=args_cli.max_scene_retry,
                 max_object_placement_retry=args_cli.max_object_placement_retry,
                 seed=args_cli.seed,
+                sources=args_cli.sources,
+                object_projects=args_cli.object_projects,
             )
             if hasattr(args_cli, "reset_objects_enabled"):
                 env_cfg.reset_objects_enabled = args_cli.reset_objects_enabled
@@ -315,6 +337,19 @@ def main():
         optimize_rendering(env)
 
     get_default_logger().info(f"env_cfg: {env_cfg}")
+
+    from lwlab.utils.ui_utils import (
+        setup_cameras,
+        setup_task_description_ui,
+        spawn_robot_vis_helper_general,
+        destroy_robot_vis_helper,
+        update_checkers_status,
+        update_task_desc,
+        hide_ui_windows
+    )
+
+    if not args_cli.headless:
+        hide_ui_windows(simulation_app)
 
     # create controller
     if args_cli.teleop_device.lower() == "keyboard":
@@ -373,7 +408,7 @@ def main():
         rollback_to_checkpoint_flag = False
 
         def reset_recording_instance():
-            print("reset recording instance")
+            print("reset recording instance", flush=True)
             nonlocal should_reset_recording_instance
             should_reset_recording_instance = True
 
@@ -429,8 +464,6 @@ def main():
         if getattr(args_cli, "auto_load_checkpoint", False) and os.path.exists(args_cli.checkpoint_path):
             load_checkpoint()
 
-        from lwlab.utils.env import setup_cameras, setup_task_description_ui, spawn_robot_vis_helper_general, destroy_robot_vis_helper
-
         if not args_cli.headless and env_cfg.enable_cameras and args_cli.enable_multiple_viewports:
             viewports = setup_cameras(env)
             for key, v_p in viewports.items():
@@ -442,6 +475,8 @@ def main():
                 print(f"Viewport {key} resolution: {res}, scale: {sca}, new resolution: {res_new}")
         if not args_cli.headless:
             overlay_window = setup_task_description_ui(env_cfg, env)
+
+        print(colored(env_cfg.get_ep_meta()["lang"], "green"))
 
         current_recorded_demo_count = 0
         success_step_count = 0
@@ -461,24 +496,15 @@ def main():
 
         vis_helper_prims = []
 
-        def save_metrics():
-            """Save metrics data to JSON file"""
-            metrics_data = {}
-            if hasattr(env_cfg, 'get_metrics'):
-                metrics_data = env_cfg.get_metrics()
-
-            # Save metrics to JSON file
-            if metrics_data:
-                metrics_file_path = os.path.join(output_dir, "metrics.json")
-                try:
-                    with open(metrics_file_path, 'w') as f:
-                        json.dump(metrics_data, f, indent=2)
-                    print(f"Metrics saved to: {metrics_file_path}")
-                except Exception as e:
-                    print(f"Failed to save metrics: {e}")
-
         # simulate environment
         while simulation_app.is_running():
+            if args_cli.headless and teleop_interface is None:  # for CI test
+                if select.select([sys.stdin], [], [], 0.1)[0]:
+                    command = sys.stdin.readline().strip()
+                    print(f"get command is {command}", flush=True)
+                    if command.lower() == "r":
+                        reset_recording_instance()
+
             if flush_recorder_manager_flag:
                 env.recorder_manager.export_episodes()
                 env.recorder_manager.reset()
@@ -495,6 +521,7 @@ def main():
                 actions = torch.zeros(env.action_space.shape)
             else:
                 actions = teleop_interface.advance()
+
             teleop_time = time.time() - teleop_start
             frame_analyzer.record_stage('teleop_advance', teleop_time)
             if actions is None or should_reset_recording_instance:
@@ -502,12 +529,16 @@ def main():
                     try:
                         destroy_robot_vis_helper(vis_helper_prims, env)
                         env.reset()
+                        if not args_cli.headless:
+                            update_task_desc(env, env_cfg)
                     except Exception as e:
                         handle_exception_and_log(e, log_path)
                         break
                 else:
                     destroy_robot_vis_helper(vis_helper_prims, env)
                     env.reset()
+                    if not args_cli.headless:
+                        update_task_desc(env, env_cfg)
                 should_reset_recording_instance = False
                 frame_count = 0
                 if start_record_state:
@@ -542,16 +573,15 @@ def main():
                 if args_cli.enable_log:
                     try:
                         env.step(actions)
-                        # Update motion warnings in UI if available
                         if hasattr(env_cfg, 'get_warning_text'):
-                            update_motion_warnings(env, env_cfg.get_warning_text())
+                            update_checkers_status(env, env_cfg.get_warning_text())
                     except Exception as e:
                         print(f"Error during env step: {traceback.format_exc()}")
                         handle_exception_and_log(e, log_path)
                         break
+
                 else:
-                    frame_count += 1  # increase frame counter
-                    # measure env_step time
+                    frame_count += 1
                     step_start = time.time()
                     if rollback_to_checkpoint_flag:
                         load_checkpoint(env, args_cli.checkpoint_path)
@@ -562,22 +592,19 @@ def main():
                             if teleop_interface.get_rollback_action() is not None:
                                 actions = teleop_interface.get_rollback_action()
                             else:
-                                # no action to roll back, continue
                                 continue
 
                     with trace_profile(f"env_step_frame_{frame_count:06d}"):
                         carb.profiler.begin(1, "env_step")
                         if actions is None:
-                            # TODO find where the actions is None
                             continue
                         obs, *_ = env.step(actions)
                         carb.profiler.end(1)
                     step_time = time.time() - step_start
                     frame_analyzer.record_stage('env_step', step_time)
 
-                    # Update motion warnings in UI if available
-                    if not args_cli.headless and hasattr(env_cfg, 'get_warning_text'):
-                        update_motion_warnings(env, env_cfg.get_warning_text())
+                    if hasattr(env_cfg, 'get_warning_text'):
+                        update_checkers_status(env, env_cfg.get_warning_text())
 
                 # Recorded
                 if env_cfg.enable_cameras and start_record_state and video_recorder is not None:
@@ -592,6 +619,7 @@ def main():
                     print(f"Recorded {current_recorded_demo_count} successful demonstrations.")
 
                 if args_cli.num_demos > 0 and env.recorder_manager.exported_successful_episode_count >= args_cli.num_demos:
+                    save_metrics()
                     print(f"All {args_cli.num_demos} demonstrations recorded. Exiting the app.")
                     break
 

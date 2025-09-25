@@ -40,5 +40,4 @@ from .dishwasher import Dishwasher
 from .table import Table
 from .dish_rack import DishRack
 from .others import Box, Wall, Floor
-
 from lwlab.utils.fixture_utils import fixture_is_type

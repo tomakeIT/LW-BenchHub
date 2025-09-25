@@ -1,31 +1,22 @@
 #!/bin/bash
+export LW_API_ENDPOINT="https://api-dev.lightwheel.net"
+
 task_config=$1
-env_gpu=0
-policy_gpu=0
-export LW_API_ENDPOINT="http://api-dev.lightwheel.net:30807"
-if [ "$env_gpu" -eq "$policy_gpu" ]; then
-    export CUDA_VISIBLE_DEVICES=${env_gpu}
-    export ENV_GPU=0
-    export POLICY_GPU=0
-else
-    export CUDA_VISIBLE_DEVICES="${env_gpu},${policy_gpu}"
-    export ENV_GPU=0
-    export POLICY_GPU=1
-fi
+
 
 DATASET_DIR=/output
 OUTPUT_JSON="${DATASET_DIR}/result.json"
 pt_found=0
 success=True
 success_rate=0
-if [ "$task_config" == "ci_lift_obj" ] || [ "$task_config" == "ci_lift_obj_daily" ]; then
+if [ "$task_config" == "ci_lerobot_liftobj_state" ] || [ "$task_config" == "ci_g1_liftobj_state" ] || [ "$task_config" == "ci_daily_lerobot_liftobj_state" ]; then
     rm -rf /workspace/lwlab/policy/maniskill_ppo/logs/*
     python3 /workspace/lwlab/policy/maniskill_ppo/train.py \
         --task_config="$task_config" \
         --headless 2>&1
 
     pt_file=$(find /workspace/lwlab/policy/maniskill_ppo/logs/ -type f -path "*/*.pt" | head -n 1)
-    if [ "$task_config" == "ci_lift_obj_daily" ]; then
+    if [ "$task_config" == "ci_daily_lerobot_liftobj_state" ]; then
         json_file=$(find /workspace/lwlab/policy/maniskill_ppo/logs/ -type f -path "*/result.json")
         if [ -n "$json_file" ]; then
             success_rate=$(python3 -c "import json; print(json.load(open('$json_file')).get('success_rate', ''))")

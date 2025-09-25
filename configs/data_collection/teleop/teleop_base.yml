@@ -18,6 +18,11 @@ robot_scale: 1.0
 # =========================
 task: OpenDrawer
 layout: robocasakitchen
+sources:
+  - objaverse
+  - lightwheel
+  - aigen_objs
+object_projects: []
 usd_simplify: false
 use_fabric: false
 seed: null

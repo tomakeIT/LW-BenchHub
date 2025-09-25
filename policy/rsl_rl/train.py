@@ -45,7 +45,6 @@ sys.argv = [sys.argv[0]] + hydra_args
 # launch omniverse app
 app_launcher = AppLauncher(args_cli)
 simulation_app = app_launcher.app
-args_cli.device = f"cuda:{os.environ['ENV_GPU']}"
 
 """Check for minimum supported RSL-RL version."""
 
@@ -71,7 +70,6 @@ if args_cli.distributed and version.parse(installed_version) < version.parse(RSL
 
 """Rest everything follows."""
 
-import os
 import torch
 from datetime import datetime
 
@@ -134,6 +132,9 @@ def main():
             usd_simplify=args_cli.usd_simplify,
             for_rl=True,
             rl_variant=args_cli.variant,
+            seed=args_cli.seed,
+            sources=args_cli.sources,
+            object_projects=args_cli.object_projects,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 

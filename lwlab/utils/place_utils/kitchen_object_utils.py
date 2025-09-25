@@ -3,6 +3,7 @@ from lightwheel_sdk.loader import object_loader
 from lwlab.utils.place_utils.usd_object import USDObject
 from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS
 import lwlab.utils.place_utils.env_utils as EnvUtils
+from termcolor import colored
 
 
 class ObjInfo:
@@ -42,7 +43,8 @@ def sample_kitchen_object(
     max_size=(None, None, None),
     object_scale=None,
     rotate_upright=False,
-    object_version=None,
+    projects=None,
+    version=None,
 ):
     """
     Sample a kitchen object from the specified groups and within max_size bounds.
@@ -58,18 +60,21 @@ def sample_kitchen_object(
 
         rotate_upright (bool): whether to rotate the object to be upright
 
+        projects (list[str]): list of projects to sample from. If set will filter the objects by the projects.
+
+        version (str): version of the object to sample from. If set will filter the objects by the version.
+
 
     Returns:
-        dict: kwargs to apply to the MJCF model for the sampled object
+        model (USDObject): the sampled object
 
-        dict: info about the sampled object - the path of the mjcf, groups which the object's category belongs to, the category of the object
-              the sampling split the object came from, and the groups the object was sampled from
+        obj_info (dict): the info of the sampled object
     """
 
     valid_object_sampled = False
     while not valid_object_sampled:
-        if object_version is not None:
-            obj_path, obj_name, obj_res = object_loader.acquire_by_file_version(object_version)
+        if version is not None:
+            obj_path, obj_name, obj_res = object_loader.acquire_by_file_version(version)
             category = find_most_similar_category(obj_name)
         elif isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
             if "/" in object_cfgs["obj_groups"]:
@@ -84,6 +89,7 @@ def sample_kitchen_object(
                 registry_name=[category],
                 file_name=filename,
                 source=list(source) if source is not None else [],
+                projects=list(projects) if projects is not None else [],
             )
         else:
             category = object_cfgs["obj_groups"]
@@ -96,6 +102,7 @@ def sample_kitchen_object(
                 registry_name=registry_name,
                 eqs=None if not object_cfgs["properties"] else object_cfgs["properties"],
                 source=list(source) if source is not None else [],
+                projects=list(projects) if projects is not None else [],
                 contains=None,
                 exclude_registry_name=[] if object_cfgs["exclude_obj_groups"] is None else object_cfgs["exclude_obj_groups"],
             )
@@ -121,12 +128,13 @@ def sample_kitchen_object(
         obj_info.scale = metadata["scale"]
         obj_info.exclude = metadata["exclude"]
 
-        obj_source_exclude = []
-        if "exclude" in metadata:
-            obj_source_exclude = metadata["exclude"]
-        if obj_name in obj_source_exclude:
-            print(f"Sampled Object {obj_name} is excluded from {obj_info.source}, Try again...")
-            continue
+        # TODO: exclude issue
+        # obj_source_exclude = []
+        # if "exclude" in metadata:
+        #     obj_source_exclude = metadata["exclude"]
+        # if obj_name in obj_source_exclude:
+        #     print(f"Sampled Object {obj_name} is excluded from {obj_info.source}, Try again...")
+        #     continue
 
         obj_scale = np.array([1.0, 1.0, 1.0])
         obj_scale *= obj_info.scale
@@ -155,6 +163,7 @@ def sample_kitchen_object(
             if obj_info.category in groups:
                 groups_containing_sampled_obj.append(type)
         obj_info.groups_containing_sampled_obj = groups_containing_sampled_obj
+    print(colored(f"Sampled {object_cfgs['task_name']}: {obj_info.name} from {obj_info.source}", "green"))
 
     return model, obj_info.get_info()
 

@@ -27,7 +27,7 @@ from isaaclab.utils import configclass
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 from dataclasses import MISSING
-from tasks.single_stage.kitchen_drawer import OpenDrawer
+from lwlab_tasks.single_stage.kitchen_drawer import OpenDrawer
 from lwlab.core.rl.base import BaseRLEnvCfg
 from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
 # from lwlab.core.robots.compositional.pandaomron import PandaOmronRLEnvCfg

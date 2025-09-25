@@ -130,6 +130,20 @@ class LERobotEnvRLCfg(BaseLERobotEnvCfg):
             debug_vis=False,
             filter_prim_paths_expr=[f"{{ENV_REGEX_NS}}/Scene/floor*"],
         )
+        left_gripper_contact = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Robot/gripper",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[],
+        )
+        right_gripper_contact = ContactSensorCfg(
+            prim_path=f"{{ENV_REGEX_NS}}/Robot/jaw",
+            update_period=0.0,
+            history_length=1,
+            debug_vis=False,
+            filter_prim_paths_expr=[],
+        )
         gripper_table_contact = ContactSensorCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Robot/gripper",
             update_period=0.0,
@@ -159,6 +173,8 @@ class LERobotEnvRLCfg(BaseLERobotEnvCfg):
             filter_prim_paths_expr=[f"{{ENV_REGEX_NS}}/Scene/object/BuildingBlock003"],
         )
         setattr(self.scene, "base_contact", base_contact)
+        setattr(self.scene, "left_gripper_contact", left_gripper_contact)
+        setattr(self.scene, "right_gripper_contact", right_gripper_contact)
         setattr(self.scene, "gripper_table_contact", gripper_table_contact)
         setattr(self.scene, "jaw_table_contact", jaw_table_contact)
         setattr(self.scene, "gripper_object_contact", gripper_object_contact)

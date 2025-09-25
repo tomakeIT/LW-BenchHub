@@ -72,7 +72,8 @@
     "python.linting.pylintEnabled": false,
     "python.linting.flake8Enabled": true,
     "python.linting.flake8Args": [
-        "--max-line-length=120"
+        "--max-line-length=120",
+        "--ignore=E501,E402,F401,W503,E704,F841,F541,W504,W605,E266"
     ],
     // Use docstring generator
     "autoDocstring.docstringFormat": "google",

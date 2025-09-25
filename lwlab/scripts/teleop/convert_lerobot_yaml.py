@@ -1,6 +1,7 @@
 import os
 import argparse
 import yaml
+import json
 from pathlib import Path
 
 import h5py
@@ -8,7 +9,10 @@ import numpy as np
 import tqdm
 import cv2
 import ast
-from lerobot.common.datasets.lerobot_dataset import LeRobotDataset
+from lerobot.datasets.lerobot_dataset import LeRobotDataset
+"""
+lerobot repo target branch: https://github.com/huggingface/lerobot/tree/v0.3.3
+"""
 
 
 def convert_isaaclab_to_lerobot(args, config):
@@ -18,12 +22,10 @@ def convert_isaaclab_to_lerobot(args, config):
     default_task = config.get("default_task", "UnknownTask")
     # Create LeRobot dataset
     repo_id = args.tgt_repo_id or f"{Path(args.src_hdf5).stem}"
-    root = Path(args.src_video_dir) / repo_id
+    root = Path(args.src_hdf5).parent / repo_id
 
     if root.exists():
         raise ValueError(f"Target dataset directory {root} already exists. Please delete it or specify another path.")
-
-    AGENTVIEW_MAIN = f"{Path(args.src_hdf5).stem}.mp4"
 
     dataset = LeRobotDataset.create(
         repo_id=repo_id,
@@ -39,7 +41,10 @@ def convert_isaaclab_to_lerobot(args, config):
         episode_count = len(demo_names)
         print(f"Found {len(demo_names)} demos: {demo_names}")
         demo_names.sort(key=lambda x: int(x.split("_")[-1]))
-        for i in tqdm.tqdm([episode_count - 1], desc="Convert last demo"):
+        env_args = json.loads(f["data"].attrs["env_args"])
+        decimation = env_args["sim_args"]["decimation"]
+
+        for i in tqdm.tqdm(range(episode_count), desc="Convert last demo"):
             demo_name = demo_names[i]
             demo_group = f["data"][demo_name]
 
@@ -51,7 +56,7 @@ def convert_isaaclab_to_lerobot(args, config):
             # Prepare video path
             if args.src_video_dir:
                 video_paths = {
-                    "observation.images.agentview_main": Path(args.src_video_dir) / AGENTVIEW_MAIN,
+                    "observation.images.agentview_main": Path(args.src_video_dir) / demo_name / f"{args.src_video_name}.mp4",
                 }
             else:
                 video_paths = {
@@ -66,7 +71,7 @@ def convert_isaaclab_to_lerobot(args, config):
             for i in tqdm.tqdm(range(T), desc="Processing frames"):
                 ret_main, img_main = cap_main.read()
                 img_main = cv2.cvtColor(img_main, cv2.COLOR_BGR2RGB)
-                num_elements = actions[i].shape[0] // 2
+                num_elements = actions[i].shape[0] // decimation
                 frame = {
                     "observation.images.agentview_main": img_main,
                     "observation.state": np.array(robot_joint_pos[i]).astype(np.float32),
@@ -84,6 +89,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--src_hdf5", type=str, required=True, help="Path to lwlab-style HDF5 file")
     parser.add_argument("--src_video_dir", type=str, required=True, help="Directory containing the video files")
+    parser.add_argument("--src_video_name", type=str, default="isaac_replay_state", help="Name of the video file")
     parser.add_argument("--tgt_repo_id", type=str, default=None, help="LeRobot dataset repo_id (folder name)")
     parser.add_argument("--config_yaml", type=str, required=True, help="Path to YAML configuration file")
     args = parser.parse_args()

@@ -416,7 +416,6 @@ class OpenUsd:
             if "ProcGenFixture" not in [cls.__name__ for cls in fxr_cfg["model"].__class__.mro()] and \
                "room" not in fxr_cfg["name"].lower():  # room fixture doesnt have reg_*
                 valid_fixture_names.append(fxr_cfg["name"])
-
         for name in valid_fixture_names:
             prim = OpenUsd.get_prim_by_name(root_prim, name)
             if len(prim) == 0:

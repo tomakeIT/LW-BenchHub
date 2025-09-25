@@ -20,9 +20,8 @@ from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
-from lwlab.utils.env import set_camera_follow_pose
 from lwlab.utils.isaaclab_utils.assets import GeneralAssetCfg
-from lwlab.core import LwBaseCfg
+from lwlab.core.cfg import LwBaseCfg
 
 
 @configclass

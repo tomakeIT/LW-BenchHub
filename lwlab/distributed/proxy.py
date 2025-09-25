@@ -1,4 +1,6 @@
-from multiprocessing.managers import BaseManager
+import traceback
+from multiprocessing.managers import BaseManager, RemoteError
+import atexit
 
 
 class EnvManager(BaseManager):
@@ -46,7 +48,15 @@ class EnvService:
         if kwargs is None:
             kwargs = {}
         target = self._resolve(path)
-        return target(*args, **kwargs)
+        # print(f"call {path}")
+        try:
+            return target(*args, **kwargs)
+        except Exception:
+            print(f"remote call error on env.{path} with {args=} and {kwargs=}")
+            traceback.print_exc()
+            raise RemoteError(traceback.format_exc())
+        # finally:
+        #     print(f"call {path} done")
 
     def getattr_value(self, path: str):
         return self._resolve(path)
@@ -110,7 +120,12 @@ class _PathView:
             # Return a callable object (call via RPC)
             # @tictoc(name)
             def _remote_call(*args, **kwargs):
-                return self._svc.call(full, args, kwargs)
+                try:
+                    return self._svc.call(full, args, kwargs)
+                except EOFError:
+                    raise RuntimeError("ENV server has stopped")
+                # except KeyboardInterrupt:
+                    # self.close_connection()
             _remote_call.__name__ = name
             return _remote_call
 
@@ -150,4 +165,10 @@ class RemoteEnv(_PathView):
         mgr.connect()
         mgr.register_for_client()
         svc = mgr.EnvService()  # Only one BaseProxy (single connection/process)
-        return cls(svc, "")
+        env = cls(svc, "")
+
+        def on_exit():
+            # print("at exit close connection")
+            env.close_connection()
+        atexit.register(on_exit)
+        return env

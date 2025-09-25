@@ -1,5 +1,8 @@
 from types import MethodType, FunctionType
+from torch.multiprocessing import Queue  # noqa: F401
 import threading
+import signal
+import socket
 from .proxy import EnvManager
 
 
@@ -47,23 +50,59 @@ class DistributedEnvWrapper:
         self._env = env
         self._manager = self._create_manager()
         self._server = self._manager.get_server()
+        self._shutdown_event = threading.Event()
+        self._setup_signal_handlers()
 
     def serve(self):
         print(f"Waiting for connection on {self._server.listener.address}...")
-        while True:
-            self._server.stop_event = threading.Event()
-            c = self._server.listener.accept()
-            self._server.handle_request(c)
+        print("Press Ctrl+C to stop the server")
+
+        while not self._shutdown_event.is_set():
+            try:
+                # Set socket to non-blocking mode temporarily to check for shutdown
+                self._server.listener._listener._socket.settimeout(1.0)  # 1 second timeout
+                c = self._server.listener.accept()
+                self._server.listener._listener._socket.settimeout(None)  # Reset to blocking
+
+                self._server.stop_event = threading.Event()
+                self._server.handle_request(c)
+            except socket.timeout:
+                # Timeout occurred, check if we should shutdown
+                continue
+            except OSError as e:
+                if self._shutdown_event.is_set():
+                    print("Server shutting down...")
+                    break
+                else:
+                    raise e
+
+        print("Server stopped.")
+
+    def _setup_signal_handlers(self):
+        """Setup signal handlers for graceful shutdown."""
+        def signal_handler(signum, frame):
+            print(f"\nReceived signal {signum}, shutting down gracefully...")
+            self._shutdown_event.set()
+
+        signal.signal(signal.SIGINT, signal_handler)
+        signal.signal(signal.SIGTERM, signal_handler)
 
     def _create_manager(self, address=('', 50000), authkey=b'lightwheel'):
         # server
         mgr = EnvManager(address=address, authkey=authkey)
-        mgr.register_for_server(self._env)
+        mgr.register_for_server(self)
         return mgr
 
     def __getattr__(self, key):
         print(f"__getattr__: {key}")
         return getattr(self._env, key)
+
+    def close_connection(self):
+        self._server.stop_event.set()
+
+    def close(self):
+        print("Closing environment")
+        self._env.close()
 
     # def __setattr__(self, key, value):
     #     if key in ("_env", "_manager", "_server"):

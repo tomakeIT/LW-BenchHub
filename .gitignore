@@ -107,10 +107,6 @@ omni_cache/
 .vscode/*
 policy/skrl/task_config/default.yml
 
-# third party
-third_party/*
-!third_party/lw_skrl/
-!third_party/lw_skrl/**
 
 # lerobot calibration cache
 lwlab/core/devices/lerobot/.cache

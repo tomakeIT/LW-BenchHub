@@ -53,3 +53,21 @@ class FixtureType(IntEnum):
     CARPET = 43
     TABLE_LAMP = 44
     FLOOR_LAMP = 45
+
+    # libro fixtures
+    BBQ_SOURCE = 46
+    BOTTLE = 47
+    DRAINER = 48
+    MOKA_POT = 49
+    SALAD_DRESSING = 50
+    STORAGE_FURNITURE = 51
+    KETCHUP = 52
+    FAUCET = 53
+    WINE_RACK = 54
+    DECORATION = 55
+    CABINET_MESH = 56
+
+    # wall accessories
+    SOCKET = 57
+    UTENSIL_RACK = 58
+    FLOOR_OBJ = 59

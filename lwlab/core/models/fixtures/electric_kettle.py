@@ -48,7 +48,7 @@ class ElectricKettle(Fixture):
         self._lid = torch.tensor([0.0], device=env.device).repeat(env.num_envs)
 
     def set_joint_state(self, min, max, env, joint_names, env_ids=None):
-        assert 0 <= min <= 1 and 0 <= max <= 1 and min <= max
+        assert torch.all((0 <= min) & (min <= max) & (max <= 1)), "min and max must satisfy 0 <= min <= max <= 1"
 
         for j_name in joint_names:
             joint_idx = env.scene.articulations[self.name].data.joint_names.index(j_name)
@@ -68,7 +68,7 @@ class ElectricKettle(Fixture):
             desired_qpos = 0.5 * (qpos_min + qpos_max)
 
             env.scene.articulations[self.name].write_joint_position_to_sim(
-                torch.tensor([[desired_qpos]]).to(env.device),
+                desired_qpos.unsqueeze(1),
                 torch.tensor([joint_idx]).to(env.device),
                 env_ids=torch.tensor(env_ids, device=env.device) if env_ids is not None else None)
 
@@ -115,10 +115,10 @@ class ElectricKettle(Fixture):
         for env_id in range(len(self._lid)):
             if self._target_lid_angle[env_id] is not None and self._last_lid_update[env_id] is not None:
                 joint_name = self._joint_names["lid"]
-                current_angle = self.get_joint_state(env, [joint_name])[joint_name][env_id]
+                current_angle = self.get_joint_state(env, [joint_name])[joint_name][env_id: env_id + 1]
                 time_elapsed = time.time() - self._last_lid_update[env_id]
                 angle_change = min(
-                    time_elapsed * self._lid_speed,
+                    time_elapsed * self._lid_speed[env_id],
                     abs(self._target_lid_angle[env_id] - current_angle),
                 )
                 if self._target_lid_angle[env_id] < current_angle:

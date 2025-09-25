@@ -45,7 +45,6 @@ app_launcher_args = vars(args_cli)
 app_launcher = AppLauncher(app_launcher_args)
 
 simulation_app = app_launcher.app
-args_cli.device = f"cuda:{os.environ['ENV_GPU']}"
 
 import skrl
 from packaging import version
@@ -111,6 +110,8 @@ def main():
             for_rl=True,
             rl_variant=args_cli.variant,
             seed=args_cli.seed,
+            sources=args_cli.sources,
+            object_projects=args_cli.object_projects,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 
@@ -178,6 +179,9 @@ def main():
     agent_cfg["agent"]["experiment"]["experiment_name"] = log_dir
     # update log_dir
     log_dir = os.path.join(log_root_path, log_dir)
+    import pickle
+    with open("agent_cfg.pkl", "wb") as f:
+        pickle.dump(agent_cfg, f)
 
     # dump the configuration into log-directory
     # dump_yaml(os.path.join(log_dir, "params", "env.yaml"), env_cfg)

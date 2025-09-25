@@ -19,6 +19,8 @@ from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 from .fixture_types import FixtureType
+from isaaclab.utils import math as math_utils
+import lwlab.utils.math_utils.transform_utils.torch_impl as T
 
 
 class CoffeeMachine(Fixture):
@@ -50,7 +52,7 @@ class CoffeeMachine(Fixture):
 
         receptacle_pouring_prims = usd.get_prim_by_name(self.prim, "receptacle_place_site", only_xform=False)
         for pouring_prim in receptacle_pouring_prims:
-            site_pos = usd.get_prim_pos_rot_in_world(pouring_prim)[0]
+            site_pos = tuple(pouring_prim.GetAttribute("xformOp:translate").Get() * self.scale)
             self._receptacle_pouring_site = {"pos": site_pos}
 
     def get_reset_regions(self, *args, **kwargs):
@@ -67,6 +69,11 @@ class CoffeeMachine(Fixture):
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
         self._env = env
+
+    def reset_state(self):
+        self._turned_on = torch.tensor([False], dtype=torch.bool, device=self.device).repeat(self.num_envs)
+        self._activation_time = torch.zeros(self.num_envs, device=self.device)
+        self._active = torch.tensor([False], dtype=torch.bool, device=self.device).repeat(self.num_envs)
 
     def get_state(self):
         """
@@ -92,7 +99,9 @@ class CoffeeMachine(Fixture):
                 start_button_pressed |= env.cfg.check_contact(gripper_name.replace("_contact", ""), str(button[0].GetPrimPath()))
 
         # detect button press (only when False to True)
-        self._turned_on = ~self._turned_on & start_button_pressed
+        for env_id in range(self.num_envs):
+            if not self._turned_on[env_id] and start_button_pressed[env_id]:
+                self._turned_on[env_id] = True
 
         # if turned_on is True, accumulate time
         if torch.any(self._turned_on):
@@ -124,7 +133,11 @@ class CoffeeMachine(Fixture):
             bool: True if object is placed under coffee machine, False otherwise
         """
         obj_poses = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
-        pour_site_poses = torch.tensor(self.get_reset_regions()["bottom"]["offset"], device=self.device) + env.scene.env_origins
+        pour_site_poses = T.euler2mat(torch.tensor([0, 0, self.rot], device=self.device, dtype=torch.float32)) @ \
+            torch.tensor(self.get_reset_regions()["bottom"]["offset"], device=self.device, dtype=torch.float32) + \
+            torch.tensor(self.pos, device=self.device, dtype=torch.float32) + \
+            env.scene.env_origins
+        # pour_site_poses = self.pour_sites()
         xy_check = torch.norm(obj_poses[:, 0:2] - pour_site_poses[:, 0:2], dim=-1) < xy_thresh
         z_check = torch.abs(obj_poses[:, 2] - pour_site_poses[:, 2]) < 0.10
         return xy_check & z_check
@@ -178,6 +191,47 @@ class CoffeeMachine(Fixture):
                         sites_list["receptacle_place_site"].append(site)
         assert len(list(sites_list.keys())) > 0, f"Receptacle place site not found!"
         return sites_list
+
+    def pour_sites(self):
+        """Don't use this function for now"""
+        sites_list = []
+        for key in self.receptacle_place_sites.keys():
+            sub_site_list = self.receptacle_place_sites[key]
+            if sub_site_list is None:
+                sites_list.append(None)
+                continue
+            for env_idx, site in enumerate(sub_site_list):
+                sites_list.append(self.get_prim_pose_in_world_after_fixed(env_idx, site.GetPrim())[0])
+        return torch.tensor(sites_list, device=self.device)
+
+    def get_prim_pose_in_world_after_fixed(self, env_index, prim, parent_level=3):
+        """Don't use this function for now"""
+        target_prim = prim
+        for _ in range(parent_level):
+            target_prim = target_prim.GetParent()
+
+        target_usd_pos, target_usd_quat = usd.get_prim_pos_rot_in_world(target_prim)
+        target_sim_pose = self._env.scene[target_prim.GetName()].data.root_com_pose_w
+        target_sim_pos, target_sim_quat = target_sim_pose[env_index, :3], target_sim_pose[env_index, 3:7]
+        relative_pos, relative_quat = math_utils.subtract_frame_transforms(
+            torch.tensor(target_usd_pos, device=self._env.device).unsqueeze(0),
+            torch.tensor(target_usd_quat, device=self._env.device).unsqueeze(0),
+            target_sim_pos.unsqueeze(0),
+            target_sim_quat.unsqueeze(0),
+        )
+
+        prim_usd_pos, prim_usd_quat = usd.get_prim_pos_rot_in_world(prim)
+        prim_sim_pos, prim_sim_quat = math_utils.combine_frame_transforms(
+            torch.tensor(prim_usd_pos, device=self._env.device).unsqueeze(0),
+            torch.tensor(prim_usd_quat, device=self._env.device).unsqueeze(0),
+            relative_pos,
+            relative_quat,
+        )
+
+        prim_sim_pos = prim_sim_pos.squeeze(0)
+        prim_sim_quat = prim_sim_quat.squeeze(0)
+
+        return prim_sim_pos.cpu().tolist(), prim_sim_quat.cpu().tolist()
 
     @cached_property
     def start_button_infos(self):

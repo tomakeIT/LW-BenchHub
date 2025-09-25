@@ -23,8 +23,9 @@ from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 import lwlab.core.mdp as mdp
-from lwlab.utils.env import set_camera_follow_pose, ExecuteMode, ContactQueue
-from lwlab.core import LwBaseCfg
+from lwlab.utils.env import ExecuteMode
+from lwlab.core.cfg import LwBaseCfg
+from lwlab.utils.place_utils.env_utils import ContactQueue
 
 
 @configclass
@@ -193,7 +194,7 @@ class BaseTaskEnvCfg(LwBaseCfg):
         if hasattr(self, "enable_cameras") and self.enable_cameras:
             for name, camera_infos in self.observation_cameras.items():
                 if self.task_type in camera_infos["tags"]:
-                    if self.task_type == "teleop":
+                    if self.task_type == "teleop" and self.execute_mode is not ExecuteMode.TELEOP:
                         setattr(self.observations.policy, name,
                                 ObsTerm(
                                     func=mdp.image,

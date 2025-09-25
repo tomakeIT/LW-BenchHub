@@ -5,6 +5,7 @@ enable_cameras: false
 enable_log: false
 enable_multiple_viewports: false
 layout: robocasakitchen-2-2
+num_envs: 2
 robot: PandaOmron-Rel
-task: SetBowlsForSoup
+task: CloseDishwasher
 teleop_device: keyboard

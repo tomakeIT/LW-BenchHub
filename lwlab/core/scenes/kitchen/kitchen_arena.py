@@ -34,28 +34,42 @@ class KitchenArena:
         scene_cfg (RoboCasaSceneCfg): scene configuration
     """
 
-    def __init__(self, layout_id=None, style_id=None, scene_cfg=None):
+    def __init__(self, layout_id=None, style_id=None, scene_cfg=None, scene='robocasakitchen', version=None):
         # download floorplan usd
         self.scene_cfg = scene_cfg
         if self.scene_cfg.cache_usd_version is not None and "floorplan_version" in self.scene_cfg.cache_usd_version:
             self.floorplan_version = self.scene_cfg.cache_usd_version["floorplan_version"]
         else:
             self.floorplan_version = None
-        self.load_floorplan(layout_id, style_id, self.scene_cfg.EXCLUDE_LAYOUTS)
+        self.load_floorplan(layout_id, style_id, self.scene_cfg.EXCLUDE_LAYOUTS, scene=scene, version=version)
         self.stage = usd.get_stage(self.usd_path)
 
         # enable fixtures in usd
-        if self.scene_cfg.enable_fixtures is not None:
-            for fixture in scene_cfg.enable_fixtures:
-                usd.activate_prim(self.stage, fixture)
+        if self._is_updated_usd():
             dir_name = os.path.dirname(self.usd_path)
             base_name = os.path.basename(self.usd_path)
             new_path = os.path.join(dir_name, base_name.replace(".usd", "_enabled.usd"))
             self.stage.GetRootLayer().Export(new_path)
             self.usd_path = new_path
-
         # load fixtures
         self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.seed, scene_cfg.device)
+
+    def _is_updated_usd(self):
+        is_updated_usd = False
+        if self.scene_cfg.enable_fixtures is not None:
+            is_updated_usd = True
+            for fixture in self.scene_cfg.enable_fixtures:
+                usd.activate_prim(self.stage, fixture)
+        if self.scene_cfg.removable_fixtures is not None:
+            is_updated_usd = True
+            root_prim = self.stage.GetPseudoRoot()
+            for fixture in self.scene_cfg.removable_fixtures:
+                prims = usd.get_prim_by_prefix(root_prim, fixture)
+                for prim in prims:
+                    fixed_joints = usd.get_prim_by_type(prim, include_types=["PhysicsFixedJoint"])
+                    for fix_joint_prim in fixed_joints:
+                        fix_joint_prim.SetActive(False)
+        return is_updated_usd
 
     def get_fixture_cfgs(self):
         """
@@ -77,15 +91,15 @@ class KitchenArena:
 
         return fixture_cfgs
 
-    def load_floorplan(self, layout_id, style_id, exclude_layouts=[]):
+    def load_floorplan(self, layout_id, style_id, exclude_layouts=[], scene='robocasakitchen', version=None):
         start_time = time.time()
         print(f"load floorplan usd", end="...")
         if layout_id is None:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_name.split("-")[0], version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
         elif style_id is None:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_name.split("-")[0], layout_id=layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
         else:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_name.split("-")[0], layout_id=layout_id, style_id=style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, style_id=style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
         usd_path, self.floorplan_meta = res.result()
         self.usd_path = str(usd_path)
         self.backend = self.floorplan_meta.get("backend")

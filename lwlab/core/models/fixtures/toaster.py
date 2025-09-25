@@ -74,7 +74,7 @@ class Toaster(Fixture):
                 env=env,
                 min=val,
                 max=val,
-                env_id=env_id,
+                env_ids=[env_id],
                 joint_names=[jn],
             )
 
@@ -88,7 +88,7 @@ class Toaster(Fixture):
         """
         if slot_pair not in self.slot_pairs:
             raise ValueError(f"Unknown slot_pair '{slot_pair}'")
-        val = torch.clip(value, 0.0, 1.0)
+        val = torch.clip(torch.tensor(value, device=env.device), 0.0, 1.0)
         self._state[slot_pair]["lever"] = val
 
         jn = self.joint_names.get(f"lever_{slot_pair}")
@@ -97,7 +97,7 @@ class Toaster(Fixture):
                 env=env,
                 min=val,
                 max=val,
-                env_id=env_id,
+                env_ids=[env_id],
                 joint_names=[jn],
             )
 
@@ -120,20 +120,20 @@ class Toaster(Fixture):
 
             self._turned_on[sp] = (lev_val >= 0.90) & (~self._turned_on[sp]) & (self._cooldown[sp] == 0)
 
-            for env_ids in range(lev_val.shape[0]):
-                if self._turned_on[sp][env_ids]:
-                    if self._num_steps_on[sp][env_ids] < 500:
-                        self._num_steps_on[sp][env_ids] += 1
-                        self.set_lever(env, env_ids, sp, 1.0)
+            for env_id in range(self.num_envs):
+                if self._turned_on[sp][env_id]:
+                    if self._num_steps_on[sp][env_id] < 500:
+                        self._num_steps_on[sp][env_id] += 1
+                        self.set_lever(env, env_id, sp, 1.0)
                     else:
-                        self._turned_on[sp][env_ids] = False
-                        self._num_steps_on[sp][env_ids] = 0
-                        self._cooldown[sp][env_ids] = 1
+                        self._turned_on[sp][env_id] = False
+                        self._num_steps_on[sp][env_id] = 0
+                        self._cooldown[sp][env_id] = 1
 
-                if 0 < self._cooldown[sp][env_ids] < 1000:
-                    self._cooldown[sp][env_ids] += 1
-                elif self._cooldown[sp][env_ids] >= 1000:
-                    self._cooldown[sp][env_ids] = 0
+                if 0 < self._cooldown[sp][env_id] < 1000:
+                    self._cooldown[sp][env_id] += 1
+                elif self._cooldown[sp][env_id] >= 1000:
+                    self._cooldown[sp][env_id] = 0
 
     def check_slot_contact(self, cfg, obj_name: str, slot_pair: int | None = None, side: str | None = None):
         """
@@ -230,12 +230,12 @@ class Toaster(Fixture):
                     f"0 and {len(self._slots)-1}"
                 )
 
-        if slot_pair.item() not in full:
+        if slot_pair not in full:
             raise ValueError(
                 f"Invalid slot_pair {slot_pair!r}, must be one of {list(full)}"
             )
 
-        return full[slot_pair.item()]
+        return full[slot_pair]
 
     @cached_property
     def slots(self):
@@ -268,7 +268,7 @@ class Toaster(Fixture):
             unfix_joint_prims = usd.get_all_joints_without_fixed(self._env.sim.stage.GetObjectAtPath(prim_path))
             unfix_joint_names = [prim.GetName() for prim in unfix_joint_prims]
         for ctrl, tag in self._controls.items():
-            names = sorted([tag in name for name in unfix_joint_names])
+            names = sorted([name for name in unfix_joint_names if tag in name])
             for pair, jn in zip(self.slot_pairs, names):
                 joint_names_dict[f"{ctrl}_{pair}"] = jn
         return joint_names_dict

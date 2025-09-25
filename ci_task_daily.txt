@@ -52,4 +52,11 @@ bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_
 bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250918/PnPOvenToCounter/PnPOvenToCounter.hdf5 action
 bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250918/MakeFruitBowl/MakeFruitBowl.hdf5 action
 bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250918/SlideOvenRack/SlideOvenRack.hdf5 action
-bash -i /workspace/lwlab/ci_run/train_ci.sh ci_lift_obj_daily
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250919/TurnOffMicrowave/TurnOffMicrowave.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250919/CloseStandMixerHead/CloseStandMixerHead.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250919/OpenStandMixerHead/OpenStandMixerHead.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250919/TurnOnMicrowave/TurnOnMicrowave.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250919/PanTransfer/PanTransfer.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250922/SortingCleanup/SortingCleanup.hdf5 action
+bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250922/StartElectricKettle/StartElectricKettle.hdf5 action
+bash -i /workspace/lwlab/ci_run/train_ci.sh ci_daily_lerobot_liftobj_state

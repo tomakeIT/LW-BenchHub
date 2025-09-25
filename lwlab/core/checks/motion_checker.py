@@ -7,10 +7,16 @@ class MotionChecker(BaseChecker):
 
     def __init__(self, warning_on_screen=False):
         super().__init__(warning_on_screen)
+        self._init_state()
+
+    def _init_state(self):
         self._motion_warning_frame_count = 0
         self._motion_warning_text = ""
         self._motion_violation_counts = {}
         self._prev_body_poses = None
+
+    def reset(self):
+        self._init_state()
 
     def _check(self, env):
         return self._check_motion(env)
@@ -47,8 +53,8 @@ class MotionChecker(BaseChecker):
         if self._motion_violation_counts is None:
             self._motion_violation_counts = {}
 
-        # Check if we need to clear old warnings (after 20 frames)
-        if self._motion_warning_frame_count is not None and 20 > self._motion_warning_frame_count > 0:
+        # Check if we need to clear old warnings (after 50 frames)
+        if self._motion_warning_frame_count is not None and 50 > self._motion_warning_frame_count > 0:
             self._motion_warning_frame_count += 1
         else:
             self._motion_warning_frame_count = 0
@@ -94,11 +100,11 @@ class MotionChecker(BaseChecker):
         # Create simplified warning text for UI (only body names)
         if fast_bodies and self._motion_warning_frame_count == 0:
             if len(fast_bodies) == 1:
-                self._motion_warning_text = f"Warning: Body {fast_bodies[0]} too fast"
+                self._motion_warning_text = f"motion Warning: Body <<{fast_bodies[0]}>> too fast"
             elif len(fast_bodies) == 2:
-                self._motion_warning_text = f"Warning: Bodies {fast_bodies[0]}, {fast_bodies[1]} too fast"
+                self._motion_warning_text = f"motion Warning: Bodies <<{fast_bodies[0]}>>, <<{fast_bodies[1]}>> too fast"
             else:
-                self._motion_warning_text = f"Warning: Bodies {fast_bodies[0]}, {fast_bodies[1]}, {fast_bodies[2]} too fast"
+                self._motion_warning_text = f"motion Warning: Bodies <<{fast_bodies[0]}>>, <<{fast_bodies[1]}>>, <<{fast_bodies[2]}>> too fast"
             self._motion_warning_frame_count = 1
 
         # Store current poses for next frame comparison
@@ -110,6 +116,8 @@ class MotionChecker(BaseChecker):
             success = True
 
         metrics = self.get_motion_metrics()
+
+        metrics["success"] = success
 
         result = {
             "success": success,

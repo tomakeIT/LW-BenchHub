@@ -2,21 +2,6 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "teleop_launcher",
-            "type": "debugpy",
-            "request": "launch",
-            "args": [
-                // "--task_config=default" , // data_collection/teleop/task_config/default.yml
-            ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_launcher.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "LW_API_ENDPOINT":"http://api-dev.lightwheel.net:30807"
-            },
-        },
-
-        {
             "name": "Python Debugger: Current File",
             "type": "debugpy",
             "request": "launch",
@@ -28,80 +13,56 @@
             "type": "python",
             "request": "launch",
             "args": [
-                "--task_config=lerobot_liftobj_state", // policy/skrl/task_config/default.yml
+                "--task_config=lerobot_liftobj_state",
                 "--headless",
             ],
             "program": "${workspaceFolder}/policy/maniskill_ppo/train.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {
-                "ENV_GPU": "0",
-                "POLICY_GPU": "0",
-                "LW_API_ENDPOINT":"http://api-dev.lightwheel.net:30807"
-            },
-        },
-        {
-            "name": "run_env",
-            "type": "python",
-            "request": "launch",
-            "args": [
-                "--task_config=pnp-orange", // policy/skrl/task_config/default.yml
-                "--headless",
-            ],
-            "program": "${workspaceFolder}/lwlab/scripts/policy/env_serve.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "ENV_GPU": "0",
-                "POLICY_GPU": "0",
-                "LW_API_ENDPOINT":"http://usdcache-dev.lightwheel.net:30807"
-            },
         },
         {
             "name": "camera_alignment",
             "type": "python",
             "request": "launch",
             "args": [
-                "--task_config=lerobot_liftobj_state", // policy/skrl/task_config/default.yml
+                "--task_config=lerobot_liftobj_state",
                 // "--headless",
             ],
             "program": "${workspaceFolder}/policy/skrl/camera_alignment.py",
             "console": "integratedTerminal",
             "justMyCode": false, 
-            "env": {
-                "ENV_GPU": "0",
-                "POLICY_GPU": "0",
-                "LW_API_ENDPOINT":"http://api-dev.lightwheel.net:30807"
-
-            },
         },
         {
-            "name": "teleop-pandaomron",
+            "name": "rl runner",
             "type": "python",
             "request": "launch",
             "args": [
-                "--task_config=pandaomron" , // data_collection/teleop/task_config/default.yml
+            ],
+            "program": "${workspaceFolder}/samples/distributed_rl/runner.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "env_server",
+            "type": "python",
+            "request": "launch",
+            "args": [
+                "--task_config=lerobot_liftobj_state",
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/env_server.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "teleop",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "--task_config=g1-controller" , // data_collection/teleop/task_config/default.yml
             ],
             "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
-            "env": {
-                "LW_API_ENDPOINT":"http://api-dev.lightwheel.net:30807"
-            },
-        },
-        {
-            "name": "teleop-g1-hand",
-            "type": "python",
-            "request": "launch",
-            "args": [
-                "--task_config=g1-hand" , // data_collection/teleop/task_config/default.yml
-            ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
-            "console": "integratedTerminal",
-            "justMyCode": false,
-            "env": {
-                "LW_API_ENDPOINT":"http://api-dev.lightwheel.net:30807"
-            },
         },
         {
             "name": "replay",
@@ -117,7 +78,7 @@
             ],
             "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_demos.py",
             "console": "integratedTerminal",
-            "justMyCode": false
+            "justMyCode": false,
         },
         {
             "name": "replay_action_action",
@@ -152,6 +113,46 @@
             "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_action_demo.py",
             "console": "integratedTerminal",
             "justMyCode": false
+        },
+        {
+            "name": "replay_action_raw_action",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "--num_envs=1",
+                "--dataset_file=datasets/dataset.hdf5",
+                "--width=480",
+                "--height=480",
+                "--replay_mode=raw_action",
+                "--enable_cameras",
+                "--device=cpu"
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "LW_API_ENDPOINT": "https://api-dev.lightwheel.net"
+            },
+        },
+        {
+            "name": "replay_action_raw_input",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "--num_envs=1",
+                "--dataset_file=datasets/dataset.hdf5",
+                "--width=480",
+                "--height=480",
+                "--replay_mode=raw_input",
+                "--enable_cameras",
+                "--device=cpu"
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "LW_API_ENDPOINT": "https://api-dev.lightwheel.net"
+            }
         },
     ]
 }

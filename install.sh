@@ -12,3 +12,7 @@ git clone https://github.com/isaac-sim/IsaacLab.git
 cd IsaacLab
 bash isaaclab.sh --install
 cd ../
+
+conda install pinocchio -c conda-forge -y
+cd ../..
+

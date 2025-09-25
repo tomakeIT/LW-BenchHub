@@ -51,7 +51,9 @@ class Device(DeviceBase):
         if hasattr(env.action_manager.cfg, 'arm_action'):
             self.arm_count = 1
             self.all_robot_arms = [['arm']]
-        elif hasattr(env.action_manager.cfg, 'left_arm_action') and hasattr(env.action_manager.cfg, 'right_arm_action'):
+        elif hasattr(env.action_manager.cfg, 'arms_action') or \
+            (hasattr(env.action_manager.cfg, 'left_arm_action') and
+             hasattr(env.action_manager.cfg, 'right_arm_action')):
             self.arm_count = 2
             self.all_robot_arms = [['left_arm', 'right_arm']]
         else:
@@ -109,6 +111,197 @@ class Device(DeviceBase):
     def set_checkpoint_frame_idx(self, frame_index):
         raise NotImplementedError
 
+    def _save_action_dict_to_hdf5(self, action: dict) -> None:
+        """Save complete action dictionary structure to HDF5 for full replay capability.
+
+        Args:
+            action: Action dictionary containing various action components
+        """
+        try:
+            # Save each action component separately to preserve structure
+            for key, value in action.items():
+                if isinstance(value, torch.Tensor):
+                    # Save tensor directly
+                    self.env.recorder_manager.add_to_episodes(f"obs/raw_action/{key}", value)
+                elif isinstance(value, np.ndarray):
+                    # Convert numpy array to tensor and save
+                    tensor_value = torch.tensor(value, device=self.env.device, dtype=torch.float32)
+                    self.env.recorder_manager.add_to_episodes(f"obs/raw_action/{key}", tensor_value)
+                elif isinstance(value, (int, float, bool)):
+                    # Convert scalar to tensor and save
+                    tensor_value = torch.tensor([value], device=self.env.device, dtype=torch.float32)
+                    self.env.recorder_manager.add_to_episodes(f"obs/raw_action/{key}", tensor_value)
+                elif isinstance(value, list):
+                    # Convert list to tensor and save
+                    tensor_value = torch.tensor(value, device=self.env.device, dtype=torch.float32)
+                    self.env.recorder_manager.add_to_episodes(f"obs/raw_action/{key}", tensor_value)
+                else:
+                    # Skip non-serializable values
+                    print(f"Warning: Skipping non-serializable action component '{key}' of type {type(value)}")
+
+        except Exception as e:
+            print(f"Error saving action dict to HDF5: {e}")
+
+    def _save_raw_input_to_hdf5(self, head_mat, abs_left_wrist_mat, abs_right_wrist_mat,
+                                rel_left_wrist_mat, rel_right_wrist_mat,
+                                left_controller_state, right_controller_state) -> None:
+        """Save raw input data to HDF5 for complete replay capability.
+
+        Args:
+            head_mat: Head transformation matrix
+            abs_left_wrist_mat: Absolute left wrist transformation matrix
+            abs_right_wrist_mat: Absolute right wrist transformation matrix
+            rel_left_wrist_mat: Relative left wrist transformation matrix
+            rel_right_wrist_mat: Relative right wrist transformation matrix
+            left_controller_state: Left controller state dictionary
+            right_controller_state: Right controller state dictionary
+        """
+        try:
+            # Save transformation matrices
+            self._save_matrix_to_hdf5("obs/raw_input/head_mat", head_mat)
+            self._save_matrix_to_hdf5("obs/raw_input/abs_left_wrist_mat", abs_left_wrist_mat)
+            self._save_matrix_to_hdf5("obs/raw_input/abs_right_wrist_mat", abs_right_wrist_mat)
+            self._save_matrix_to_hdf5("obs/raw_input/rel_left_wrist_mat", rel_left_wrist_mat)
+            self._save_matrix_to_hdf5("obs/raw_input/rel_right_wrist_mat", rel_right_wrist_mat)
+
+            # Save controller states
+            self._save_controller_state_to_hdf5("obs/raw_input/left_controller_state", left_controller_state)
+            self._save_controller_state_to_hdf5("obs/raw_input/right_controller_state", right_controller_state)
+
+            # Save internal state information
+            self._save_internal_state_to_hdf5()
+
+        except Exception as e:
+            print(f"Error saving raw input to HDF5: {e}")
+
+    def _save_matrix_to_hdf5(self, key_prefix: str, matrix: np.ndarray) -> None:
+        """Save a transformation matrix to HDF5.
+
+        Args:
+            key_prefix: Key prefix for the matrix data
+            matrix: 4x4 transformation matrix
+        """
+        if matrix is not None:
+            tensor_matrix = torch.tensor(matrix, device=self.env.device, dtype=torch.float32).unsqueeze(0)
+            if self.env.num_envs > 1:
+                tensor_matrix = torch.repeat_interleave(tensor_matrix, self.env.num_envs, dim=0)
+            self.env.recorder_manager.add_to_episodes(key_prefix, tensor_matrix)
+
+    def _save_controller_state_to_hdf5(self, key_prefix: str, controller_state: dict) -> None:
+        """Save controller state dictionary to HDF5.
+
+        Args:
+            key_prefix: Key prefix for the controller state data
+            controller_state: Controller state dictionary
+        """
+        for key, value in controller_state.items():
+            if isinstance(value, (int, float, bool)):
+                tensor_value = torch.tensor([value], device=self.env.device, dtype=torch.float32).unsqueeze(0)
+                if self.env.num_envs > 1:
+                    tensor_value = torch.repeat_interleave(tensor_value, self.env.num_envs, dim=0)
+                self.env.recorder_manager.add_to_episodes(f"{key_prefix}/{key}", tensor_value)
+            elif isinstance(value, (list, tuple)):
+                tensor_value = torch.tensor(value, device=self.env.device, dtype=torch.float32).unsqueeze(0)
+                if self.env.num_envs > 1:
+                    tensor_value = torch.repeat_interleave(tensor_value, self.env.num_envs, dim=0)
+                self.env.recorder_manager.add_to_episodes(f"{key_prefix}/{key}", tensor_value)
+            else:
+                print(f"Warning: Skipping non-serializable controller state '{key}' of type {type(value)}")
+
+    def _save_internal_state_to_hdf5(self) -> None:
+        """Save internal VR device state to HDF5."""
+        try:
+            # Save important internal state variables
+            internal_state = {
+                "has_started": getattr(self, 'has_started', False),
+                "started": getattr(self, 'started', False),
+                "base_mode_flag": getattr(self, 'base_mode_flag', 1),
+                "last_thumbstick_state": getattr(self, 'last_thumbstick_state', 0),
+                "last_x_button_state": getattr(self, 'last_x_button_state', 0),
+                "last_y_button_state": getattr(self, 'last_y_button_state', 0),
+                "last_start_state": getattr(self, 'last_start_state', False),
+                "is_body_moving": getattr(self, 'is_body_moving', False),
+                "is_body_moving_last_frame": getattr(self, 'is_body_moving_last_frame', False),
+                "has_keep": getattr(self, 'has_keep', False),
+                "rollback_keep": getattr(self, 'rollback_keep', False),
+                "last_checkpoint_frame_idx": getattr(self, 'last_checkpoint_frame_idx', -1),
+            }
+
+            for key, value in internal_state.items():
+                if isinstance(value, (int, float, bool)):
+                    tensor_value = torch.tensor([value], device=self.env.device, dtype=torch.float32).unsqueeze(0)
+                else:
+                    tensor_value = torch.tensor(value, device=self.env.device, dtype=torch.float32).unsqueeze(0)
+                if self.env.num_envs > 1:
+                    tensor_value = torch.repeat_interleave(tensor_value, self.env.num_envs, dim=0)
+                self.env.recorder_manager.add_to_episodes(f"obs/raw_input/internal_state/{key}", tensor_value)
+
+        except Exception as e:
+            print(f"Error saving internal state to HDF5: {e}")
+
+    @staticmethod
+    def load_raw_input_from_hdf5(episode_data, step_index: int) -> dict | None:
+        """Load complete raw input data from HDF5 for replay.
+
+        Args:
+            episode_data: EpisodeData object containing the recorded data
+            step_index: Index of the step to load
+
+        Returns:
+            Complete raw input dictionary, or None if loading fails
+        """
+        try:
+            raw_input_dict = {}
+
+            # Check if raw_input data exists
+            if "obs" not in episode_data._data or "raw_input" not in episode_data._data["obs"]:
+                print("Warning: No raw_input data found in episode")
+                return None
+
+            raw_input_data = episode_data._data["obs"]["raw_input"]
+
+            # Load transformation matrices
+            matrix_keys = ["head_mat", "abs_left_wrist_mat", "abs_right_wrist_mat",
+                           "rel_left_wrist_mat", "rel_right_wrist_mat"]
+            for key in matrix_keys:
+                if key in raw_input_data and isinstance(raw_input_data[key], torch.Tensor):
+                    if step_index < len(raw_input_data[key]):
+                        matrix = raw_input_data[key][step_index].squeeze(0).cpu().numpy()
+                        raw_input_dict[key] = matrix
+                    else:
+                        print(f"Warning: Step index {step_index} out of range for matrix '{key}'")
+
+            # Load controller states
+            controller_keys = ["left_controller_state", "right_controller_state"]
+            for controller_key in controller_keys:
+                if controller_key in raw_input_data:
+                    controller_state = {}
+                    controller_data = raw_input_data[controller_key]
+                    for state_key, tensor_data in controller_data.items():
+                        if isinstance(tensor_data, torch.Tensor) and step_index < len(tensor_data):
+                            value = tensor_data[step_index].squeeze(0)
+                            if value.numel() == 1:
+                                controller_state[state_key] = value.item()
+                            else:
+                                controller_state[state_key] = value.cpu().numpy()
+                    raw_input_dict[controller_key] = controller_state
+
+            # Load internal state
+            if "internal_state" in raw_input_data:
+                internal_state = {}
+                internal_data = raw_input_data["internal_state"]
+                for state_key, tensor_data in internal_data.items():
+                    if isinstance(tensor_data, torch.Tensor) and step_index < len(tensor_data):
+                        value = tensor_data[step_index].squeeze(0).item()
+                        internal_state[state_key] = value
+                raw_input_dict["internal_state"] = internal_state
+
+            return raw_input_dict if raw_input_dict else None
+
+        except Exception as e:
+            print(f"Error loading raw input from HDF5: {e}")
+            return None
+
     def advance(self):
         action = self.input2action()
         if action is None:
@@ -118,9 +311,23 @@ class Device(DeviceBase):
         if not action['started']:
             return False
         for key, value in action.items():
-            if isinstance(value, np.ndarray):
-                action[key] = torch.tensor(value, device=self.env.device, dtype=torch.float32)
-        return self.env.cfg.preprocess_device_action(action, self)
+            action[key] = torch.tensor(value, device=self.env.device, dtype=torch.float32)
+        processed_action = self.env.cfg.preprocess_device_action(action, self)
+
+        # Repeat action to (num_envs, action_dim)
+        for key in action.keys():
+            action[key] = action[key].unsqueeze(0)
+            if self.env.num_envs > 1:
+                action[key] = torch.repeat_interleave(action[key], self.env.num_envs, dim=0)
+        if processed_action.shape[0] != self.env.num_envs:
+            processed_action = processed_action.repeat(self.env.num_envs, 1)
+
+        # Save raw action data to HDF5 through recorder_manager
+        if hasattr(self.env, 'recorder_manager') and len(self.env.recorder_manager.active_terms) > 0:
+            # Save complete action dictionary structure for full replay capability
+            self._save_action_dict_to_hdf5(action)
+
+        return processed_action
 
 
 class VRDevice(Device):
@@ -554,17 +761,38 @@ class VRController(VRDevice):
             return state
 
         head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+
+        # Save raw input data to HDF5 for complete replay capability
+        # Only record when started is True
+        if hasattr(self.env, 'recorder_manager') and len(self.env.recorder_manager.active_terms) > 0:
+            if self.started:
+                self._save_raw_input_to_hdf5(head_mat, abs_left_wrist_mat, abs_right_wrist_mat,
+                                             rel_left_wrist_mat, rel_right_wrist_mat,
+                                             left_controller_state, right_controller_state)
         if right_controller_state["a_button"]:
             if self.is_body_moving_last_frame:
                 self.is_body_moving = False
-                body_lin_vel_w = self.env.scene.articulations["robot"].data.body_lin_vel_w
-                for i in range(body_lin_vel_w.shape[1]):
-                    if abs(np.linalg.norm(body_lin_vel_w[0, i, :])) > 0.00001:  # TODO: 0.00001 is a magic number, need to be tuned, 0.0001 is tested to be unsuitable
+                joint_vel = self.env.scene.articulations["robot"].data.joint_vel
+                for i in range(joint_vel.shape[1]):
+                    get_vr_logger().info("joint %s vel: %s", self.env.scene.articulations["robot"].joint_names[i], joint_vel[0, i])
+                    if abs(joint_vel[0, i]) > 0.01:  # Check joint velocity threshold
                         self.is_body_moving = True
-                        get_vr_logger().info("body %s has non zero vel: %s", self.env.scene.articulations["robot"].body_names[i], body_lin_vel_w[0, i, :])
+                        get_vr_logger().info("joint %s has non zero vel: %s", self.env.scene.articulations["robot"].joint_names[i], joint_vel[0, i])
+                    else:
+                        # Use write_joint_velocity_to_sim to set individual joint velocity to 0
+                        # For individual joint, we need to pass a tensor with shape (1, 1) for the specific joint
+                        zero_velocity_single = torch.zeros((1, 1), device=self.env.device)
+                        self.env.scene.articulations["robot"].write_joint_velocity_to_sim(zero_velocity_single, joint_ids=[i])
+                        get_vr_logger().info("joint %s set zero vel using write_joint_velocity_to_sim: %s", self.env.scene.articulations["robot"].joint_names[i], joint_vel[0, i])
+                # body_lin_vel_w = self.env.scene.articulations["robot"].data.body_lin_vel_w
+                # for i in range(body_lin_vel_w.shape[1]):
+                #     if abs(np.linalg.norm(body_lin_vel_w[0, i, :])) > 0.01:  # TODO: 0.00001 is a magic number, need to be tuned, 0.0001 is tested to be unsuitable
+                #         self.is_body_moving = True
+                #         get_vr_logger().info("body %s has non zero vel: %s", self.env.scene.articulations["robot"].body_names[i], body_lin_vel_w[0, i, :])
             self.is_body_moving_last_frame = self.is_body_moving
 
             if self.is_body_moving:
+                get_vr_logger().info("body is moving, using before a button abs right wrist mat")
                 abs_right_wrist_mat = self.before_a_button_abs_right_wrist_mat.copy()
                 abs_left_wrist_mat = self.before_a_button_abs_left_wrist_mat.copy()
             else:
@@ -687,6 +915,129 @@ class VRController(VRDevice):
         else:
             self.is_body_moving_last_frame = True
             self.is_body_moving = False
+
+    def saved_input_to_action(self, raw_input):
+        state = {}
+        # reset = state["reset"] = bool(self._reset_state)
+        # if reset:
+        #     self._reset_state = False
+        #     return state
+
+        # Check if we have internal state to determine if recording was started
+        if "internal_state" in raw_input:
+            internal_state = raw_input["internal_state"]
+            started = internal_state.get("started", False)
+            if not started:
+                print("Warning: Processing raw_input but recording was not started")
+                return None
+
+        head_mat = raw_input['head_mat']
+        abs_left_wrist_mat = raw_input['abs_left_wrist_mat']
+        abs_right_wrist_mat = raw_input['abs_right_wrist_mat']
+        rel_left_wrist_mat = raw_input['rel_left_wrist_mat']
+        rel_right_wrist_mat = raw_input['rel_right_wrist_mat']
+        left_controller_state = raw_input['left_controller_state']
+        right_controller_state = raw_input['right_controller_state']
+
+        if right_controller_state["a_button"]:
+            if self.is_body_moving_last_frame:
+                self.is_body_moving = False
+                body_lin_vel_w = self.env.scene.articulations["robot"].data.body_lin_vel_w
+                for i in range(body_lin_vel_w.shape[1]):
+                    if abs(np.linalg.norm(body_lin_vel_w[0, i, :])) > 0.00001:  # TODO: 0.00001 is a magic number, need to be tuned, 0.0001 is tested to be unsuitable
+                        self.is_body_moving = True
+                        get_vr_logger().info("body %s has non zero vel: %s", self.env.scene.articulations["robot"].body_names[i], body_lin_vel_w[0, i, :])
+            self.is_body_moving_last_frame = self.is_body_moving
+
+            if self.is_body_moving:
+                abs_right_wrist_mat = self.before_a_button_abs_right_wrist_mat.copy()
+                abs_left_wrist_mat = self.before_a_button_abs_left_wrist_mat.copy()
+            else:
+                # if robot body is not moving, wait for a button release in the loop
+                while True:
+                    head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+                    if not right_controller_state["a_button"]:
+                        break
+        else:
+            self.is_body_moving_last_frame = True
+            self.is_body_moving = False
+
+        state["lpose_abs"] = abs_left_wrist_mat
+        state["rpose_abs"] = abs_right_wrist_mat
+        state["lpose_delta"] = rel_left_wrist_mat
+        state["rpose_delta"] = rel_right_wrist_mat
+        # TODO: get gripper and base from self.tv.right_controller
+        state["lgrasp"] = left_controller_state["trigger"] * 2 - 1.0
+        state["rgrasp"] = right_controller_state["trigger"] * 2 - 1.0
+        state["lbase"] = np.array([left_controller_state["thumbstick_x"], left_controller_state["thumbstick_y"]])
+        state["rbase"] = np.array([right_controller_state["thumbstick_x"], right_controller_state["thumbstick_y"]])
+        state["lsqueeze"] = left_controller_state["squeeze"]
+        state["rsqueeze"] = right_controller_state["squeeze"]
+        state["rbase_button"] = right_controller_state["thumbstick"]
+        state["lbase_button"] = left_controller_state["thumbstick"]
+
+        state["x_button"] = left_controller_state["b_button"]
+        state["y_button"] = left_controller_state["a_button"]
+
+        if left_controller_state["thumbstick"] == 1 and self.last_thumbstick_state == 0:
+            self.base_mode_flag = 1 - self.base_mode_flag
+            print(f"base_mode_flag 切换为: {self.base_mode_flag}")
+        self.last_thumbstick_state = left_controller_state["thumbstick"]
+        state["base_mode"] = self.base_mode_flag
+
+        if left_controller_state["b_button"] == 1 and self.last_x_button_state == 0:
+            print(colored("x button pressed", "blue"))
+            state["x_button_pressed"] = True
+        else:
+            state["x_button_pressed"] = False
+        self.last_x_button_state = left_controller_state["b_button"]
+
+        if left_controller_state["a_button"] == 1 and self.last_y_button_state == 0:
+            print(colored("y button pressed", "blue"))
+            state["y_button_pressed"] = True
+        else:
+            state["y_button_pressed"] = False
+        self.last_y_button_state = left_controller_state["a_button"]
+
+        b_pressed = right_controller_state["b_button"]
+        if not b_pressed and self.last_start_state:
+            state["reset"] = self.started
+            self.started = not self.started
+        if state["reset"]:
+            return None
+        self.last_start_state = b_pressed
+
+        state["started"] = self.started
+        if self.arm_count == 1:
+            state[f"{self.active_arm}_abs"] = self.pose2action_xyzw(state["rpose_abs"])
+            state[f"{self.active_arm}_delta"] = self.pose2action(state["rpose_delta"])
+            state[f"{self.active_arm}_gripper"] = state["rgrasp"]
+        else:
+            state[f"left_arm_abs"] = self.pose2action_xyzw(state["lpose_abs"])
+            state[f"left_arm_delta"] = self.pose2action(state["lpose_delta"])
+            state[f"right_arm_abs"] = self.pose2action_xyzw(state["rpose_abs"])
+            state[f"right_arm_delta"] = self.pose2action(state["rpose_delta"])
+            state[f"left_gripper"] = state["lgrasp"]
+            state[f"right_gripper"] = state["rgrasp"]
+
+        if state.get("x_button_pressed", False):
+            if "N" in self._additional_callbacks:
+                self._additional_callbacks["N"]()
+
+        if state.get("y_button_pressed", False):
+            self.checkpoint_frame_origin_left_wrist_mat = self.last_left_wrist_mat.copy()
+            self.checkpoint_frame_origin_right_wrist_mat = self.last_right_wrist_mat.copy()
+            self.checkpoint_frame_first_left_wrist_mat = self.first_left_wrist_mat.copy()
+            self.checkpoint_frame_first_right_wrist_mat = self.first_right_wrist_mat.copy()
+            if "M" in self._additional_callbacks:
+                self._additional_callbacks["M"]()
+
+        # while True:
+        #     head_mat, abs_left_wrist_mat, abs_right_wrist_mat, rel_left_wrist_mat, rel_right_wrist_mat, left_controller_state, right_controller_state = self.get_controller_state()
+        #     if not left_controller_state["b_button"]:
+        #         break
+
+        return state
 
     def _display_controls(self):
         """

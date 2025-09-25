@@ -2,8 +2,7 @@ import numpy as np
 import torch
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import os
-
-# from robocasa.models.objects.objects import MJCFObject
+from isaaclab.utils.math import matrix_from_quat, euler_xyz_from_quat
 
 
 def array_to_string(array):
@@ -353,7 +352,7 @@ def check_obj_in_receptacle(env, obj_name, receptacle_name, th=None):
     obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
     recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
     if th is None:
-        th = recep.horizontal_radius * 0.7
+        th = recep.horizontal_radius
     is_closed = torch.norm(obj_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
     return is_contact & is_closed
 
@@ -381,18 +380,49 @@ def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
     return env.cfg.check_contact(obj, fixture)
 
 
+def check_fixture_in_receptacle(env, fixture_name, fixture_object, receptacle_name, th=None):
+    """
+    check if fixture is in receptacle object based on threshold
+    """
+    is_contact = check_obj_fixture_contact(env, receptacle_name, fixture_name)
+
+    recep = env.cfg.objects[receptacle_name]
+
+    fix_pos = torch.tensor(env.scene.articulations[fixture_object].data.root_link_pos_w[..., 0:2])
+    recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    if th is None:
+        th = recep.horizontal_radius * 0.7
+    is_closed = torch.norm(fix_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
+    return is_contact & is_closed
+
+
 def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None) -> torch.Tensor:
     """
     check if gripper is far from object based on distance defined by threshold
     """
-    obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, :]
+    if obj_name in env.cfg.objects:
+        obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0:1, :]  # (num_envs, 1, 3)
+    else:
+        obj_name = obj_name.root_body.replace("_main", "")
+        obj_pos = env.scene.state['articulation'][obj_name]['root_pose'][:, :3].unsqueeze(1)  # (num_envs, 1, 3)
+
     if eef_name is None:
-        gripper_site_pos = env.scene["ee_frame"].data.target_pos_w[0]
+        gripper_site_pos = env.scene["ee_frame"].data.target_pos_w  # (num_envs, num_eefs, 3)
     else:
         eef_frame_data = env.scene['ee_frame'].data
         eef_index = eef_frame_data.target_frame_names.index(eef_name)
-        gripper_site_pos = eef_frame_data.target_pos_w[:, eef_index, :]
-    gripper_obj_far = torch.norm(gripper_site_pos - obj_pos, dim=-1) > th
+        gripper_site_pos = eef_frame_data.target_pos_w[:, eef_index: eef_index + 1, :]  # (num_envs, 1, 3)
+    gripper_obj_far = torch.norm(gripper_site_pos - obj_pos, dim=-1) > th  # (num_envs, num_eefs)
+    return torch.all(gripper_obj_far, dim=-1)  # (num_envs, )
+
+
+def gripper_fixture_far(env, fixture_object, th=0.2) -> torch.Tensor:
+    """
+    check if gripper is far from fixture based on distance defined by threshold
+    """
+    fix_pos = torch.tensor(env.scene.articulations[fixture_object].data.root_link_pos_w[..., 0:2])
+    gripper_site_pos = env.scene["ee_frame"].data.target_pos_w[0]
+    gripper_obj_far = torch.norm(gripper_site_pos[:, :2] - fix_pos[:, :2], dim=-1) > th
     return torch.all(gripper_obj_far).unsqueeze(0)
 
 
@@ -528,3 +558,250 @@ def project_point_to_segment(point, seg_start, seg_end):
     dist = np.linalg.norm(point - closest_point)
 
     return closest_point, dist
+
+
+def check_place_obj1_on_obj2(env, obj1, obj2, th_z_axis_cos=0.8, th_xy_dist=0.25, th_xyz_vel=0.5, gipper_th=0.25):
+    """
+    check if obj1 or is placed on obj2
+    obj1 and obj2 must be a fixture moveable or a object
+
+    Args:
+        env (Env): environment
+        obj1 : name of object 1 or a moveable fixture
+        obj2 : name of object 2 or a moveable fixture
+        th_z_axis_cos (float): threshold for z-axis cosine similarity
+        th_xy_dist (float): threshold for xy distance
+        th_xyz_vel (float): threshold for xyz velocity
+
+    Returns:
+        dict: success state of the task
+        - gripper_far: check if gripper is far from obj1 and obj2
+        - obj1_is_standing: check if obj1 is standing
+        - obj1_in_obj2: check if obj1 is in obj2
+        - obj1_stable: check if obj1 is stable
+        - obj1_contact_with_obj2: check if obj1 is in contact with obj2
+
+    """
+
+    if obj1 in env.cfg.objects:
+        obj1_obj = env.cfg.objects[obj1]
+        obj1_pos = env.scene.rigid_objects[obj1].data.body_com_pos_w[0, 0, :]
+        obj1_vel = env.scene.rigid_objects[obj1].data.body_com_vel_w[0, 0, :]
+        obj1_quat = env.scene.rigid_objects[obj1].data.body_com_quat_w[0, 0, :]
+        obj1_rot_mat = matrix_from_quat(obj1_quat.unsqueeze(0))[0]
+    else:
+        obj1_obj = obj1
+        obj1_name = obj1.root_body.replace("_main", "")
+        obj1_pos = env.scene.state['articulation'][obj1_name]['root_pose'][0, :3]
+        obj1_quat = env.scene.state['articulation'][obj1_name]['root_pose'][0, 3:]
+        obj1_rot_mat = matrix_from_quat(obj1_quat.unsqueeze(0))[0]
+        obj1_vel = env.scene.state['articulation'][obj1_name]['root_velocity'][0]
+
+    if obj2 in env.cfg.objects:
+        obj2_obj = env.cfg.objects[obj2]
+        obj2_pos = env.scene.rigid_objects[obj2].data.body_com_pos_w[0, 0, :]
+    else:
+        obj2_obj = obj2
+        obj2_name = obj2.root_body.replace("_main", "")
+        obj2_pos = env.scene.state['articulation'][obj2_name]['root_pose'][0, :3]
+
+    obj1_z_axis = obj1_rot_mat[:, 2]
+    world_z_axis = torch.tensor([0.0, 0.0, 1.0], device=obj1_z_axis.device, dtype=obj1_z_axis.dtype)
+    z_axis_cos = torch.abs(torch.dot(obj1_z_axis, world_z_axis) / (torch.norm(obj1_z_axis) * torch.norm(world_z_axis)))
+    xy_dist = torch.norm((obj2_pos - obj1_pos)[:2], dim=-1)
+    obj1_obj2_size_xy_min = min(obj2_obj.size[:2])
+    xyz_vel = torch.norm(obj1_vel, dim=-1)
+    gripper_far = gripper_obj_far(env, obj1, th=gipper_th) and gripper_obj_far(env, obj2, th=gipper_th)  # check if gripper is far from cup and placemat
+    obj1_is_standing = z_axis_cos > th_z_axis_cos  # check if cup is standing
+    obj1_in_obj2 = xy_dist < obj1_obj2_size_xy_min * th_xy_dist  # check if cup is in placemat
+    obj1_stable = xyz_vel < th_xyz_vel  # check if cup is stable
+    print(f"{obj1_obj2_size_xy_min=}, {obj1_obj2_size_xy_min * th_xy_dist}, {xy_dist=} ,{obj1_is_standing=}")
+    success_state = {
+        "gripper_far": gripper_far,
+        "obj1_is_standing": obj1_is_standing,
+        "obj1_in_obj2": obj1_in_obj2,
+        "obj1_stable": obj1_stable,
+    }
+
+    return success_state
+
+
+def get_object_pos(env, name):
+    return env.scene.rigid_objects[name].data.body_com_pos_w[0, 0, :]
+
+
+def check_near(pos1, pos2, th=0.2):
+    dis = torch.sqrt(torch.sum((pos1 - pos2) ** 2))
+    return dis < th
+
+
+def is_objA_left_side_objB(robot_pos, objA_pos, objB_pos):
+    cross = (objA_pos[0] - robot_pos[0]) * (objB_pos[1] - objA_pos[1]) - (objA_pos[1] - robot_pos[1]) * (objB_pos[0] - robot_pos[0])
+    if cross > 0:
+        return True
+    return False
+
+
+def is_objA_right_side_objB(robot_pos, objA_pos, objB_pos):
+    cross = (objA_pos[0] - robot_pos[0]) * (objB_pos[1] - objA_pos[1]) - (objA_pos[1] - robot_pos[1]) * (objB_pos[0] - robot_pos[0])
+    if cross < 0:
+        return True
+    return False
+
+
+def check_object_parallel_to_world_axis(env, obj: str, axis=[0, 1, 0], threshold=0.8):
+    '''
+    check if the object is parallel to the world axis
+
+    Args:
+        env (Env): environment
+        obj (str): name of object
+        axis (list): axis of the world
+        threshold (float): threshold for the cosine similarity
+
+    Returns:
+        bool: True if the object is parallel to the world axis, False otherwise
+    '''
+    obj_quat = env.scene.rigid_objects[obj].data.body_com_quat_w[0, 0, :]
+    obj_rot_mat = matrix_from_quat(obj_quat.unsqueeze(0))[0]
+    obj_axis = obj_rot_mat[:, np.where(np.array(axis) == 1)[0][0]]
+    world_axis = torch.tensor(axis, dtype=obj_axis.dtype, device=obj_axis.device)
+    axis_cos = torch.abs(torch.dot(obj_axis, world_axis) / (torch.norm(obj_axis) * torch.norm(world_axis)))
+    return axis_cos > threshold
+
+
+def check_place_obj1_side_by_obj2(env, obj1: str, obj2: str, check_states: dict, gipper_th=0.25):
+    """
+    check if obj1 is placed side by side with obj2
+
+    Args:
+        env (Env): environment
+        obj1 (str): name of object 1
+        obj2 (str): name of object 2
+        check_states (dict): check states
+        check_states = {
+            "gripper_far": True,   # obj1 and obj2 should be far from the gripper
+            "contact": False,   # obj1 should not be in contact with obj2
+            "side": 'right',    # relative position of obj1 to obj2, left, right, front, back
+            "side_threshold": 0.25,    # threshold for distance between obj1 and obj2 in other directions, 0.25*(min(obj2_obj.size[:2]) + min(obj1_obj.size[:2]))/ 2
+            "margin_threshold": [0.001, 0.1],    # threshold for distance between obj1 and obj2, 0.001 for min distance, 0.1 for max distance
+            "parallel": [0, 1, 1],    # whether obj1 is parallel to the world axis, can be multiple, here means parallel to y and z axis
+            "parallel_threshold": 0.95,    # threshold for parallel to world axis
+            "stable_threshold": 0.5,    # threshold for stable, velocity vector length less than 0.5
+        }
+
+    Returns:
+        dict: success state of the task
+
+    """
+    success_state = {}
+    obj1_obj = env.cfg.objects[obj1]
+    obj2_obj = env.cfg.objects[obj2]
+    if 'gripper_far' in check_states:
+        success_state['gripper_far'] = gripper_obj_far(env, obj1, th=gipper_th) and gripper_obj_far(env, obj2, th=gipper_th)
+    if 'contact' in check_states:
+        need_contact = check_states['contact']
+        if need_contact:
+            success_state['contact'] = env.cfg.check_contact(obj1_obj, obj2_obj)
+        else:
+            success_state['not contact'] = not env.cfg.check_contact(obj1_obj, obj2_obj)
+    if 'stable_threshold' in check_states:
+        obj1_vel = env.scene.rigid_objects[obj1].data.body_com_vel_w[0, 0, :]
+        success_state['stable'] = torch.norm(obj1_vel, dim=-1) < check_states['stable_threshold']
+    if 'parallel' in check_states:
+        parallel = False
+        for index, axis in enumerate(check_states['parallel']):
+            world_axis = [0, 0, 0]
+            str_axis = ['x', 'y', 'z']
+            if axis:
+                world_axis[index] = 1
+                parallel = check_object_parallel_to_world_axis(env, obj1, world_axis, check_states.get('parallel_threshold', 0.9))
+                success_state[f'parallel_{str_axis[index]}'] = parallel
+    if 'side' in check_states:
+        side = check_states['side']
+        obj1_pos = env.scene.rigid_objects[obj1].data.body_com_pos_w[0, 0, :]
+        obj2_pos = env.scene.rigid_objects[obj2].data.body_com_pos_w[0, 0, :]
+        obj1_obj2_size_xy_min = (min(obj2_obj.size[:2]) + min(obj1_obj.size[:2])) / 2
+        obj1_obj2_center_xydist = torch.norm((obj2_pos - obj1_pos)[:2], dim=-1)
+        obj1_obj2_edge_xydist = obj1_obj2_center_xydist - obj1_obj2_size_xy_min
+        margin_threshold = check_states.get('margin_threshold', [0, 0])
+        margin_threshold_min = margin_threshold[0]
+        margin_threshold_max = margin_threshold[1]
+        space_success = obj1_obj2_edge_xydist > margin_threshold_min and obj1_obj2_edge_xydist < margin_threshold_max
+        if side == "left":
+            y_dist = torch.abs(obj1_pos[1] - obj2_pos[1])
+            success_state["obj1_on_left_of_obj2"] = space_success and obj1_pos[0] > obj2_pos[0] and y_dist < obj1_obj2_size_xy_min * check_states.get('side_threshold', 0.25)
+        elif side == "right":
+            y_dist = torch.abs(obj1_pos[1] - obj2_pos[1])
+            success_state["obj1_on_right_of_obj2"] = space_success and obj1_pos[0] < obj2_pos[0] and y_dist < obj1_obj2_size_xy_min * check_states.get('side_threshold', 0.25)
+        elif side == "back":
+            x_dist = torch.abs(obj1_pos[0] - obj2_pos[0])
+            success_state["obj1_on_front_of_obj2"] = space_success and obj1_pos[1] > obj2_pos[1] and x_dist < obj1_obj2_size_xy_min * check_states.get('side_threshold', 0.25)
+        elif side == "front":
+            x_dist = torch.abs(obj1_pos[0] - obj2_pos[0])
+            success_state["obj1_on_back_of_obj2"] = space_success and obj1_pos[1] < obj2_pos[1] and x_dist < obj1_obj2_size_xy_min * check_states.get('side_threshold', 0.25)
+    return success_state
+
+
+def check_obj_location_on_stove(env, stove, obj_name, threshold=0.08, need_knob_on=True):
+    """
+    Check if the object is on the stove and close to a burner and the knob is on (optional).
+    Returns the location of the burner if the object is on the stove, close to a burner, and the burner is on (optional).
+    None otherwise.
+    """
+
+    knobs_state = stove.get_knobs_state(env=env)
+    obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[..., 0, :]
+    obj_on_stove = check_obj_fixture_contact(env, obj_name, stove)
+    stove_pos = torch.tensor(stove.pos, device=env.device)
+    stove_rot = T.euler2mat(torch.tensor([0.0, 0.0, stove.rot], device=env.device)).to(dtype=torch.float32)
+    locations = []
+    for env_id in range(len(obj_on_stove)):
+        found_location = False
+        if obj_on_stove[env_id]:
+            for location, site in stove.burner_sites.items():
+                if site[env_id] is not None:
+                    burner_pos = stove_rot @ torch.tensor(site[env_id].GetAttribute("xformOp:translate").Get(), device=env.device) + stove_pos + env.scene.env_origins[env_id]
+                    dist = torch.norm(burner_pos[:2] - obj_pos[env_id][:2])
+                    obj_on_site = dist < threshold
+                    knob_on = (
+                        (0.35 <= torch.abs(knobs_state[location]) <= 2 * torch.pi - 0.35)
+                        if location in knobs_state
+                        else False
+                    )
+                    check_result = obj_on_site if not need_knob_on else obj_on_site and knob_on
+                    if check_result:
+                        found_location = True
+                        locations.append(location)
+                        break
+        if not found_location:
+            locations.append(None)
+    return locations
+
+
+def is_obj_z_up(env, obj_name="obj", th=5.0):
+    obj_quat = env.scene[obj_name].data.root_quat_w
+    r, p, y = euler_xyz_from_quat(obj_quat)
+    th = th * torch.pi / 180.0
+    return torch.logical_and(torch.abs(r) < th, torch.abs(p) < th)
+
+
+def grasp_obj(env, obj_name='obj'):
+    close_to_obj = torch.logical_not(gripper_obj_far(env, obj_name, th=0.15, eef_name="tool_left_arm"))
+    left_hand_action_closed = env.action_manager.action[:, -2] > 0.5
+    return torch.logical_and(close_to_obj, left_hand_action_closed)
+
+
+def put_obj_to_coffee_machine(env, obj_name="obj", judge_obj_in_coffee_machine=None):
+    obj_height = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, 2]
+    default_obj_height = env.scene.rigid_objects[obj_name].data.default_root_state[:, 2]
+    higher_than_default = obj_height > default_obj_height
+
+    close_to_obj = torch.logical_not(gripper_obj_far(env, obj_name, th=0.15, eef_name="tool_left_arm"))
+    left_hand_action_open = env.action_manager.action[:, -2] < 0.5
+    try:
+        obj_in_coffee_machine = judge_obj_in_coffee_machine(env, obj_name, xy_thresh=0.09)
+    except Exception:
+        obj_in_coffee_machine = torch.tensor([False] * env.num_envs, dtype=torch.bool, device=env.device)
+
+    return torch.logical_and(close_to_obj, left_hand_action_open) & obj_in_coffee_machine & higher_than_default

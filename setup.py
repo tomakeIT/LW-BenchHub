@@ -4,12 +4,12 @@ setup(
     packages=[
         "lwlab",
         "policy",
-        "tasks",
+        "lwlab_tasks",
         "lwlab_rl"
     ],
     package_dir={
         "lwlab": "lwlab",
         "lwlab_policy": "lwlab_policy",
-        "tasks": "tasks"
+        "lwlab_tasks": "lwlab_tasks",
     }
 )
