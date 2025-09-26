@@ -491,7 +491,7 @@ class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
         self.base_x_joint_index = -1
         self.base_y_joint_index = -1
         self.base_yaw_joint_index = -1
-        self.base_auto_lock_threshold = 0.1
+        self.base_auto_lock_threshold = 0.05
         self.base_auto_unlock_threshold = 0.3
         for axis_name in ['base_x', 'base_y', 'base_yaw']:
             if axis_name in self.pid_configs:
@@ -549,8 +549,12 @@ class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
         base_input_y = abs(action.get('rbase', [0, 0])[1])
         base_input_magnitude = max(base_input_x, base_input_y)
 
+        x_joint_vel = device.robot.data.joint_vel[0, self.base_x_joint_index].item()
+        y_joint_vel = device.robot.data.joint_vel[0, self.base_y_joint_index].item()
+        yaw_joint_vel = device.robot.data.joint_vel[0, self.base_yaw_joint_index].item()
+
         # Auto-lock logic: lock when input magnitude is small
-        if not self.base_lock_state and base_input_magnitude < self.base_auto_lock_threshold:
+        if not self.base_lock_state and base_input_magnitude < self.base_auto_lock_threshold and abs(x_joint_vel) < 0.01 and abs(y_joint_vel) < 0.01 and abs(yaw_joint_vel) < 0.01:
             # Initialize joint indices if needed
             if (self.base_x_joint_index == -1 or
                 self.base_y_joint_index == -1 or
@@ -566,6 +570,11 @@ class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
                 self.base_lock_value_x = device.robot.data.joint_pos[0, self.base_x_joint_index].item()
                 self.base_lock_value_y = device.robot.data.joint_pos[0, self.base_y_joint_index].item()
                 self.base_lock_value_yaw = device.robot.data.joint_pos[0, self.base_yaw_joint_index].item()
+
+                # TODO: use joint pos target instead of joint pos for locking
+                # x_target = device.robot.data.joint_pos_target[0, self.base_x_joint_index].item()
+                # y_target = device.robot.data.joint_pos_target[0, self.base_y_joint_index].item()
+                # yaw_target = device.robot.data.joint_pos_target[0, self.base_yaw_joint_index].item()
 
                 self.reset_pid_state('base_x')
                 self.reset_pid_state('base_y')

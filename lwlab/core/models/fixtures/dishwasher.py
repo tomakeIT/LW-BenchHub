@@ -78,7 +78,7 @@ class Dishwasher(Fixture):
         Args:
             obj_name (rigid body): object to check
         """
-        return env.check_contact(obj, str(self.rack_infos[self._joint_names["rack"]][0].GetPrimPath()))
+        return env.cfg.check_contact(obj, str(self.rack_infos[self._joint_names["rack"]][0].GetPrimPath()))
 
     def get_state(self, env):
         """
@@ -95,15 +95,15 @@ class Dishwasher(Fixture):
         infos = {}
         for jnt_name in self._joint_infos.keys():
             if "rack" in jnt_name:
-                jnt_name = jnt_name.replace("_joint", "")
                 infos[jnt_name] = []
                 for prim_path in self.prim_paths:
-                    rack_prim = usd.get_prim_by_name(self._env.sim.stage.GetObjectAtPath(prim_path), f"{self.folder.split('/')[-1]}_{jnt_name}")
+                    prim = self._env.sim.stage.GetObjectAtPath(prim_path)
+                    rack_prim = usd.get_prim_by_name(prim, f'{usd.get_child_commonprefix_name(prim)}_{jnt_name.replace("_joint", "")}')
                     for rack in rack_prim:
                         if rack is not None and rack.IsValid():
                             infos[jnt_name].append(rack)
         for jnt_name in [j for j in self._joint_infos.keys() if "rack" in j]:
-            assert jnt_name.replace("_joint", "") in infos.keys(), f"Rack {jnt_name} not found!"
+            assert jnt_name in infos.keys(), f"Rack {jnt_name} not found!"
         return infos
 
     @property

@@ -53,6 +53,11 @@ class USDObject():
             else:
                 reg_halfsize = np.array(reg_bbox.GetAttribute("xformOp:scale").Get())
             reg_pos, _ = usd.get_prim_pos_rot_in_world(reg_bbox)
+            reg_offset = reg_bbox.GetAttribute("xformOp:translate").Get()
+            if reg_offset is None:
+                reg_offset = np.array([0, 0, 0])
+            else:
+                reg_offset = np.array(reg_offset)
             if reg_pos is None:
                 reg_pos = np.array([0, 0, 0])
             else:
@@ -68,6 +73,7 @@ class USDObject():
             reg_dict["pz"] = pz
             reg_dict["reg_halfsize"] = reg_halfsize
             reg_dict["reg_pos"] = reg_pos
+            reg_dict["reg_offset"] = reg_offset
             prefix = reg_bbox.GetName().replace("reg_", "")
             self._regions[prefix] = reg_dict
 
@@ -79,6 +85,10 @@ class USDObject():
             return "bbox"
         else:
             raise ValueError(f"No bounded region found for object {self.name}")
+
+    @property
+    def bounded_region(self):
+        return self._regions[self.bounded_region_name]
 
     @property
     def horizontal_radius(self):

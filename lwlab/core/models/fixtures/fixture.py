@@ -31,6 +31,12 @@ from .fixture_types import FixtureType
 
 FIXTURES = {}
 FIXTURE_TYPES = defaultdict(list)
+SURFACE_FIXTURE_TYPES = {
+    FixtureType.DINING_COUNTER,
+    FixtureType.COUNTER,
+    FixtureType.TABLE,
+    FixtureType.FLOOR_LAYOUT
+}
 
 
 class Fixture:
@@ -64,13 +70,15 @@ class Fixture:
             size=None,
             max_size=None,
             placement=None,
-            rng=None,
+            seed=None,
             device="cpu",
     ):
         self.name = name
         self.prim = prim
         self.num_envs = num_envs
         self.device = device
+        self.seed = seed
+        self.rng = np.random.default_rng(seed)
 
         # Preserve existing regions if they exist
         if not hasattr(self, '_regions'):
@@ -105,11 +113,14 @@ class Fixture:
                 reg_pos = np.array(reg_pos)
                 # TODO: fixture standard (extent or scale)
                 reg_extent = np.array(geom_prim.GetAttribute("extent").Get()[1])
-                reg_scale = np.array(geom_prim.GetAttribute("xformOp:scale").Get())
-                reg_halfsize = np.where(abs(reg_extent) > abs(reg_scale), reg_scale, reg_extent)
-                reg_halfsize = reg_halfsize * self.scale
+                if geom_prim.GetAttribute("xformOp:scale").Get():
+                    reg_scale = np.array(geom_prim.GetAttribute("xformOp:scale").Get())
+                    reg_halfsize = np.where(abs(reg_extent) > abs(reg_scale), reg_scale, reg_extent)
+                    reg_halfsize = reg_halfsize * self.scale
+                else:
+                    reg_size = usd.get_prim_size(geom_prim)
+                    reg_halfsize = np.array(reg_size) / 2
                 reg_rel_pos = (T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos))
-
             p0 = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             px = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
             py = reg_rel_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
@@ -130,14 +141,15 @@ class Fixture:
             reg_pos = np.array(reg_pos)
             reg_quat = np.array(reg_quat)
             reg_halfsize = np.fromstring(prim.GetAttribute("size").Get(), sep=',') / 2
-            reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos)
-            reg_dict = {}
-            reg_dict["p0"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
-            reg_dict["px"] = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
-            reg_dict["py"] = reg_rel_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
-            reg_dict["pz"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], reg_halfsize[2]]
-            reg_dict["per_env_offset"] = np.zeros((num_envs, 3))
-            self._regions["main"] = reg_dict
+            if reg_halfsize.size:
+                reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (np.array(reg_pos) - self.pos)
+                reg_dict = {}
+                reg_dict["p0"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
+                reg_dict["px"] = reg_rel_pos + [reg_halfsize[0], -reg_halfsize[1], -reg_halfsize[2]]
+                reg_dict["py"] = reg_rel_pos + [-reg_halfsize[0], reg_halfsize[1], -reg_halfsize[2]]
+                reg_dict["pz"] = reg_rel_pos + [-reg_halfsize[0], -reg_halfsize[1], reg_halfsize[2]]
+                reg_dict["per_env_offset"] = np.zeros((num_envs, 3))
+                self._regions["main"] = reg_dict
 
         # if size is not None:
         #     self.set_scale_from_size(size, max_size=max_size)
@@ -172,11 +184,6 @@ class Fixture:
 
         # placement config, for determining where to place fixture (most fixture will not use this)
         self._placement = placement
-
-        if rng is not None:
-            self.rng = rng
-        else:
-            self.rng = np.random.default_rng()
 
         # track information about all joints
         self._joint_infos = dict()
@@ -670,13 +677,14 @@ class Fixture:
                 if max(min_size[:2]) > max(reg_size[:2]):
                     # object cannot fit plane
                     continue
-                if (
-                    reg_height is not None
-                    and len(min_size) == 3
-                    and min_size[2] > reg_height
-                ):
-                    # object cannot fit height of region
-                    continue
+                if not any(fixture_is_type(self, fixture_type) for fixture_type in SURFACE_FIXTURE_TYPES):
+                    if (
+                        reg_height is not None
+                        and len(min_size) == 3
+                        and min_size[2] > reg_height
+                    ):
+                        # object cannot fit height of region
+                        continue
             reg_dict_copy = deepcopy(reg_dict)
             reg_dict_copy["name"] = reg_name
             valid_regions.append(reg_dict_copy)

@@ -424,23 +424,25 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
     fixture_to_robot_offset[0] = ground_to_ref[0]
 
     # y direction it's facing from perspective of host fixture
+    robot_to_fixture_dist = env.robot_to_fixture_dist if hasattr(env, "robot_to_fixture_dist") else 0.20
     if face_dir == 1:  # north
         fixture_p = fixture_ext_sites[0]
-        fixture_to_robot_offset[1] = fixture_p[1] - 0.20
+        fixture_to_robot_offset[1] = fixture_p[1] - robot_to_fixture_dist
     elif face_dir == -1:  # south
         fixture_p = fixture_ext_sites[2]
-        fixture_to_robot_offset[1] = fixture_p[1] + 0.20
+        fixture_to_robot_offset[1] = fixture_p[1] + robot_to_fixture_dist
     elif face_dir == 2:  # west
         fixture_p = fixture_ext_sites[1]
-        fixture_to_robot_offset[0] = fixture_p[0] + 0.20
+        fixture_to_robot_offset[0] = fixture_p[0] + robot_to_fixture_dist
     elif face_dir == -2:  # east
         fixture_p = fixture_ext_sites[0]
-        fixture_to_robot_offset[0] = fixture_p[0] - 0.20
+        fixture_to_robot_offset[0] = fixture_p[0] - robot_to_fixture_dist
 
     if offset is not None:
         fixture_to_robot_offset[0] += offset[0]
         fixture_to_robot_offset[1] += offset[1]
     elif ref_object is not None:
+        print(f"placement initializer object: {ref_object}")
         sampler = env.placement_initializer.samplers[f"{ref_object}_Sampler"]
         if face_dir == -1 or face_dir == 1:
             fixture_to_robot_offset[0] += np.mean(sampler.x_ranges)
@@ -680,6 +682,7 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
                     and rotation_axis == "z"
                 ):
                     sample_region_kwargs["min_size"] = mj_obj.size
+                print(f"get valid reset region for {cfg['name']}")
                 reset_region = fixture.get_all_valid_reset_region(
                     env=env, **sample_region_kwargs
                 )
@@ -882,6 +885,7 @@ def init_robot_base_pose(env):
             "Dishwasher",
             "Wall_obj",
             "Floor_obj",
+            "FloorLayout",
             "Book",
             "Carpet",
             "Cushion",
@@ -1019,7 +1023,7 @@ def create_obj(env, cfg, version=None):
 
 
 def sample_object_placements(env, need_retry=True):
-    if env.is_replay_mode:
+    if env.initial_state is not None or env.is_replay_mode:
         return env._load_placement()
 
     if not need_retry:
@@ -1223,7 +1227,7 @@ def check_valid_robot_pose(env, robot_pos, env_ids=None):
     # 3. check if the robot is in overlap with the objects in the scene
     # all rigid prim in the scene except the robot
     for obs_prim in scene_prim.GetChildren():
-        if not obs_prim.IsValid():
+        if not obs_prim.IsValid() or obs_prim.GetAttribute("type").Get() == "WallLayout":
             continue
         # Compute the world-space bounding box for prim
         obs_bbox = OpenUsd.get_prim_aabb_bounding_box(obs_prim)

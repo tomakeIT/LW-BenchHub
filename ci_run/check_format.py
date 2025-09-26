@@ -3,21 +3,27 @@ import os
 import json
 import shlex
 import subprocess
+import sys
+
+if len(sys.argv) == 1:
+    target_path = "."
+else:
+    target_path = sys.argv[1]
+
 
 AUTOPEP8_CMD = (
     "autopep8 --diff --recursive "
     "--ignore=E501,E402 "
     "--exclude third_party "
-    ". "
-    "--exit-code"
-)
+    "--exit-code "
+) + target_path
 
 FLAKE8_CMD = (
     "flake8 "
     "--ignore E501,E402,F401,W503,E704,F841,F541,W504,W605,E266 "
     "--exclude third_party "
-    "."
-)
+
+) + target_path
 
 
 def run_cmd(cmd: str):

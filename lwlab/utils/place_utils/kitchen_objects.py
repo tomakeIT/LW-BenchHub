@@ -1,5 +1,18 @@
 from lightwheel_sdk.loader import object_loader
-OBJ_CATEGORIES = object_loader.list_registry()
+
+
+def postprocess_obj_categories(obj_categories, exclude_fixture=True):
+    updated_categories = []
+    for obj_cat in obj_categories:
+        if obj_cat["removed"]:
+            continue
+        if exclude_fixture and obj_cat["registryType"] == "fixtures":
+            continue
+        updated_categories.append(obj_cat)
+    return updated_categories
+
+
+OBJ_CATEGORIES = postprocess_obj_categories(object_loader.list_registry())
 
 
 def get_cats_by_type(types, obj_registries=[]):

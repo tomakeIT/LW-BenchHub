@@ -19,7 +19,6 @@ from lwlab.utils.env import ExecuteMode
 class LwBaseCfg(ManagerBasedRLEnvCfg):
 
     def __post_init__(self):
-        self.seed = 0
         if self.execute_mode == ExecuteMode.TELEOP:
             self.ui_window_class_type = None
 

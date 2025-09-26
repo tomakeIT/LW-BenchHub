@@ -467,6 +467,7 @@ class UniformRandomSampler(ObjectPositionSampler):
 
                 if location_valid:
                     # location is valid, put the object down
+                    print(f"Placed object '{obj.task_name}' successfully")
                     pos = (object_x, object_y, object_z)
                     placed_objects[obj.task_name] = (pos, quat, obj)
                     success = True
@@ -524,7 +525,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
 
         # sort samplers by object size (large -> small)
         self.samplers_with_args = list(zip(self.samplers.values(), self.sample_args.values()))
-        self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
+        # self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
         self.samplers_with_args = self.adjust_order_by_container(self.samplers_with_args)
 
     def hide(self, mujoco_objects):

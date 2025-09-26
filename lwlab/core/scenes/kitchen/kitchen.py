@@ -112,7 +112,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         self.scene_retry_count = 0
         self.object_retry_count = 0
 
-        if self.execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
+        if self.execute_mode in [ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE]:
             self.is_replay_mode = True
         else:
             self.is_replay_mode = False
@@ -220,7 +220,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             style_id = self._ep_meta["style_id"]
             self.scene_type = self._ep_meta["scene_type"] if "scene_type" in self._ep_meta else "robocasakitchen"
         else:
-            assert self.scene_name.startswith("robocasa"), "Only robocasa scenes are supported"
+            # assert self.scene_name.startswith("robocasa"), "Only robocasa scenes are supported"
             # scene name is of the form robocasa-kitchen-<layout_id>
             scene_name_split = self.scene_name.split("-")
             if len(scene_name_split) == 3:
@@ -252,6 +252,18 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         self.cache_usd_version.update({"floorplan_version": self.lwlab_arena.version_id})
 
     def _load_placement(self):
+        objects_placement = {}
+        if self.initial_state and self.initial_state.get("rigid_object", None):
+            rigid_objects_group = self.initial_state["rigid_object"]
+            for obj_name in rigid_objects_group.keys():
+                if obj_name not in self.objects.keys():
+                    continue
+                obj_group = rigid_objects_group[obj_name]
+                objects_placement[obj_name] = (
+                    tuple(obj_group["root_pose"][0][0:3].tolist()), np.array([obj_group["root_pose"][0][4], obj_group["root_pose"][0][5], obj_group["root_pose"][0][6], obj_group["root_pose"][0][3]], dtype=np.float32), self.objects[obj_name]
+                )
+            return objects_placement
+
         import h5py
         ep_names = self.replay_cfgs["ep_names"]
         if len(ep_names) > 1:
@@ -259,7 +271,6 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         else:
             ep_name = ep_names[-1]
         with h5py.File(self.hdf5_path, 'r') as f:
-            objects_placement = {}
             rigid_objects_path = f"data/{ep_name}/initial_state/rigid_object"
 
             # Check if rigid_objects_path exists in the file
@@ -274,17 +285,17 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                 pose_path = f"{rigid_objects_path}/{obj_name}"
                 obj_group = f[pose_path]
                 objects_placement[obj_name] = (
-                    tuple(obj_group["root_pose"][0, 0:3].tolist()), np.array(obj_group["root_pose"][0, 3:7], dtype=np.float32), self.objects[obj_name]
+                    tuple(obj_group["root_pose"][0][0:3].tolist()), np.array([obj_group["root_pose"][0][4], obj_group["root_pose"][0][5], obj_group["root_pose"][0][6], obj_group["root_pose"][0][3]], dtype=np.float32), self.objects[obj_name]
                 )
-
         return objects_placement
 
     def _load_model(self):
         # Reset scene retry count at start of load model
         self.object_retry_count = 0
         # clean cache when not in replay mode
-        if self.execute_mode not in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
-            self.cache_usd_version = {}
+        if self.execute_mode not in [ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE]:
+            if not self.cache_usd_version.get("keep_placement", False):
+                self.cache_usd_version = {}
         self._setup_model()
         if self.init_robot_base_ref is not None:
             for i in range(50):  # keep searching for valid environment
@@ -494,6 +505,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         ep_meta["cache_usd_version"] = self.cache_usd_version
         ep_meta["sources"] = self.sources
         ep_meta["object_projects"] = self.object_projects
+        ep_meta["seed"] = self.seed
         return ep_meta
 
     def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None):
@@ -648,10 +660,11 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
     def _spawn_objects(self):
         for pos, rot, obj in self.object_placements.values():
+            rot_mat = Tn.quat2mat(rot)
             rot = Tn.convert_quat(rot, to="wxyz")  # xyzw->wxyz
             obj_cfg = RigidObjectCfg(
                 prim_path=f"{{ENV_REGEX_NS}}/Scene/{obj.task_name}",
-                init_state=RigidObjectCfg.InitialStateCfg(pos=pos, rot=rot),
+                init_state=RigidObjectCfg.InitialStateCfg(pos=pos + rot_mat @ obj.bounded_region["reg_offset"], rot=rot),
                 spawn=sim_utils.UsdFileCfg(
                     usd_path=obj.obj_path,
                     # TODO: huge bug!!! this value will be regarded as contact reporter force_threshold, so set it to False

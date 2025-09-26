@@ -157,7 +157,8 @@ def parse_env_cfg(
     seed: int | None = None,
     sources: list[str] | None = None,
     object_projects: list[str] | None = None,
-    **kwargs,
+    initial_state: dict | None = None,
+    ** kwargs,
 ) -> "ManagerBasedRLEnvCfg":
     """Parse configuration for an environment and override based on inputs.
 
@@ -220,6 +221,7 @@ def parse_env_cfg(
     RobocasaEnvCfg.max_object_placement_retry = max_object_placement_retry
     RobocasaEnvCfg.sources = sources
     RobocasaEnvCfg.object_projects = object_projects
+    RobocasaEnvCfg.initial_state = initial_state
 
     if scene_type == "USD":
         cfg = RobocasaEnvCfg(

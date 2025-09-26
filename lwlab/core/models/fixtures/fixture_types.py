@@ -71,3 +71,4 @@ class FixtureType(IntEnum):
     SOCKET = 57
     UTENSIL_RACK = 58
     FLOOR_OBJ = 59
+    FLOOR_LAYOUT = 60

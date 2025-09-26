@@ -47,7 +47,7 @@ def cleanup_process(process):
                     print("warning: unable to terminate main process")
 
 
-def update_config_task(task_name):
+def update_config_task(task_name, layout):
     """Update the task field in teleop_ci.yml"""
     try:
         # Read the original teleop_ci.yml
@@ -60,7 +60,8 @@ def update_config_task(task_name):
 
         # Update the task field
         config['task'] = task_name
-
+        if layout:
+            config['layout'] = layout
         # Write back to the file
         with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False)
@@ -94,6 +95,8 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description='Monitor teleop_main.py execution')
     parser.add_argument('--task', type=str, default='SizeSorting',
                         help='Task name to use in the config (default: SizeSorting)')
+    parser.add_argument('--layout', type=str, default=None,
+                        help='Floorplan to use in tht config')
     parser.add_argument('--reset_num', type=int, default=1,
                         help='Reset numbers (default: 1, to save check metrics file)')
     return parser.parse_args()
@@ -115,7 +118,7 @@ def main():
 
     try:
         # Update the config file with the specified task
-        original_task = update_config_task(args.task)
+        original_task = update_config_task(args.task, args.layout)
         if original_task is None:
             print("Failed to update config file")
             return False
@@ -207,11 +210,16 @@ def main():
         if not teleop_begins_detected:
             if process.poll() is None:
                 if time.time() - monitor_start_time > timeout:
-                    test_result["success"] = True
-                    test_result["desc"] = "Start over 5 minutes"
+                    # If traceback_lines is non-empty, success should be False
+                    if traceback_lines:
+                        test_result["success"] = False
+                        test_result["desc"] = "Start over 5 minutes but with errors"
+                    else:
+                        test_result["success"] = True
+                        test_result["desc"] = "Start over 5 minutes"
                     test_result["error"] = traceback_lines
                     cleanup_process(process)
-                    return True
+                    return test_result["success"]
             else:
                 test_result["success"] = False
                 if not traceback_lines:

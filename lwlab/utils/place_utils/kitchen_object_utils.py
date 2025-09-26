@@ -172,19 +172,19 @@ def find_most_similar_category(filename):
     def normalize_name(name):
         return name.replace("_", "").lower()
     filename_norm = normalize_name(filename)
-    category = max(
+    groups = max(
         [g for g in OBJ_GROUPS if filename_norm.startswith(normalize_name(g))],
         key=len,
         default=None
     )
-    if category is not None:
-        return category
+    if groups is not None:
+        return OBJ_GROUPS[groups][0]
     from difflib import get_close_matches
     candidates = list(OBJ_GROUPS.keys())
     matches = get_close_matches(filename_norm, [normalize_name(c) for c in candidates], n=1, cutoff=0.7)
     if matches:
         idx = [normalize_name(c) for c in candidates].index(matches[0])
-        return candidates[idx]
+        return OBJ_GROUPS[candidates[idx]][0]
     else:
         return None
 

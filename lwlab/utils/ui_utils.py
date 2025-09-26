@@ -167,7 +167,7 @@ def dock_window(space, name, location, ratio):
         window.dock_in(space, location, ratio=ratio)
 
 
-def create_and_dock_viewport(env, parent_window_name, position, ratio, camera_path):
+def create_and_dock_viewport(env, parent_window_name, position, ratio, camera_path, viewport=None):
     """
     Create and configure a viewport window.
 
@@ -183,7 +183,8 @@ def create_and_dock_viewport(env, parent_window_name, position, ratio, camera_pa
     """
     from omni.kit.viewport.utility import create_viewport_window
     import omni.ui as ui
-    viewport = create_viewport_window()
+    if viewport is None:
+        viewport = create_viewport_window()
     env.sim.render()
 
     parent_window = ui.Workspace.get_window(parent_window_name)
@@ -201,7 +202,7 @@ def create_and_dock_viewport(env, parent_window_name, position, ratio, camera_pa
 # TODO to optimize this function
 #  1. enable setup cameras with config
 #  2. try to optimize camera config to increase performance
-def setup_cameras(env):
+def setup_cameras(env, viewports=None):
     """
     Set up mulitiple viewports for the teleoperation.
 
@@ -212,7 +213,8 @@ def setup_cameras(env):
     """
     from pxr import UsdGeom
     import omni.ui as ui
-    viewports = {}
+    if viewports is None:
+        viewports = {}
     camera_prims = []
     for prim in env.sim.stage.Traverse():
         if prim.IsA(UsdGeom.Camera):
@@ -239,48 +241,60 @@ def setup_cameras(env):
         viewport.set_active_camera(first_person_camera.GetPath())
         viewport.set_texture_resolution((1280, 720))
     if eye_in_hand_camera is not None:
+        viewport_eye_in_hand = viewports.get("eye_in_hand", None)
         viewport_eye_in_hand = create_and_dock_viewport(
             env,
             "DockSpace",
             ui.DockPosition.BOTTOM,
             0.25,
-            eye_in_hand_camera.GetPath()
+            eye_in_hand_camera.GetPath(),
+            viewport=viewport_eye_in_hand
+
         )
         viewports["eye_in_hand"] = viewport_eye_in_hand
     if left_hand_camera is not None:
+        viewport_left_hand = viewports.get("left_hand", None)
         viewport_left_hand = create_and_dock_viewport(
             env,
             "DockSpace",
             ui.DockPosition.LEFT,
             0.25,
-            left_hand_camera.GetPath()
+            left_hand_camera.GetPath(),
+            viewport=viewport_left_hand
         )
         viewports["left_hand"] = viewport_left_hand
     if right_hand_camera is not None:
+        viewport_right_hand = viewports.get("right_hand", None)
         viewport_right_hand = create_and_dock_viewport(
             env,
             "DockSpace",
             ui.DockPosition.RIGHT,
             0.25,
-            right_hand_camera.GetPath()
+            right_hand_camera.GetPath(),
+            viewport=viewport_right_hand
         )
         viewports["right_hand"] = viewport_right_hand
     if left_shoulder_camera is not None:
+        viewport_left_shoulder = viewports.get("left_shoulder", None)
         viewport_left_shoulder = create_and_dock_viewport(
             env,
             viewport_left_hand.name,
             ui.DockPosition.BOTTOM,
             0.5,
-            left_shoulder_camera.GetPath()
+            left_shoulder_camera.GetPath(),
+            viewport=viewport_left_shoulder
         )
         viewports["left_shoulder"] = viewport_left_shoulder
     if right_shoulder_camera is not None:
+        viewport_right_shoulder = viewports.get("right_shoulder", None)
         viewport_right_shoulder = create_and_dock_viewport(
             env,
             viewport_right_hand.name,
             ui.DockPosition.BOTTOM,
             0.5,
-            right_shoulder_camera.GetPath())
+            right_shoulder_camera.GetPath(),
+            viewport=viewport_right_shoulder
+        )
         viewports["right_shoulder"] = viewport_right_shoulder
     return viewports
 
@@ -402,4 +416,3 @@ def hide_ui_windows(sim_app):
         window = ui.Workspace.get_window(name)
         if window is not None:
             window.visible = False
-            sim_app.update()

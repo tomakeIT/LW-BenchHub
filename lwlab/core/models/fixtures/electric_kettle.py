@@ -139,7 +139,7 @@ class ElectricKettle(Fixture):
                 self.set_lid(env, 1.0, gradual=True)
 
             # Handle switch/power state
-            switch_open_val = 1.0
+            switch_open_val = torch.tensor([1.0], device=env.device).repeat(env.num_envs)
 
             if self._switch[env_id] >= 0.95 and not self._turned_on[env_id]:
                 self._turned_on[env_id] = True

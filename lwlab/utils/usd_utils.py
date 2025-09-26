@@ -14,6 +14,7 @@
 
 import os
 import math
+from turtle import st
 from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
@@ -147,6 +148,14 @@ class OpenUsd:
         except Exception as e:
             print(f"Error decomposing transform for {prim.GetName()}: {e}")
             return None, None
+
+    @staticmethod
+    def get_prim_size(prim):
+        bbox = OpenUsd.get_prim_aabb_bounding_box(prim)
+        min_point = bbox.GetMin()
+        max_point = bbox.GetMax()
+        size = max_point - min_point
+        return size
 
     @staticmethod
     def get_articulation_joints(articulation_prim):

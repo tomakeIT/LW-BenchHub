@@ -17,7 +17,8 @@ dependencies = [
     "pynput",
     "mediapy",
     "tqdm",
-    "vuer[all]==0.0.41"
+    "vuer[all]==0.0.60",
+    "onnxruntime",
 ]
 
 [project.optional-dependencies]

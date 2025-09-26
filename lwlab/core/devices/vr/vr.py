@@ -64,6 +64,22 @@ class Device(DeviceBase):
         self.num_robots = 1  # TODO: 多机器人
         self._display_controls()
 
+    def refresh_env(self, env):
+        self.env = env
+        self.robot = env.scene.articulations['robot']
+        # NOTE: dummy robot arm
+        if hasattr(env.action_manager.cfg, 'arm_action'):
+            self.arm_count = 1
+            self.all_robot_arms = [['arm']]
+        elif hasattr(env.action_manager.cfg, 'arms_action') or \
+            (hasattr(env.action_manager.cfg, 'left_arm_action') and
+             hasattr(env.action_manager.cfg, 'right_arm_action')):
+            self.arm_count = 2
+            self.all_robot_arms = [['left_arm', 'right_arm']]
+        else:
+            raise ValueError("No arm action found in the environment")
+        self._reset_internal_state()
+
     def _reset_internal_state(self):
         """
         Resets internal state related to robot control
@@ -658,6 +674,12 @@ class VRDevice(Device):
             elif key.char == "t":
                 if "T" in self._additional_callbacks:
                     self._additional_callbacks["T"]()
+            elif key.char == "x":
+                if "X" in self._additional_callbacks:
+                    self._additional_callbacks["X"]()
+            elif key.char == "y":
+                if "Y" in self._additional_callbacks:
+                    self._additional_callbacks["Y"]()
 
         except AttributeError as e:
             pass
