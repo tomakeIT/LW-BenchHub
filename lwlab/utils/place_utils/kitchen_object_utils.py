@@ -4,7 +4,9 @@ from lwlab.utils.place_utils.usd_object import USDObject
 from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from termcolor import colored
+import time
 
+OBJECT_INFO_CACHE = {}
 
 class ObjInfo:
     def __init__(
@@ -73,39 +75,80 @@ def sample_kitchen_object(
 
     valid_object_sampled = False
     while not valid_object_sampled:
-        if version is not None:
-            obj_path, obj_name, obj_res = object_loader.acquire_by_file_version(version)
-            category = find_most_similar_category(obj_name)
-        elif isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
-            if "/" in object_cfgs["obj_groups"]:
-                filename = object_cfgs["obj_groups"].split("/")[-1].split(".")[0]
-                category = find_most_similar_category(object_cfgs["obj_groups"].split("/")[-2])
-            else:
-                filename = object_cfgs["obj_groups"].split(".")[0]
-                category = find_most_similar_category(filename)
+        cache_key = object_cfgs.get("task_name")
 
-            obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
-                "objects",
-                registry_name=[category],
-                file_name=filename,
-                source=list(source) if source is not None else [],
-                projects=list(projects) if projects is not None else [],
-            )
+        if cache_key and cache_key in OBJECT_INFO_CACHE:
+            print(f"--- Fast Reset: Found '{cache_key}' in runtime cache. Bypassing loader. ---")
+            acquire_start_time = time.time()
+            cached_data = OBJECT_INFO_CACHE[cache_key]
+            obj_path = cached_data['obj_path']
+            obj_name = cached_data['obj_name']
+            obj_res = cached_data['obj_res']
+            category = cached_data['category']
+            acquire_end_time = time.time()
+            total_acquire_time = acquire_end_time - acquire_start_time
+            print(f"Total Acquire Time: {total_acquire_time:.4f}s")
         else:
-            category = object_cfgs["obj_groups"]
-            if isinstance(category, list):
-                registry_name = [item for c in category for item in OBJ_GROUPS[c]]
-            elif isinstance(category, str):
-                registry_name = OBJ_GROUPS[category]
-            obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
-                "objects",
-                registry_name=registry_name,
-                eqs=None if not object_cfgs["properties"] else object_cfgs["properties"],
-                source=list(source) if source is not None else [],
-                projects=list(projects) if projects is not None else [],
-                contains=None,
-                exclude_registry_name=[] if object_cfgs["exclude_obj_groups"] is None else object_cfgs["exclude_obj_groups"],
-            )
+            if cache_key:
+                print(f"--- First Run: '{cache_key}' not in cache. Using object_loader. ---")
+
+            if version is not None:
+                acquire_start_time = time.time()
+                obj_path, obj_name, obj_res = object_loader.acquire_by_file_version(version)
+                category = find_most_similar_category(obj_name)
+                acquire_end_time = time.time()
+                total_acquire_time = acquire_end_time - acquire_start_time
+                print(f"Total Acquire Time: {total_acquire_time:.4f}s")
+
+            elif isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
+                if "/" in object_cfgs["obj_groups"]:
+                    filename = object_cfgs["obj_groups"].split("/")[-1].split(".")[0]
+                    category = find_most_similar_category(object_cfgs["obj_groups"].split("/")[-2])
+                else:
+                    filename = object_cfgs["obj_groups"].split(".")[0]
+                    category = find_most_similar_category(filename)
+
+                acquire_start_time = time.time()
+                obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
+                    "objects",
+                    registry_name=[category],
+                    file_name=filename,
+                    source=list(source) if source is not None else [],
+                    projects=list(projects) if projects is not None else [],
+                )
+                acquire_end_time = time.time()
+                total_acquire_time = acquire_end_time - acquire_start_time
+                print(f"Total Acquire Time: {total_acquire_time:.4f}s")
+
+            else:
+                category = object_cfgs["obj_groups"]
+                if isinstance(category, list):
+                    registry_name = [item for c in category for item in OBJ_GROUPS[c]]
+                elif isinstance(category, str):
+                    registry_name = OBJ_GROUPS[category]
+
+                acquire_start_time = time.time()
+                obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
+                    "objects",
+                    registry_name=registry_name,
+                    eqs=None if not object_cfgs["properties"] else object_cfgs["properties"],
+                    source=list(source) if source is not None else [],
+                    projects=list(projects) if projects is not None else [],
+                    contains=None,
+                    exclude_registry_name=[] if object_cfgs["exclude_obj_groups"] is None else object_cfgs["exclude_obj_groups"],
+                )
+                acquire_end_time = time.time()
+                total_acquire_time = acquire_end_time - acquire_start_time
+                print(f"Total Acquire Time: {total_acquire_time:.4f}s")
+
+            if cache_key:
+                OBJECT_INFO_CACHE[cache_key] = {
+                    'obj_path': obj_path,
+                    'obj_name': obj_name,
+                    'obj_res': obj_res,
+                    'category': category,
+                }
+
 
         sampled_category = find_most_similar_category(obj_res["assetName"])
         if sampled_category is None:
@@ -160,7 +203,7 @@ def sample_kitchen_object(
 
         groups_containing_sampled_obj = []
         for type, groups in OBJ_GROUPS.items():
-            if obj_info.category in groups:
+            if any(cat in groups for cat in obj_info.category):
                 groups_containing_sampled_obj.append(type)
         obj_info.groups_containing_sampled_obj = groups_containing_sampled_obj
     print(colored(f"Sampled {object_cfgs['task_name']}: {obj_info.name} from {obj_info.source}", "green"))
@@ -178,13 +221,13 @@ def find_most_similar_category(filename):
         default=None
     )
     if groups is not None:
-        return OBJ_GROUPS[groups][0]
+        return OBJ_GROUPS[groups]
     from difflib import get_close_matches
     candidates = list(OBJ_GROUPS.keys())
     matches = get_close_matches(filename_norm, [normalize_name(c) for c in candidates], n=1, cutoff=0.7)
     if matches:
         idx = [normalize_name(c) for c in candidates].index(matches[0])
-        return OBJ_GROUPS[candidates[idx]][0]
+        return OBJ_GROUPS[candidates[idx]]
     else:
         return None
 
