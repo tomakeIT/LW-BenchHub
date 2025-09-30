@@ -360,10 +360,10 @@ G1_GEARWBC_CFG = ArticulationCfg(
                 ".*_knee_joint",
             ],
             effort_limit={
-                ".*_hip_yaw_joint": 88.0,
-                ".*_hip_roll_joint": 88.0,
-                ".*_hip_pitch_joint": 88.0,
-                ".*_knee_joint": 139.0,
+                ".*_hip_yaw_joint": 200.0,
+                ".*_hip_roll_joint": 200.0,
+                ".*_hip_pitch_joint": 200.0,
+                ".*_knee_joint": 278.0,
             },
             velocity_limit={
                 ".*_hip_yaw_joint": 32.0,
@@ -372,16 +372,16 @@ G1_GEARWBC_CFG = ArticulationCfg(
                 ".*_knee_joint": 20.0,
             },
             stiffness={
-                ".*_hip_yaw_joint": 150.0,  # 100.0,
-                ".*_hip_roll_joint": 150.0,  # 100.0,
-                ".*_hip_pitch_joint": 150.0,  # 100.0
-                ".*_knee_joint": 300.0,  # 200.0,
+                ".*_hip_yaw_joint": 300.0,  # 100.0,
+                ".*_hip_roll_joint": 300.0,  # 100.0,
+                ".*_hip_pitch_joint": 300.0,  # 100.0
+                ".*_knee_joint": 600.0,  # 200.0,
             },
             damping={
-                ".*_hip_yaw_joint": 2.0,  # 2.5,
-                ".*_hip_roll_joint": 2.0,  # 2.5,
-                ".*_hip_pitch_joint": 2.0,  # 2.5,
-                ".*_knee_joint": 4.0,  # 5.0,
+                ".*_hip_yaw_joint": 4.0,  # 2.5,
+                ".*_hip_roll_joint": 4.0,  # 2.5,
+                ".*_hip_pitch_joint": 4.0,  # 2.5,
+                ".*_knee_joint": 8.0,  # 5.0,
             },
             armature={
                 ".*_hip_.*": 0.03,
@@ -425,9 +425,9 @@ G1_GEARWBC_CFG = ArticulationCfg(
             },
             # changing from 400 to 200
             stiffness={
-                "waist_yaw_joint": 250.0,  # 300.0,
-                "waist_roll_joint": 250.0,  # 300.0,
-                "waist_pitch_joint": 250.0,  # 300.0,
+                "waist_yaw_joint": 500.0,  # 300.0,
+                "waist_roll_joint": 500.0,  # 300.0,
+                "waist_pitch_joint": 500.0,  # 300.0,
             },
             damping={
                 "waist_yaw_joint": 5.0,
@@ -446,13 +446,13 @@ G1_GEARWBC_CFG = ArticulationCfg(
                 ".*_wrist_.*_joint",
             ],
             effort_limit={
-                ".*_shoulder_pitch_joint": 25.0,
-                ".*_shoulder_roll_joint": 25.0,
-                ".*_shoulder_yaw_joint": 25.0,
-                ".*_elbow_joint": 25.0,
-                ".*_wrist_roll_joint": 25.0,
-                ".*_wrist_pitch_joint": 5.0,
-                ".*_wrist_yaw_joint": 5.0,
+                ".*_shoulder_pitch_joint": 200.0,
+                ".*_shoulder_roll_joint": 200.0,
+                ".*_shoulder_yaw_joint": 200.0,
+                ".*_elbow_joint": 200.0,
+                ".*_wrist_roll_joint": 200.0,
+                ".*_wrist_pitch_joint": 20.0,
+                ".*_wrist_yaw_joint": 20.0,
             },
             velocity_limit={
                 ".*_shoulder_pitch_joint": 37.0,
@@ -464,11 +464,11 @@ G1_GEARWBC_CFG = ArticulationCfg(
                 ".*_wrist_yaw_joint": 22.0,
             },
             stiffness={
-                ".*_shoulder_pitch_joint": 100.0,  # 90.0,
-                ".*_shoulder_roll_joint": 100.0,  # 60.0,
-                ".*_shoulder_yaw_joint": 40.0,  # 20.0,
-                ".*_elbow_joint": 40.0,  # 60.0,
-                ".*_wrist_.*_joint": 20.0,  # 10.0,
+                ".*_shoulder_pitch_joint": 200.0,  # 90.0,
+                ".*_shoulder_roll_joint": 200.0,  # 60.0,
+                ".*_shoulder_yaw_joint": 80.0,  # 20.0,
+                ".*_elbow_joint": 80.0,  # 60.0,
+                ".*_wrist_.*_joint": 40.0,  # 10.0,
             },
             damping={
                 ".*_shoulder_pitch_joint": 5.0,  # 2.0,
