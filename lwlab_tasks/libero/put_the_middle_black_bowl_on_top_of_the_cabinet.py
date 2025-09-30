@@ -1,0 +1,131 @@
+import torch
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+from lwlab.core.models.fixtures.counter import Counter
+import numpy as np
+import copy
+
+
+class L90K2PutTheMiddleBlackBowlOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = "L90K2PutTheMiddleBlackBowlOnTopOfTheCabinet"
+    enable_fixtures = ["storage_furniture"]
+
+    def __post_init__(self):
+        self.obj_name = []
+        super().__post_init__()
+        self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE, ref=self.dining_table))
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.dining_table = self.register_fixture_ref(
+            "dining_table",
+            dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
+        )
+
+        self.init_robot_base_ref = self.dining_table
+
+    def _load_model(self):
+        super()._load_model()
+        for cfg in self.object_cfgs:
+            self.obj_name.append(cfg["name"])
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"put the black bowl on the plate."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+        cfgs.append(
+            dict(
+                name=f"akita_black_bowl",
+                obj_groups=["bowl"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
+                ),
+                init_robot_here=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.60, 0.35),
+                    margin=0.02,
+                    pos=(0.0, -0.9),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"akita_black_bowl1",
+                obj_groups=["bowl"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
+                ),
+                init_robot_here=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.60, 0.35),
+                    margin=0.02,
+                    pos=(0.0, -0.7),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"akita_black_bowl2",
+                obj_groups=["bowl"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
+                ),
+                init_robot_here=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.60, 0.5),
+                    margin=0.02,
+                    pos=(0.0, -0.4),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"plate",
+                obj_groups=["plate"],
+                graspable=True,
+                washable=True,
+                object_scale=0.6,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/plate/Plate012/model.xml"
+                ),
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.6, 0.35),
+                    margin=0.02,
+                    pos=(-0.3, -0.5)
+                ),
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        bowl1 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl"), self.drawer, only_2d=True)
+        bowl2 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl1"), self.drawer, only_2d=True)
+        bowl3 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl2"), self.drawer, only_2d=True)
+        bowl1_tensor = torch.tensor(bowl1, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bowl2_tensor = torch.tensor(bowl2, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bowl3_tensor = torch.tensor(bowl3, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        return (bowl1_tensor | bowl2_tensor | bowl3_tensor) & self._gripper_obj_farfrom_objects()
+
+    def _gripper_obj_farfrom_objects(self):
+        gripper_far_tensor = torch.tensor([True], device=self.env.device).repeat(self.env.num_envs)
+        for obj_name in self.obj_name:
+            gripper_far_tensor = gripper_far_tensor & OU.gripper_obj_far(self.env, obj_name)
+        return gripper_far_tensor

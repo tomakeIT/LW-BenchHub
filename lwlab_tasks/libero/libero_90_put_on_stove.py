@@ -1,0 +1,191 @@
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+import numpy as np
+import torch
+
+
+class _BasePutOnStove(LiberoEnvCfg, BaseTaskEnvCfg):
+    task_name: str = "_BasePutOnStove"
+
+    enable_fixtures = ['mokapot_1', 'stovetop']
+    removable_fixtures = ['mokapot_1']
+
+
+class _BasePutRightMokaPotOnStove(LiberoEnvCfg, BaseTaskEnvCfg):
+    task_name: str = "_BasePutRightMokaPotOnStove"
+
+    enable_fixtures = ['mokapot_1', 'mokapot_2', 'stovetop']
+    removable_fixtures = ['mokapot_1', 'mokapot_2']
+
+    def __post_init__(self):
+        self.activate_contact_sensors = False
+        # Avoid enabling fixtures by USD prefix to prevent KeyError in get_fixture_placements
+        return super().__post_init__()
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
+        self.stove = self.register_fixture_ref("stovetop", dict(id=FixtureType.STOVE))
+        self.mokapot_1 = self.register_fixture_ref("mokapot_1", dict(id="mokapot_1"))
+        self.mokapot_2 = self.register_fixture_ref("mokapot_2", dict(id="mokapot_2"))
+        self.init_robot_base_ref = self.counter
+        self.frying_pan = "chefmate_8_frypan"
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+
+        def get_placement(pos=(0.55, -1.0), size=(0.5, 0.5), rotation=None):
+            return dict(
+                fixture=self.counter,
+                size=size,
+                pos=pos,
+                rotation=rotation,
+                margin=0.02,
+                ensure_valid_placement=True,
+            )
+
+        def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, init_robot_here=False, object_scale=None):
+            cfg = dict(name=name, obj_groups=obj_groups, graspable=graspable, placement=placement)
+            if mjcf_path is not None:
+                cfg["info"] = dict(mjcf_path=mjcf_path)
+            if init_robot_here:
+                cfg["init_robot_here"] = True
+            if object_scale is not None:
+                cfg["object_scale"] = object_scale
+            cfgs.append(cfg)
+
+        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.5, 0.5), rotation=-np.pi / 2)
+        # moka_pl = get_placement()
+
+        # categories registered in kitchen_objects: pot, moka_pot
+        add_cfg(self.frying_pan, "pot", True, pan_pl, mjcf_path="/objects/lightwheel/pot/Pot086/model.xml")
+        # add_cfg(self.moka_pot, "moka_pot", True, moka_pl, mjcf_path="/objects/lightwheel/moka_pot/MokaPot001/model.xml")
+
+        return cfgs
+
+
+class L90K3PutTheFryingPanOnTheStove(_BasePutOnStove):
+    task_name: str = "L90K3PutTheFryingPanOnTheStove"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "Put the frying pan on the stove."
+        return ep_meta
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
+        self.mokapot = self.register_fixture_ref("mokapot_1", dict(id=FixtureType.MOKA_POT))
+        self.stove = self.register_fixture_ref("stovetop", dict(id=FixtureType.STOVE))
+        self.init_robot_base_ref = self.counter
+        self.frying_pan = "chefmate_8_frypan"
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+
+        def get_placement(pos=(0.55, -1.0), size=(0.5, 0.5), rotation=None):
+            return dict(
+                fixture=self.counter,
+                size=size,
+                pos=pos,
+                rotation=rotation,
+                margin=0.02,
+                ensure_valid_placement=True,
+            )
+
+        def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, init_robot_here=False, object_scale=None):
+            cfg = dict(name=name, obj_groups=obj_groups, graspable=graspable, placement=placement)
+            if mjcf_path is not None:
+                cfg["info"] = dict(mjcf_path=mjcf_path)
+            if init_robot_here:
+                cfg["init_robot_here"] = True
+            if object_scale is not None:
+                cfg["object_scale"] = object_scale
+            cfgs.append(cfg)
+
+        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.5, 0.5), rotation=-np.pi / 2)
+        # moka_pl = get_placement()
+
+        # categories registered in kitchen_objects: pot, moka_pot
+        add_cfg(self.frying_pan, "pot", True, pan_pl, mjcf_path="/objects/lightwheel/pot/Pot086/model.xml")
+        # add_cfg(self.moka_pot, "moka_pot", True, moka_pl, mjcf_path="/objects/lightwheel/moka_pot/MokaPot001/model.xml")
+
+        return cfgs
+
+    def _check_success(self):
+        pan_on_stove = OU.check_obj_fixture_contact(self.env, self.frying_pan, self.stove)
+        gripper_far = OU.gripper_obj_far(self.env, self.frying_pan, th=0.4)
+        return pan_on_stove & gripper_far
+
+
+class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
+    task_name: str = "L90K3PutTheMokaPotOnTheStove"
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
+        self.mokapot = self.register_fixture_ref("mokapot_1", dict(id=FixtureType.MOKA_POT))
+        self.stove = self.register_fixture_ref("stovetop", dict(id=FixtureType.STOVE))
+        self.init_robot_base_ref = self.counter
+        self.frying_pan = "chefmate_8_frypan"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "Put the moka pot on the stove."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+
+        def get_placement(pos=(0.55, -1.0), size=(0.5, 0.5), rotation=None):
+            return dict(
+                fixture=self.counter,
+                size=size,
+                pos=pos,
+                rotation=rotation,
+                margin=0.02,
+                ensure_valid_placement=True,
+            )
+
+        def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, init_robot_here=False, object_scale=None):
+            cfg = dict(name=name, obj_groups=obj_groups, graspable=graspable, placement=placement)
+            if mjcf_path is not None:
+                cfg["info"] = dict(mjcf_path=mjcf_path)
+            if init_robot_here:
+                cfg["init_robot_here"] = True
+            if object_scale is not None:
+                cfg["object_scale"] = object_scale
+            cfgs.append(cfg)
+
+        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.5, 0.5), rotation=-np.pi / 2)
+        # moka_pl = get_placement()
+
+        # categories registered in kitchen_objects: pot, moka_pot
+        add_cfg(self.frying_pan, "pot", True, pan_pl, mjcf_path="/objects/lightwheel/pot/Pot086/model.xml")
+        # add_cfg(self.moka_pot, "moka_pot", True, moka_pl, mjcf_path="/objects/lightwheel/moka_pot/MokaPot001/model.xml")
+
+        return cfgs
+
+    def _check_success(self):
+        success = OU.check_place_obj1_on_obj2(self.env, self.mokapot, self.stove)
+
+        return success
+
+
+class L90K8PutTheRightMokaPotOnTheStove(_BasePutRightMokaPotOnStove):
+    task_name: str = "L90K8PutTheRightMokaPotOnTheStove"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta["lang"] = "Put the right moka pot on the stove."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        return []
+
+    def _check_success(self):
+        # Check if at least one moka pot is on the stove
+        mokapot_2_on_stove = OU.check_place_obj1_on_obj2(self.env, self.mokapot_2, self.stove)
+        return mokapot_2_on_stove

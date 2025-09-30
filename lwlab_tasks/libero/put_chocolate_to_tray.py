@@ -1,0 +1,94 @@
+import torch
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+import copy
+
+
+class L90L4PickUpTheChocolatePuddingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = "L90L4PickUpTheChocolatePuddingAndPutItInTheTray"
+    EXCLUDE_LAYOUTS: list = [63, 64]
+    enable_fixtures = ["salad_dressing"]
+    removable_fixtures = enable_fixtures
+
+    def __post_init__(self):
+        return super().__post_init__()
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref(
+            "counter", dict(id=FixtureType.TABLE, size=(0.6, 0.6))
+        )
+        self.init_robot_base_ref = self.counter
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"pick up the chocolate pudding and put it in the tray."
+        return ep_meta
+
+    def _setup_scene(self, env_ids=None):
+        """
+        Resets simulation internal configurations.
+        """
+        super()._setup_scene(env_ids)
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+        cfgs.append(
+            dict(
+                name="chocolate_pudding",
+                obj_groups="chocolate_pudding",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/chocolate_pudding/ChocolatePudding001/model.xml",
+                ),
+                placement=dict(
+                    fixture=self.counter,
+                    size=(0.50, 0.50),
+                    pos=(-0.1, -0.8),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name="akita_black_bowl",
+                obj_groups="bowl",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml",
+                ),
+                placement=dict(
+                    fixture=self.counter,
+                    size=(0.50, 0.50),
+                    pos=(-1.0, -1.0),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"wooden_tray",
+                obj_groups=["tray"],
+                graspable=True,
+                washable=True,
+                object_scale=0.6,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/tray/Tray016/model.xml"
+                ),
+                placement=dict(
+                    fixture=self.counter,
+                    size=(0.5, 0.55),
+                    margin=0.02,
+                    pos=(0.4, -0.5)
+                ),
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        bowl_success = OU.check_obj_in_receptacle(self.env, "chocolate_pudding", "wooden_tray")
+        gipper_success = OU.gripper_obj_far(self.env, "chocolate_pudding")
+        return bowl_success & gipper_success

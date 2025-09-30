@@ -1,0 +1,341 @@
+import torch
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+import numpy as np
+
+
+class L90K3TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = "L90K3TurnOnTheStove"
+
+    enable_fixtures = ["stove", "mokapot_1"]
+    removable_fixtures = ["mokapot_1"]
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.stove = self.get_fixture(FixtureType.STOVE)
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref("island", dict(id=FixtureType.TABLE))
+        self.mokapot = self.register_fixture_ref("mokapot", dict(id=FixtureType.MOKA_POT))
+        self.init_robot_base_ref = self.counter
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Turn on the stove."
+        return ep_meta
+
+    def _setup_scene(self, env_ids=None):
+        """
+        Resets simulation internal configurations.
+        """
+        super()._setup_scene(env_ids)
+
+    def _reset_internal(self, env_ids):
+        super()._reset_internal(env_ids)
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+        placement = dict(
+            fixture=self.counter,
+            size=(0.6, 0.5),
+            pos=(-0.5, -0.2),
+            ensure_object_boundary_in_range=False,
+        )
+        cfgs.append(
+            dict(
+                name="chefmate_8_frypan",
+                obj_groups="pot",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/pot/Pot086/model.xml",
+                ),
+                placement=placement,
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        knobs_state = self.stove.get_knobs_state(env=self.env)
+        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+        for knob_name, knob_value in knobs_state.items():
+            abs_knob = torch.abs(knob_value)
+            lower, upper = 0.35, 2 * np.pi - 0.35
+            knob_on = (abs_knob >= lower) & (abs_knob <= upper)
+            knob_success = knob_success | knob_on
+        return knob_success & OU.gripper_obj_far(self.env, self.stove.name, th=0.4)
+
+
+class L90K9TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = "L90K9TurnOnTheStove"
+
+    enable_fixtures = ["stove"]
+
+    def __post_init__(self):
+        super().__post_init__()
+        self.stove = self.get_fixture(FixtureType.STOVE)
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref("island", dict(id=FixtureType.TABLE))
+        self.init_robot_base_ref = self.counter
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Turn on the stove."
+        return ep_meta
+
+    def _setup_scene(self, env_ids=None):
+        """
+        Resets simulation internal configurations.
+        """
+        super()._setup_scene(env_ids)
+
+    def _reset_internal(self, env_ids):
+        super()._reset_internal(env_ids)
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+
+        placement = dict(
+            fixture=self.counter,
+            size=(0.6, 0.5),
+            pos=(-0.5, 0.2),
+            rotation=np.pi,
+            ensure_object_boundary_in_range=False,
+        )
+        cfgs.append(
+            dict(
+                name="wooden_two_layer_shelf",
+                obj_groups="shelf",
+                graspable=True,
+                object_scale=0.8,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/shelf/Shelf073/model.xml",
+                ),
+                placement=dict(
+                    fixture=self.counter,
+                    rotation=-np.pi / 2,
+                    size=(0.80, 0.80),
+                    pos=(0.3, 0.0),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name="chefmate_8_frypan",
+                obj_groups="pot",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/pot/Pot086/model.xml",
+                ),
+                placement=dict(
+                    fixture=self.counter,
+                    size=(0.6, 0.5),
+                    pos=(-0.5, 0.2),
+                    ensure_object_boundary_in_range=False,
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name="white_bowl",
+                obj_groups="bowl",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl011/model.xml",
+                ),
+                placement=placement,
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        knobs_state = self.stove.get_knobs_state(env=self.env)
+        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+        for knob_name, knob_value in knobs_state.items():
+            abs_knob = torch.abs(knob_value)
+            lower, upper = 0.35, 2 * np.pi - 0.35
+            knob_on = (abs_knob >= lower) & (abs_knob <= upper)
+            knob_success = knob_success | knob_on
+        return knob_success & OU.gripper_obj_far(self.env, self.stove.name, th=0.4)
+
+
+class L90K3TurnOnTheStoveAndPutTheFryingPanOnIt(L90K3TurnOnTheStove):
+    task_name: str = "L90K3TurnOnTheStoveAndPutTheFryingPanOnIt"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Turn on the stove and put the frying pan on it."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+        placement = dict(
+            fixture=self.counter,
+            size=(0.6, 0.5),
+            pos=(-0.5, 0.0),
+            ensure_object_boundary_in_range=False,
+        )
+        cfgs.append(
+            dict(
+                name="chefmate_8_frypan",
+                obj_groups="pot",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/pot/Pot086/model.xml",
+                ),
+                placement=placement,
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        knobs_state = self.stove.get_knobs_state(env=self.env)
+        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+        for knob_name, knob_value in knobs_state.items():
+            abs_knob = torch.abs(knob_value)
+            lower, upper = 0.35, 2 * np.pi - 0.35
+            knob_on = (abs_knob >= lower) & (abs_knob <= upper)
+            knob_success = knob_success | knob_on
+        pot_success = OU.point_in_fixture(OU.get_object_pos(self.env, "chefmate_8_frypan"), self.stove, only_2d=True)
+        pot_success = torch.tensor([pot_success], device=self.env.device).repeat(self.env.num_envs)
+        return knob_success & pot_success & OU.gripper_obj_far(self.env, "chefmate_8_frypan", 0.35)
+
+
+class L10K3TurnOnTheStoveAndPutTheMokaPotOnIt(L90K3TurnOnTheStove):
+    task_name: str = "L10K3TurnOnTheStoveAndPutTheMokaPotOnIt"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Turn on the stove and put the moka pot on it."
+        return ep_meta
+
+    def _check_success(self):
+        knobs_state = self.stove.get_knobs_state(env=self.env)
+        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+        for knob_name, knob_value in knobs_state.items():
+            abs_knob = torch.abs(knob_value)
+            lower, upper = 0.35, 2 * np.pi - 0.35
+            knob_on = (abs_knob >= lower) & (abs_knob <= upper)
+            knob_success = knob_success | knob_on
+        mokapot_pos = self.env.scene.articulations[self.mokapot.name].data.root_pos_w[0, :].cpu().numpy()
+        moka_success = OU.point_in_fixture(mokapot_pos, self.stove, only_2d=True)
+        moka_success = torch.tensor([moka_success], device=self.env.device).repeat(self.env.num_envs)
+        return knob_success & moka_success & OU.gripper_obj_far(self.env, "mokapot_1_front_group_1", 0.35)
+
+
+class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = 'L90K9TurnOnTheStoveAndPutTheFryingPanOnIt'
+    EXCLUDE_LAYOUTS: list = [63, 64]
+    enable_fixtures: list[str] = ["stovetop"]
+
+    def __post_init__(self):
+        self.activate_contact_sensors = False
+        return super().__post_init__()
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"put the frying pan on top of the cabinet."
+        return ep_meta
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
+        self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
+        self.init_robot_base_ref = self.dining_table
+        self.shelf = "shelf"
+        self.frying_pan = "frying_pan"
+        self.bowl = "bowl"
+
+    def _setup_scene(self, env_ids=None):
+        """
+        Resets simulation internal configurations.
+        """
+        super()._setup_scene(env_ids)
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+
+        cfgs.append(
+            dict(
+                name=self.shelf,
+                obj_groups="shelf",
+                graspable=True,
+                object_scale=0.8,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.25, 0.25),
+                    pos=(-0.75, 0.25),
+                    rotation=np.pi / 2,
+                    ensure_object_boundary_in_range=False,
+                ),
+                info=dict(
+                    mjcf_path="/objects/lightwheel/shelf/Shelf073/model.xml",
+                ),
+            )
+        )
+
+        cfgs.append(
+            dict(
+                name=self.bowl,
+                obj_groups="bowl",
+                graspable=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.25, 0.25),
+                    pos=(1.0, -0.0),
+                    ensure_object_boundary_in_range=False,
+                ),
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl009/model.xml",
+                ),
+            )
+        )
+
+        cfgs.append(
+            dict(
+                name=self.frying_pan,
+                obj_groups="pot",
+                graspable=True,
+                object_scale=0.8,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.5, 0.25),
+                    pos=(0.5, -0.25),
+                    ensure_object_boundary_in_range=False,
+                ),
+                info=dict(
+                    mjcf_path="/objects/lightwheel/pot/Pot086/model.xml",
+                ),
+            )
+        )
+
+        return cfgs
+
+    def _check_success(self):
+        knobs_state = self.stove.get_knobs_state(env=self.env)
+        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+        for knob_name, knob_value in knobs_state.items():
+            abs_knob = torch.abs(knob_value)
+            lower, upper = 0.35, 2 * np.pi - 0.35
+            knob_on = (abs_knob >= lower) & (abs_knob <= upper)
+            knob_success = knob_success | knob_on
+        pot_success = OU.point_in_fixture(OU.get_object_pos(self.env, self.frying_pan), self.stove, only_2d=True)
+        pot_success = torch.tensor([pot_success], device=self.env.device).repeat(self.env.num_envs)
+        return knob_success & pot_success & OU.gripper_obj_far(self.env, self.frying_pan, 0.35)

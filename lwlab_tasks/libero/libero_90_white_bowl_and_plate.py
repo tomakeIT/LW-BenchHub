@@ -1,0 +1,148 @@
+import copy
+import re
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+
+
+class L90K7PutTheWhiteBowlOnThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
+    """
+    L90K7PutTheWhiteBowlOnThePlate: put the white bowl on the plate
+    """
+
+    task_name: str = "L90K7PutTheWhiteBowlOnThePlate"
+    enable_fixtures = ['microwave']
+
+    def __post_init__(self):
+        self.activate_contact_sensors = False
+        return super().__post_init__()
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
+        self.microwave = self.register_fixture_ref("microwave", dict(id=FixtureType.MICROWAVE))
+        self.init_robot_base_ref = self.counter
+        self.plate = "plate"
+        self.white_bowl = "white_bowl"
+
+    def _setup_scene(self, env_ids=None):
+        """
+        Resets simulation internal configurations.
+        """
+        super()._setup_scene(env_ids)
+
+    def _load_model(self):
+        super()._load_model()
+        mircowave_pos = self.microwave.pos
+        mircowave_size = self.microwave.size
+        bowl_obj = copy.deepcopy(self.object_placements[self.white_bowl])
+        bowl_pos = list(bowl_obj[0])
+        bowl_pos[0] = mircowave_pos[0]
+        bowl_pos[1] = mircowave_pos[1]
+        bowl_pos[2] = bowl_pos[2] + mircowave_size[2]
+        bowl_obj = list(bowl_obj)
+        bowl_obj[0] = bowl_pos
+        self.object_placements[self.white_bowl] = tuple(bowl_obj)
+
+    def _reset_internal(self, env_ids):
+        super()._reset_internal(env_ids)
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+
+        def get_placement(pos=(0.0, -1), size=(0.5, 0.5)):
+            return dict(
+                fixture=self.counter,
+                size=size,
+                pos=pos,
+                margin=0.02,
+                ensure_valid_placement=True,
+            )
+        plate_placement = get_placement(pos=(0.0, -0.8), size=(0.5, 0.5))
+        white_bowl_placement = get_placement(pos=(-0.3, -0.8), size=(0.5, 0.5))
+
+        def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None):
+            if mjcf_path is not None:
+                cfgs.append(
+                    dict(
+                        name=name,
+                        obj_groups=obj_groups,
+                        graspable=graspable,
+                        info=dict(mjcf_path=mjcf_path),
+                        placement=placement,
+                    )
+                )
+            else:
+                cfgs.append(
+                    dict(
+                        name=name,
+                        obj_groups=obj_groups,
+                        graspable=graspable,
+                        placement=placement,
+                    )
+                )
+        add_cfg(self.plate, self.plate, True, plate_placement, mjcf_path='/objects/lightwheel/plate/Plate012/model.xml')
+        add_cfg(self.white_bowl, self.white_bowl, True, white_bowl_placement, mjcf_path='/objects/lightwheel/bowl/Bowl011/model.xml')
+        return cfgs
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Pick up the white bowl and put it on the plate."
+        return ep_meta
+
+    def _check_success(self):
+        success = OU.check_place_obj1_on_obj2(
+            self.env,
+            self.white_bowl,
+            self.plate,
+            th_z_axis_cos=0.95,  # verticality
+            th_xy_dist=0.25,    # within 0.4 diameter
+            th_xyz_vel=0.5     # velocity vector length less than 0.5
+        )
+        print(f"success state: {success}")
+        return success
+
+
+class L90K7PutTheWhiteBowlToTheRightOfThePlate(L90K7PutTheWhiteBowlOnThePlate):
+    task_name: str = "L90K7PutTheWhiteBowlToTheRightOfThePlate"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Put the white bowl to the right of the plate."
+        return ep_meta
+
+    def _check_success(self):
+        success = OU.check_place_obj1_side_by_obj2(
+            self.env,
+            self.white_bowl,
+            self.plate,
+            {
+                "gripper_far": True,
+                "contact": False,
+                "side": "right",
+                "side_threshold": 0.7,
+                "margin_threshold": [0.001, 0.2],
+                "stable_threshold": 0.5,
+            }
+        )
+        print(f"success state: {success}")
+        return success
+
+
+class L90K7OpenTheMicrowave(L90K7PutTheWhiteBowlToTheRightOfThePlate):
+    task_name: str = "L90K7OpenTheMicrowave"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Open the microwave."
+        return ep_meta
+
+    def _check_success(self):
+        return self.microwave.is_open(self.env, th=0.6) & OU.gripper_obj_far(self.env, self.microwave.name)

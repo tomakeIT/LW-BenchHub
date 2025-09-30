@@ -40,4 +40,9 @@ from .dishwasher import Dishwasher
 from .table import Table
 from .dish_rack import DishRack
 from .others import Box, Wall, Floor
+from .libero_sauce import BBQSauce, SaladDressing, Ketchup
+from .storage_furniture import StorageFurniture
+from .moka_pot import MokaPot
+from .floor_obj import FloorLayout
+from .wine_rack import WineRack
 from lwlab.utils.fixture_utils import fixture_is_type

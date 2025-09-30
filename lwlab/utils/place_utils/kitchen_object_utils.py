@@ -8,6 +8,7 @@ import time
 
 OBJECT_INFO_CACHE = {}
 
+
 class ObjInfo:
     def __init__(
         self,
@@ -149,7 +150,6 @@ def sample_kitchen_object(
                     'category': category,
                 }
 
-
         sampled_category = find_most_similar_category(obj_res["assetName"])
         if sampled_category is None:
             sampled_category = category
@@ -203,7 +203,7 @@ def sample_kitchen_object(
 
         groups_containing_sampled_obj = []
         for type, groups in OBJ_GROUPS.items():
-            if any(cat in groups for cat in obj_info.category):
+            if obj_info.category in groups:
                 groups_containing_sampled_obj.append(type)
         obj_info.groups_containing_sampled_obj = groups_containing_sampled_obj
     print(colored(f"Sampled {object_cfgs['task_name']}: {obj_info.name} from {obj_info.source}", "green"))
@@ -221,13 +221,13 @@ def find_most_similar_category(filename):
         default=None
     )
     if groups is not None:
-        return OBJ_GROUPS[groups]
+        return OBJ_GROUPS[groups][0]
     from difflib import get_close_matches
     candidates = list(OBJ_GROUPS.keys())
     matches = get_close_matches(filename_norm, [normalize_name(c) for c in candidates], n=1, cutoff=0.7)
     if matches:
         idx = [normalize_name(c) for c in candidates].index(matches[0])
-        return OBJ_GROUPS[candidates[idx]]
+        return OBJ_GROUPS[candidates[idx]][0]
     else:
         return None
 

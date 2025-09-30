@@ -1,0 +1,57 @@
+import copy
+import re
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+from .libero_10_put_in_basket import Libero10PutInBasket
+
+
+class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
+    """
+    L90L3PickUpTheTomatoSauceAndPutItInTheTray: pick up the tomato_sauce and put it in the wooden_tray
+
+    Steps:
+        pick up the tomato_sauce
+        put the tomato_sauce in the wooden_tray
+
+    """
+
+    task_name: str = "L90L3PickUpTheTomatoSauceAndPutItInTheTray"
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"Pick up the tomato_sauce, and put it in the wooden_tray."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        cfgs = super()._get_obj_cfgs()
+        pop_objs = [self.milk, self.orange_juice]
+        cfg_index = 0
+        while cfg_index < len(cfgs):
+            if cfgs[cfg_index]['name'] == self.basket:
+                self.wooden_tray = "wooden_tray"
+                cfgs[cfg_index]['name'] = self.wooden_tray
+                cfgs[cfg_index]['info']['mjcf_path'] = "/objects/lightwheel/tray/Tray016/model.xml"
+                cfgs[cfg_index]['object_scale'] = 0.6
+            if cfgs[cfg_index]['name'] in pop_objs:
+                cfgs.pop(cfg_index)
+            else:
+                cfg_index += 1
+        return cfgs
+
+    def _check_success(self):
+        if self.is_replay_mode:
+            self._get_obj_cfgs()
+        success_tomato_sauce = OU.check_place_obj1_on_obj2(
+            self.env,
+            self.tomato_sauce,
+            self.wooden_tray,
+            th_z_axis_cos=0.95,  # verticality
+            th_xy_dist=0.4,    # within 0.4 diameter
+            th_xyz_vel=0.5     # velocity vector length less than 0.5
+        )
+
+        return success_tomato_sauce

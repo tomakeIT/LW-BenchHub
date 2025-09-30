@@ -1,0 +1,142 @@
+import torch
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+from lwlab.core.models.fixtures.counter import Counter
+import numpy as np
+import copy
+
+
+class L90L3PickUpTheAlphabetSoupAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = "L90L3PickUpTheAlphabetSoupAndPutItInTheTray"
+
+    def __post_init__(self):
+        self.init_dish_rack_pos = None
+        self.obj_name = []
+        return super().__post_init__()
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.dining_table = self.register_fixture_ref(
+            "dining_table",
+            dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
+        )
+
+        self.init_robot_base_ref = self.dining_table
+
+    def _load_model(self):
+        super()._load_model()
+        for cfg in self.object_cfgs:
+            self.obj_name.append(cfg["name"])
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"put the black bowl on the plate."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+        cfgs.append(
+            dict(
+                name=f"alphabet_soup",
+                obj_groups=["alphabet_soup"],
+                graspable=True,
+                washable=True,
+                object_scale=0.8,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/alphabet_soup/AlphabetSoup001/model.xml"
+                ),
+                init_robot_here=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.50, 0.35),
+                    margin=0.02,
+                    pos=(0.1, -0.7),
+                ),
+            )
+        )
+
+        cfgs.append(
+            dict(
+                name=f"butter",
+                obj_groups=["butter"],
+                graspable=True,
+                washable=True,
+                object_scale=0.6,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/butter/Butter001/model.xml"
+                ),
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.4, 0.35),
+                    margin=0.02,
+                    pos=(0.1, -0.1)
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name="cream_cheese",
+                obj_groups="cream_cheese_stick",
+                object_scale=0.2,
+                init_robot_here=True,
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/cream_cheese_stick/CreamCheeseStick013/model.xml",
+                ),
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.4, 0.35),
+                    margin=0.02,
+                    pos=(0.3, -0.2)
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"tomato_sauce",
+                obj_groups=["ketchup"],
+                graspable=True,
+                washable=True,
+                object_scale=0.8,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/ketchup/Ketchup003/model.xml"
+                ),
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.4, 0.35),
+                    margin=0.02,
+                    pos=(-0.1, -0.2)
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"wooden_tray",
+                obj_groups=["tray"],
+                graspable=True,
+                washable=True,
+                object_scale=0.6,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/tray/Tray016/model.xml"
+                ),
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.6, 0.5),
+                    rotation=np.pi / 2,
+                    ensure_object_boundary_in_range=False,
+                    margin=0.02,
+                    pos=(-0.2, -0.6)
+                ),
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        th = self.env.cfg.objects["wooden_tray"].horizontal_radius
+        soup_in_tray = OU.check_obj_in_receptacle(self.env, "alphabet_soup", "wooden_tray", th)
+        return soup_in_tray & OU.gripper_obj_far(self.env, "alphabet_soup")

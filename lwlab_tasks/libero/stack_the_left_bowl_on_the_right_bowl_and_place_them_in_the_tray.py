@@ -1,0 +1,119 @@
+import torch
+from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.models.fixtures import FixtureType
+import lwlab.utils.object_utils as OU
+from lwlab.core.models.fixtures.counter import Counter
+import numpy as np
+import copy
+
+
+class L90L4StackTheLeftBowlOnTheRightBowlAndPlaceThemInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
+
+    task_name: str = "L90L4StackTheLeftBowlOnTheRightBowlAndPlaceThemInTheTray"
+    enable_fixtures = ["salad_dressing"]
+    removable_fixtures = enable_fixtures
+
+    def __post_init__(self):
+        self.obj_name = []
+        return super().__post_init__()
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.dining_table = self.register_fixture_ref(
+            "dining_table",
+            dict(id=FixtureType.TABLE, size=(1.0, 0.6)),
+        )
+
+        self.init_robot_base_ref = self.dining_table
+
+    def _load_model(self):
+        super()._load_model()
+        for cfg in self.object_cfgs:
+            self.obj_name.append(cfg["name"])
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        ep_meta[
+            "lang"
+        ] = f"stack the left bowl on the right bowl and place them in the tray."
+        return ep_meta
+
+    def _get_obj_cfgs(self):
+        cfgs = []
+        cfgs.append(
+            dict(
+                name=f"akita_black_bowl",
+                obj_groups=["bowl"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
+                ),
+                init_robot_here=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.35, 0.35),
+                    margin=0.02,
+                    pos=(-0.1, -0.8),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"akita_black_bowl_right",
+                obj_groups=["bowl"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
+                ),
+                init_robot_here=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.35, 0.35),
+                    margin=0.02,
+                    pos=(0.2, -0.8),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name="chocolate_pudding",
+                obj_groups="chocolate_pudding",
+                graspable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/chocolate_pudding/ChocolatePudding001/model.xml",
+                ),
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.80, 0.50),
+                    pos=(0.2, 0.2),
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
+                name=f"wooden_tray",
+                obj_groups=["tray"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/tray/Tray016/model.xml"
+                ),
+                object_scale=0.6,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.6, 0.5),
+                    rotation=np.pi / 2,
+                    margin=0.02,
+                    pos=(-0.5, -0.6)
+                ),
+            )
+        )
+        return cfgs
+
+    def _check_success(self):
+        ret1 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl", "akita_black_bowl_right")
+        ret2 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl_right", "wooden_tray")
+        return ret1 & ret2
