@@ -1,150 +1,109 @@
-# Dockerfile for the base image of lwlab
+FROM nvcr.io/nvidia/base/ubuntu:noble-20250619
 
-# 1. Base Image
-# Use the OFFICIAL Isaac Sim image as the foundation.
-# This inherits all necessary drivers, system libraries (like Vulkan, libGLU),
-# and configurations, which resolves the segmentation fault and driver issues.
-FROM harbor.lightwheel.net/robot/isaac-sim:4.5.0
+# Set all environment variables at once
+ENV NVIDIA_VISIBLE_DEVICES=all \
+    NVIDIA_DRIVER_CAPABILITIES=all \
+    OMNI_SERVER=https://omniverse-content-staging.s3-us-west-2.amazonaws.com/Assets/Isaac/5.1 \
+    MIN_DRIVER_VERSION=570.169 \
+    OMNI_KIT_ACCEPT_EULA=YES \
+    LANG=C.UTF-8 \
+    DEBIAN_FRONTEND=noninteractive \
+    OMNI_KIT_ALLOW_ROOT=1 \
+    CONDA_DIR=/opt/conda \
+    ENV_NAME=lwlab \
+    PATH="$CONDA_DIR/bin:$CONDA_DIR/envs/$ENV_NAME/bin:$PATH" \
+    VK_DRIVER_FILES=/etc/vulkan/icd.d/nvidia_icd.json
 
-# 2. Set up Proxy
-# Pass proxy settings during the build.
-ARG PROXY_HOST
-ARG PROXY_PORT
-ENV _http_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
-ENV _https_proxy="http://${PROXY_HOST}:${PROXY_PORT}"
+# Disable hardware-specific library optimizations
+RUN touch /etc/ld.so.nohwcap
 
-# 3. Install System Dependencies for our own tools
-# The base Isaac Sim image has most system deps, but we might need a few for ourselves.
-# We'll install wget, git, and the build tools required by our Python packages.
-# We override the original entrypoint to run our setup commands.
-USER root
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    git git-lfs wget curl sudo build-essential cmake pkg-config \
-    # GUI and display libraries
-    x11-apps mesa-utils libgl1-mesa-glx libgl1-mesa-dri libegl1-mesa \
-    libx11-6 libxext6 libxrender1 libxrandr2 libxfixes3 libxi6 \
-    # SSH and other tools
-    openssh-server htop nvtop\
-    linux-headers-$(uname -r) 
-    # && rm -rf /var/lib/apt/lists/*
+# Install all dependencies in one layer
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+        # Basic system packages
+        curl wget bzip2 unzip ca-certificates sudo git git-lfs \
+        # Build tools
+        build-essential cmake pkg-config \
+        # Graphics and OpenGL
+        libatomic1 libegl1 libgl1 libglu1-mesa libglx0 libgomp1 \
+        libsm6 libxi6 libxrandr2 libxt6 libglib2.0-0 libnghttp2-14 \
+        x11-apps mesa-utils libgl1-mesa-dri libglx-mesa0 \
+        libx11-6 libxext6 libxrender1 libxfixes3 \
+        # Media and utilities
+        ffmpeg vim lsof ncurses-term openssh-server htop nvtop && \
+    # Clean up
+    apt-get -y autoremove && apt-get clean autoclean && \
+    rm -rf /var/lib/apt/lists/*
 
-ENV PATH=/isaac-sim/kit/python/bin:$PATH
+# Install runtime configuration files
+RUN mkdir -p /usr/share/glvnd/egl_vendor.d /etc/vulkan/icd.d /etc/vulkan/implicit_layer.d && \
+    printf '{\n    "file_format_version" : "1.0.0",\n    "ICD" : {\n        "library_path" : "libEGL_nvidia.so.0"\n    }\n}\n' > /usr/share/glvnd/egl_vendor.d/10_nvidia.json && \
+    printf '{\n    "file_format_version" : "1.0.0",\n    "ICD" : {\n        "library_path" : "libEGL_mesa.so.0"\n    }\n}\n' > /usr/share/glvnd/egl_vendor.d/50_mesa.json && \
+    printf '{\n    "file_format_version" : "1.0.0",\n    "ICD" : {\n        "library_path" : "libGLX_nvidia.so.0",\n        "api_version" : "1.3.194"\n    }\n}\n' > /etc/vulkan/icd.d/nvidia_icd.json && \
+    printf '{\n    "file_format_version" : "1.0.0",\n    "layer": {\n        "name": "VK_LAYER_NV_optimus",\n        "type": "INSTANCE",\n        "library_path": "libGLX_nvidia.so.0",\n        "api_version" : "1.3.194",\n        "implementation_version" : "1",\n        "description" : "NVIDIA Optimus layer",\n        "functions": {\n            "vkGetInstanceProcAddr": "vk_optimusGetInstanceProcAddr",\n            "vkGetDeviceProcAddr": "vk_optimusGetDeviceProcAddr"\n        },\n        "enable_environment": {\n            "__NV_PRIME_RENDER_OFFLOAD": "1"\n        },\n        "disable_environment": {\n            "DISABLE_LAYER_NV_OPTIMUS_1": ""\n        }\n    }\n}\n' > /etc/vulkan/implicit_layer.d/nvidia_layers.json
 
-RUN /isaac-sim/kit/python/bin/python3 -m pip config set global.index-url https://repo.huaweicloud.com/repository/pypi/simple/ && \
-    /isaac-sim/kit/python/bin/python3 -m pip install --upgrade pip && \
-    /isaac-sim/kit/python/bin/python3 -m pip config set global.extra-index-url https://artifactory.lightwheel.net/pip
+# Open ports for live streaming
+EXPOSE 47998/udp 49100/tcp
 
-
-
-# 4. Install Miniconda
-# We install our own conda to manage Python environments without interfering
-# with the system Python used by Isaac Sim's core components.
-# ENV CONDA_DIR /opt/conda
-# RUN wget --quiet https://repo.anaconda.com/miniconda/Miniconda3-py310_24.5.0-0-Linux-x86_64.sh -O ~/miniconda.sh && \
-#     /bin/bash ~/miniconda.sh -b -p $CONDA_DIR && \
-#     rm ~/miniconda.sh
-# ENV PATH=$CONDA_DIR/bin:$PATH
-
-# Create and activate a new conda environment
-# RUN conda create -n lwlab python=3.10 -y
-# SHELL ["conda", "run", "-n", "lwlab", "/bin/bash", "-c"]
-
-# Upgrade pip to the latest version to avoid potential bugs in the default one.
-# RUN pip install --upgrade pip
-
-# 5. Install Base Python Packages from requirements files
-# Copy our split requirements files into the image.
-# COPY base-requirements-1.txt base-requirements-2.txt base-requirements-3.txt ./
-
-# Install python packages in separate layers for better caching.
-# Note: The isaac-sim base image might already contain some of these.
-# Pip will handle existing packages gracefully.
-# RUN pip install --no-cache-dir -r base-requirements-1.txt
-# RUN pip install --no-cache-dir --use-deprecated=legacy-resolver -r base-requirements-2.txt
-# RUN pip install --no-cache-dir --use-deprecated=legacy-resolver -r base-requirements-3.txt
-
-# 6. Final Setup
-# Set the final working directory.
-# We do NOT set an ENTRYPOINT here. The final application Dockerfile will define it,
-# effectively overriding the default Isaac Sim startup command.
-RUN https_proxy=http://10.10.11.36:7897 http_proxy=http://10.10.11.36:7897 all_proxy=socks5://10.10.11.36:7897 /isaac-sim/warmup.sh --allow-root || true
-
-ENV LANG=C.UTF-8
-ENV DEBIAN_FRONTEND=noninteractive
-ENV OMNI_KIT_ALLOW_ROOT=1
-USER root
-RUN --mount=type=cache,target=/var/cache/apt \
-    apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    git \
-    libglib2.0-0 \
-    ncurses-term \
-    wget \
-    ffmpeg
-COPY . /workspace/lwlab
-
-# Set up a symbolic link between the installed Isaac Sim root folder and _isaac_sim in the Isaac Lab directory
-RUN ln -sf /isaac-sim /workspace/lwlab/third_party/IsaacLab/_isaac_sim
-
-# Install toml dependency
-RUN /workspace/lwlab/third_party/IsaacLab/isaaclab.sh -p -m pip install toml
-
-# Install apt dependencies for extensions that declare them in their extension.toml
-RUN --mount=type=cache,target=/var/cache/apt \
-    /workspace/lwlab/third_party/IsaacLab/isaaclab.sh -p /workspace/lwlab/third_party/IsaacLab/tools/install_deps.py apt /workspace/lwlab/third_party/IsaacLab/source && \
-    apt -y autoremove && apt clean autoclean
-
-# for singularity usage, have to create the directories that will binded
-RUN mkdir -p /isaac-sim/kit/cache && \
-    mkdir -p /root/.cache/ov && \
-    mkdir -p /root/.cache/pip && \
-    mkdir -p /root/.cache/nvidia/GLCache &&  \
-    mkdir -p /root/.nv/ComputeCache && \
-    mkdir -p /root/.nvidia-omniverse/logs && \
-    mkdir -p /root/.local/share/ov/data && \
-    mkdir -p /root/Documents
-
-# Create SSH directory and copy SSH keys
-RUN mkdir -p /root/.ssh && \
-    chmod 700 /root/.ssh
-COPY docker/.ssh/id_rsa /root/.ssh/id_rsa
-COPY docker/.ssh/id_rsa.pub /root/.ssh/id_rsa.pub
-COPY docker/.ssh/known_hosts /root/.ssh/known_hosts
-RUN chmod 600 /root/.ssh/id_rsa && \
-    chmod 644 /root/.ssh/id_rsa.pub && \
-    chmod 644 /root/.ssh/known_hosts
-
-# for singularity usage, create NVIDIA binary placeholders
-RUN touch /bin/nvidia-smi && \
-    touch /bin/nvidia-debugdump && \
-    touch /bin/nvidia-persistenced && \
-    touch /bin/nvidia-cuda-mps-control && \
-    touch /bin/nvidia-cuda-mps-server && \
-    touch /etc/localtime && \
-    mkdir -p /var/run/nvidia-persistenced && \
-    touch /var/run/nvidia-persistenced/socket
-
-# installing Isaac Lab dependencies
-# use pip caching to avoid reinstalling large packages
-RUN --mount=type=cache,target=/root/.cache/pip \
-    /workspace/lwlab/third_party/IsaacLab/isaaclab.sh --install
-
-# HACK: Remove install of quadprog dependency
-RUN /workspace/lwlab/third_party/IsaacLab/isaaclab.sh -p -m pip uninstall -y quadprog
-
-# aliasing isaaclab.sh and python for convenience
-RUN echo "export ISAACLAB_PATH=/workspace/lwlab/third_party/IsaacLab" >> /root/.bashrc && \
-    echo "alias isaaclab=/workspace/lwlab/third_party/IsaacLab/isaaclab.sh" >> /root/.bashrc && \
-    echo "alias python=/workspace/lwlab/third_party/IsaacLab/_isaac_sim/python.sh" >> /root/.bashrc && \
-    echo "alias python3=/workspace/lwlab/third_party/IsaacLab/_isaac_sim/python.sh" >> /root/.bashrc && \
-    echo "alias pip='/workspace/lwlab/third_party/IsaacLab/_isaac_sim/python.sh -m pip'" >> /root/.bashrc && \
-    echo "alias pip3='/workspace/lwlab/third_party/IsaacLab/_isaac_sim/python.sh -m pip'" >> /root/.bashrc && \
-    echo "alias tensorboard='/workspace/lwlab/third_party/IsaacLab/_isaac_sim/python.sh /workspace/lwlab/third_party/IsaacLab/_isaac_sim/tensorboard'" >> /root/.bashrc && \
-    echo "export TZ=$(date +%Z)" >> /root/.bashrc && \
-    echo "shopt -s histappend" >> /root/.bashrc && \
-    echo "PROMPT_COMMAND='history -a'" >> /root/.bashrc
-
-
-
+# Download and install Miniconda, create environment, and install packages
 WORKDIR /workspace
+RUN mkdir -p /workspace/lwlab/docker && \
+    wget -O miniconda.sh https://artifactory.lightwheel.net/data/miniconda/miniconda.sh && \
+    bash miniconda.sh -b -p $CONDA_DIR && \
+    # Initialize conda and accept terms
+    $CONDA_DIR/bin/conda init bash && \
+    $CONDA_DIR/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
+    $CONDA_DIR/bin/conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/r && \
+    $CONDA_DIR/bin/conda update -y -n base conda && \
+    # Clean up miniconda installer
+    rm miniconda.sh
+
+# Copy environment file and create conda environment
+COPY ./docker/environment.yml /workspace/lwlab/docker/environment.yml
+WORKDIR /workspace/lwlab/docker
+RUN $CONDA_DIR/bin/conda env create -f environment.yml && \
+    $CONDA_DIR/bin/conda clean -afy && \
+    echo "source activate $ENV_NAME" > ~/.bashrc
+
+# Set shell for subsequent RUN commands
+SHELL ["/bin/bash", "-c"]
+
+# Install Python packages
+RUN source $CONDA_DIR/etc/profile.d/conda.sh && \
+    conda activate $ENV_NAME && \
+    pip install numpy==1.26.4 --extra-index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install --no-cache-dir \
+        --extra-index-url https://pypi.nvidia.com \
+        --extra-index-url https://mirrors.aliyun.com/pypi/simple/ \
+        "isaacsim[all,extscache]==5.0.0" && \
+    $CONDA_DIR/bin/conda clean -afy
+
+# Copy and install IsaacLab
+WORKDIR /workspace
+RUN mkdir -p /workspace/lwlab/third_party
+COPY ./third_party/IsaacLab /workspace/lwlab/third_party/IsaacLab
+
+WORKDIR /workspace/lwlab/third_party/IsaacLab/
+RUN source $CONDA_DIR/etc/profile.d/conda.sh && \
+    conda activate $ENV_NAME && \
+    git config --global http.proxy http://127.0.0.1:8890 && \
+    pip config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    # Retry logic for Isaac Lab installation
+    for i in {1..3}; do \
+        echo "Attempting to install Isaac Lab dependencies (attempt $i/3)..."; \
+        if ./isaaclab.sh --install; then \
+            echo "✅ Installation successful on attempt $i"; \
+            break; \
+        else \
+            echo "❌ Installation failed on attempt $i"; \
+            if [ $i -eq 3 ]; then \
+                echo "💥 All 3 attempts failed, exiting with error"; \
+                exit 1; \
+            fi; \
+            echo "⏳ Waiting 5 seconds before retry..."; \
+            sleep 5; \
+        fi; \
+    done && \
+    # Clean up proxy settings
+    git config --global --unset http.proxy && \
+    pip config unset global.extra-index-url
