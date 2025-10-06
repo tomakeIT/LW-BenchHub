@@ -21,7 +21,7 @@ from lwlab.utils.lerobot_utils import convert_action_from_so101_leader
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 from lwlab.utils.math_utils import transform_utils as T
 import isaaclab.utils.math as math_utils
-
+from lwlab.core.mdp.actions.joint_position_limit_action import JointPositionLimitActionCfg
 FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
@@ -344,7 +344,7 @@ class LERobotAbsJointGripperEnvRLCfg(LERobotEnvRLCfg):
             use_default_offset=False
         )
 
-        self.actions.gripper_action = mdp.JointPositionActionCfg(
+        self.actions.gripper_action = JointPositionLimitActionCfg(
             asset_name="robot",
             joint_names=["gripper"],
             scale=1,

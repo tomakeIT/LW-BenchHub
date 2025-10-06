@@ -25,8 +25,8 @@ import tqdm
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Eval policy in Isaac Lab environments.")
-parser.add_argument("--config", type=str, default="/home/zsy/workspace/lwlab/policy/PI/deploy_policy.yml")
-parser.add_argument("--camera_config", type=str, default="pnp-orange")
+parser.add_argument("--config", type=str, default="/home/zsy/workspace/opensource/lwlab/policy/GR00T/deploy_policy_lerobot.yml")
+parser.add_argument("--camera_config", type=str, default="lift-cube")
 parser.add_argument("--overrides", nargs=argparse.REMAINDER)
 
 # parse the arguments

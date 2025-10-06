@@ -13,13 +13,11 @@ from typing import Dict, Any
 from policy.base import BasePolicy
 
 try:
-    from policy.GR00T.data_config.data_config import LW_DATA_CONFIG_MAP
     from gr00t.experiment.data_config import DATA_CONFIG_MAP
     from gr00t.model.policy import Gr00tPolicy
 except ImportError as e:
     print(f"gr00t not found, please install gr00t first: {e}")
 
-from lwlab.utils.gripper_utils import dynamic_reset_gripper_effort_limit_sim
 
 
 class GR00TPolicy(BasePolicy):
@@ -33,8 +31,6 @@ class GR00TPolicy(BasePolicy):
         # Use the same data preprocessor as the loaded fine-tuned ckpts
         if self.usr_args["data_config"] in DATA_CONFIG_MAP:
             self.data_config = DATA_CONFIG_MAP[self.usr_args["data_config"]]
-        elif self.usr_args["data_config"] in LW_DATA_CONFIG_MAP:
-            self.data_config = LW_DATA_CONFIG_MAP[self.usr_args["data_config"]]
 
         modality_config = self.data_config.modality_config()
         modality_transform = self.data_config.transform()
@@ -97,7 +93,6 @@ class GR00TPolicy(BasePolicy):
             observation = self.encode_obs(observation)
             actions = self.get_action(observation)  # env, horizon, action_dim
             for i in range(self.usr_args["num_feedback_actions"]):
-                dynamic_reset_gripper_effort_limit_sim(task_env, "so101_leader")
                 observation, terminated = self.step_environment(task_env, actions[:, i], usr_args)
                 self.add_video_frame(video_writer, observation, usr_args['record_camera'])
                 if terminated:
