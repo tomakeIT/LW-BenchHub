@@ -10,12 +10,67 @@ from lwlab.core.models.fixtures import FixtureType
 from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
 from lwlab.core.tasks.base import BaseTaskEnvCfg
 from lwlab.utils.env import ExecuteMode
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
 
 ##
 # Scene definition
 ##
 # Increase PhysX GPU aggregate pairs capacity to avoid simulation errors
 sim_utils.simulation_context.gpu_total_aggregate_pairs_capacity = 160000
+
+from isaaclab.managers import EventTermCfg as EventTerm
+import lwlab_rl.lift_obj.mdp as mdp
+from isaaclab.managers import SceneEntityCfg
+
+
+@configclass
+class EventCfg:
+    """Configuration for events."""
+
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+
+    reset_object_position = EventTerm(
+        func=mdp.reset_root_state_uniform,
+        mode="reset",
+        params={
+            # "pose_range": {"x": (-0.1, 0.1), "y": (0, 0.25), "z": (0.0, 0.0)},
+            "pose_range": {"x": (-0.08, 0.08), "y": (-0.08, 0.08), "z": (0.0, 0.0), "yaw": (0.0, 90.0)},
+            "velocity_range": {},
+            "asset_cfg": SceneEntityCfg("object", body_names="BuildingBlock003"),
+        },
+    )
+
+    # reset_dome_lighting = EventTerm(
+    #     func=mdp.randomize_scene_lighting,
+    #     mode="reset",
+    #     params={
+    #         "intensity_range": (50.0, 800.0),
+    #         "color_variation": 0.35,
+    #         "default_intensity": 800.0,
+    #         "default_color": (0.75, 0.75, 0.75),
+    #         "asset_cfg": SceneEntityCfg("light"),
+    #     },
+    # )
+
+
+@configclass
+class LeRobotVisualObservationsCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group."""
+
+        joint_pos = ObsTerm(func=mdp.joint_pos)
+        target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
+        delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
+
+        def __post_init__(self):
+            self.enable_corruption = True
+            self.concatenate_terms = False
+
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
@@ -30,6 +85,10 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
     """
     counter_id: FixtureType = FixtureType.COUNTER
     task_name: str = "LiftObj"
+    fix_object_pose_cfg: dict = {"object": {"pos": (2.94, -4.08, 0.95)}}  # y- near to robot
+    reset_robot_enabled = False
+    events: EventCfg = EventCfg()
+    observations: LeRobotVisualObservationsCfg = LeRobotVisualObservationsCfg()
 
     def _setup_kitchen_references(self):
         """
@@ -128,7 +187,7 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
         )
         is_grasping = torch.logical_and(lflag, rflag)
         object_height = self.env.scene['object'].data.root_pos_w[:, 2]
-        is_height_sufficient = (object_height >= 0.945)
+        is_height_sufficient = (object_height >= 0.965)
 
         success = is_grasping & is_height_sufficient
         return success

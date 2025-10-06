@@ -54,13 +54,15 @@ class BasePolicy(ABC):
     def step_environment(self, task_env: Any, action: Union[np.ndarray, torch.Tensor],
                          usr_args: Dict[str, Any]) -> Tuple[Dict[str, Any], bool]:
         """Execute environment step"""
-        if 'joint_mapping' in usr_args:
-            action = action[usr_args['joint_mapping']]
 
         if isinstance(action, np.ndarray):
             action = torch.from_numpy(action).float().cuda()
 
-        obs, _, terminated, _, _ = task_env.step(action.unsqueeze(0))
+        if 'joint_mapping' in usr_args:
+            # action = action.squeeze(0)
+            action = action[...,usr_args['joint_mapping']]
+
+        obs, _, terminated, _, _ = task_env.step(action)
         return obs, terminated
 
     def encode_obs(self, observation: Dict[str, Any], transpose: bool = True, keep_dim_env: bool = False) -> Dict[str, Any]:

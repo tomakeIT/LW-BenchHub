@@ -1,6 +1,6 @@
 # Basic experiment configuration (keep unchanged)
 policy_name: 'GR00TPolicy'
-ckpt_setting: '/home/yk/lwlab/checkpoint-10000' # 'nvidia/GR00T-N1.5-3B' # To be provided by the user
+ckpt_setting: '/home/zsy/groot_result/checkpoint-9000' # 'nvidia/GR00T-N1.5-3B' # To be provided by the user
 seed: 0
 
 # Add Parameters You Need
@@ -10,7 +10,7 @@ denoising_steps: 4
 num_feedback_actions: 16
 data_config: 'so100_dualcam'
 
-instruction: 'Pick up the orange and place it in the bowl.'
+instruction: 'Grab the block and lift it up.'
 
 observation_config:
   custom_mapping:
@@ -18,8 +18,6 @@ observation_config:
     video.wrist: hand_camera
     state.single_arm: {joint_pos:[0,1,2,3,4]}
     state.gripper: {joint_pos:[5]}
-action_config:
-  action.single_arm: {joint_pos:[0,1,2,3,4]}
-  action.gripper: {joint_pos:[5]}
+
 record_camera: ["global_camera"]
-time_out_limit: 500
+time_out_limit: 50

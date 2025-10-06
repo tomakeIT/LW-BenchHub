@@ -33,7 +33,7 @@ class ActionsCfg:
 
 
 class BaseLERobotEnvCfg(BaseRobotCfg):
-    robot_cfg: ArticulationCfg = SO101_FOLLOWER_CFG
+    robot_cfg: ArticulationCfg = SO101_FOLLOWER_YELLOW_CFG
     robot_name: str = "LeRobot-RL"
     robot_scale: float = 1.0
     actions: ActionsCfg = ActionsCfg()
@@ -55,7 +55,7 @@ class BaseLERobotEnvCfg(BaseRobotCfg):
                 height=224,
                 update_period=0.05,
             ),
-            "tags": ["rl", "teleop"]
+            "tags": ["teleop"]
         },
         "global_camera": {
             "camera_cfg": TiledCameraCfg(
@@ -291,10 +291,10 @@ class AbsJointActionsCfg:
 
 
 class LERobotAbsJointGripperEnvRLCfg(LERobotEnvRLCfg):
-    robot_cfg: ArticulationCfg = SO101_FOLLOWER_YELLOW_CFG
+    robot_cfg: ArticulationCfg = SO101_FOLLOWER_CFG
     robot_name: str = "LeRobot-AbsJointGripper-RL"
     actions: AbsJointActionsCfg = AbsJointActionsCfg()
-    robot_base_offset = {"pos": [-0.8, -0.75, 0.9], "rot": [0.0, 0.0, torch.pi / 2]}
+    robot_base_offset = {"pos": [1.2, -0.8, 0.892], "rot": [0.0, 0.0, 0]}
     observation_cameras: dict = {
         "hand_camera": {
             "camera_cfg": TiledCameraCfg(
@@ -304,7 +304,7 @@ class LERobotAbsJointGripperEnvRLCfg(LERobotEnvRLCfg):
                 spawn=sim_utils.PinholeCameraCfg(
                     focal_length=36.5,
                     focus_distance=400.0,
-                    horizontal_aperture=73,  # For a 75° FOV (assuming square image)
+                    horizontal_aperture=36.83,  # For a 75° FOV (assuming square image)
                     clipping_range=(0.01, 50.0),
                     lock_camera=True
                 ),
@@ -316,13 +316,13 @@ class LERobotAbsJointGripperEnvRLCfg(LERobotEnvRLCfg):
         },
         "global_camera": {
             "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/base/global_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.2, -0.6, 0.4), rot=(0.93651, 0.32921, 0.07888, 0.09137), convention="opengl"),
+                prim_path="{ENV_REGEX_NS}/Robot/camera_base/global_camera",
+                offset=TiledCameraCfg.OffsetCfg(pos=(0.25, -0.55, 0.27), rot=(0.74698, 0.54011, 0.23182, 0.31074), convention="opengl"),
                 data_types=["rgb"],
                 spawn=sim_utils.PinholeCameraCfg(
                     focal_length=40.6,
                     focus_distance=400.0,
-                    horizontal_aperture=73,  # For a 78° FOV (assuming square image)
+                    horizontal_aperture=38.11,  # For a 78° FOV (assuming square image)
                     clipping_range=(0.01, 3.0),
                     lock_camera=True
                 ),
@@ -341,14 +341,14 @@ class LERobotAbsJointGripperEnvRLCfg(LERobotEnvRLCfg):
             asset_name="robot",
             joint_names=["shoulder.*", "elbow_flex", "wrist.*"],
             scale=1,
-            use_default_offset=True
+            use_default_offset=False
         )
 
         self.actions.gripper_action = mdp.JointPositionActionCfg(
             asset_name="robot",
             joint_names=["gripper"],
             scale=1,
-            use_default_offset=True
+            use_default_offset=False
         )
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
