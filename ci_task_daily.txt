@@ -60,3 +60,13 @@ bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_
 bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250922/SortingCleanup/SortingCleanup.hdf5 action
 bash -i /workspace/lwlab/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/teleop_data_main_remus/250922/StartElectricKettle/StartElectricKettle.hdf5 action
 [timeout_secs=9000] bash -i /workspace/lwlab/ci_run/train_ci.sh ci_daily_lerobot_liftobj_state
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task OpenDrawer
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task CloseDrawer
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task CloseElectricKettleLid
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task OpenElectricKettleLid
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task OpenOven
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task CloseOven
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task OpenToasterOvenDoor
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task CloseToasterOvenDoor
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task OpenDishwasher
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task CloseDishwasher
