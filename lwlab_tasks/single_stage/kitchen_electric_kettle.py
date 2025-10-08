@@ -16,8 +16,6 @@ from lwlab.core.models.fixtures import FixtureType
 
 from lwlab.core.tasks.base import BaseTaskEnvCfg
 from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
-# @configclass
-import lwlab.utils.object_utils as OU
 
 
 class CloseElectricKettleLid(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):

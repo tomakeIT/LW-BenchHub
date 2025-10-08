@@ -15,6 +15,133 @@
 import gymnasium as gym
 
 gym.register(
+    id="Robocasa-Task-PnPCounterToCabinet",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToCabinet",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCabinetToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCabinetToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCounterToSink",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToSink",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPSinkToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPSinkToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCounterToMicrowave",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToMicrowave",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPMicrowaveToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPMicrowaveToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCounterToOven",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToOven",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPOvenToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPOvenToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCounterToStove",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToStove",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPStoveToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPStoveToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPToasterToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPToasterToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCounterToToasterOven",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToToasterOven",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPToasterOvenToCounter",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPToasterOvenToCounter",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PnPCounterToStandMixer",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_pnp:PnPCounterToStandMixer",
+    },
+    disable_env_checker=True,
+)
+
+
+gym.register(
     id="Robocasa-Task-OpenDrawer",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
@@ -28,6 +155,15 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kitchen_drawer:CloseDrawer",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-SlideDishwasherRack",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_drawer:SlideDishwasherRack",
     },
     disable_env_checker=True,
 )
@@ -82,6 +218,61 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kitchen_doors:CloseToasterOvenDoor",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-OpenMicrowave",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_doors:OpenMicrowave",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CloseMicrowave",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_doors:CloseMicrowave",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-OpenFridge",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_doors:OpenFridge",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CloseFridge",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_doors:CloseFridge",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CloseCabinet",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_doors:CloseCabinet",
+    },
+    disable_env_checker=True,
+)
+
+
+gym.register(
+    id="Robocasa-Task-OpenCabinet",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_doors:OpenCabinet",
     },
     disable_env_checker=True,
 )

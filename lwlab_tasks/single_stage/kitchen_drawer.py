@@ -302,3 +302,46 @@ class CloseDrawer(ManipulateDrawer):
             )
 
         return cfgs
+
+
+class SlideDishwasherRack(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+    """
+    Class encapsulating sliding dishwasher rack in or out atomic task.
+    """
+    task_name: str = "SlideDishwasherRack"
+
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        self.dishwasher = self.register_fixture_ref(
+            "dishwasher", dict(id=FixtureType.DISHWASHER)
+        )
+        if "should_pull" in self._ep_meta:
+            self.should_pull = self._ep_meta["should_pull"]
+        else:
+            self.should_pull = self.rng.random() > 0.5
+
+        self.init_robot_base_ref = self.dishwasher
+
+    def get_ep_meta(self):
+        ep_meta = super().get_ep_meta()
+        direction = "out" if self.should_pull else "in"
+        ep_meta["lang"] = f"Fully slide the top dishwasher rack {direction}."
+        ep_meta["should_pull"] = self.should_pull
+        return ep_meta
+
+    def _setup_scene(self, env_ids=None):
+        super()._setup_scene(env_ids)
+        self.dishwasher.open_door(self.env)
+
+        if not self.should_pull:
+            self.dishwasher.slide_rack(self.env, value=0.7, env_ids=env_ids)
+        else:
+            self.dishwasher.slide_rack(self.env, value=0.2, env_ids=env_ids)
+
+    def _check_success(self):
+        current_pos = self.dishwasher.get_state(self.env)["rack"]
+
+        if self.should_pull:
+            return current_pos >= 0.65
+        else:
+            return current_pos <= 0.10

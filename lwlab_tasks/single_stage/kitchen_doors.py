@@ -249,6 +249,84 @@ class CloseDoor(ManipulateDoor):
     behavior: str = "close"
 
 
+class OpenCabinet(OpenDoor):
+    task_name: str = "OpenCabinet"
+    fixture_id = FixtureType.CABINET_WITH_DOOR
+
+
+class CloseCabinet(CloseDoor):
+    task_name: str = "CloseCabinet"
+    fixture_id = FixtureType.CABINET_WITH_DOOR
+
+
+class OpenMicrowave(OpenDoor):
+    task_name: str = "OpenMicrowave"
+    fixture_id = FixtureType.MICROWAVE
+
+
+class CloseMicrowave(CloseDoor):
+    task_name: str = "CloseMicrowave"
+    fixture_id = FixtureType.MICROWAVE
+
+
+class OpenFridge(OpenDoor):
+    task_name: str = "OpenFridge"
+    fixture_id = FixtureType.FRIDGE
+
+    def _load_model(self, *args, **kwargs):
+        super()._load_model(*args, **kwargs)
+        self._place_robot()
+
+    def _place_robot(self):
+        if isinstance(self.fxtr, FridgeBottomFreezer):
+            OFFSET = (-0.30, -0.30)
+        else:
+            OFFSET = (0, -0.30)
+
+        (
+            init_robot_base_pos_anchor,
+            init_robot_base_ori_anchor,
+        ) = EnvUtils.compute_robot_base_placement_pose(
+            self, ref_fixture=self.fxtr, offset=OFFSET
+        )
+        if hasattr(self, "init_robot_base_pos_anchor"):
+            self.init_robot_base_pos_anchor[:2] = init_robot_base_pos_anchor[:2]
+            self.init_robot_base_ori_anchor[:2] = init_robot_base_ori_anchor[:2]
+        else:
+            self.init_robot_base_pos_anchor = init_robot_base_pos_anchor
+            self.init_robot_base_ori_anchor = init_robot_base_ori_anchor
+        return True
+
+
+class CloseFridge(CloseDoor):
+    task_name: str = "CloseFridge"
+    fixture_id = FixtureType.FRIDGE
+
+    def _load_model(self, *args, **kwargs):
+        super()._load_model(*args, **kwargs)
+        self._place_robot()
+
+    def _place_robot(self):
+        if isinstance(self.fxtr, FridgeBottomFreezer):
+            OFFSET = (-0.30, -0.30)
+        else:
+            OFFSET = (0, -0.30)
+
+        (
+            init_robot_base_pos_anchor,
+            init_robot_base_ori_anchor,
+        ) = EnvUtils.compute_robot_base_placement_pose(
+            self, ref_fixture=self.fxtr, offset=OFFSET
+        )
+        if hasattr(self, "init_robot_base_pos_anchor"):
+            self.init_robot_base_pos_anchor[:2] = init_robot_base_pos_anchor[:2]
+            self.init_robot_base_ori_anchor[:2] = init_robot_base_ori_anchor[:2]
+        else:
+            self.init_robot_base_pos_anchor = init_robot_base_pos_anchor
+            self.init_robot_base_ori_anchor = init_robot_base_ori_anchor
+        return True
+
+
 class OpenDropDownDoor(ManipulateLowerDoor):
     behavior: str = "open"
 
