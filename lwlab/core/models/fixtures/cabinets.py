@@ -189,8 +189,8 @@ class Drawer(Cabinet):
 
         env.scene.articulations[self.name].write_joint_position_to_sim(
             torch.tensor([[self.rng.uniform(float(desired_min), float(desired_max))]]).to(env.device),
-            joint_id=torch.tensor([joint_idx]).to(env.device),
-            env_ids=env_ids.to(env.device) if env_ids is not None else None
+            torch.tensor([joint_idx]).to(env.device),
+            env_ids=(env_ids.to(env.device) if isinstance(env_ids, torch.Tensor) else env_ids)
         )
 
     def get_door_state(self, env):

@@ -51,14 +51,17 @@ class Sink(Fixture):
             else:
                 site.GetAttribute("visibility").Set("invisible")
 
-    def set_handle_state(self, env, mode="on"):
+    def set_handle_state(self, env, mode="on", temp=None):
         """
-        Sets the state of the handle_joint based on the mode parameter
+        Sets the state of the handle joints based on the mode parameter.
+        Flow is controlled by the primary handle axis; temperature (optional)
+        is controlled by the secondary handle axis if present.
 
         Args:
             env (ManagerBasedRLEnv): environment
 
             mode (str): "on", "off", or "random"
+            temp (str | None): optional temperature label: "hot" | "warm" | "cold"
         """
         assert mode in ["on", "off", "random"]
         for env_id, _ in enumerate(self.prim_paths):
@@ -70,12 +73,38 @@ class Sink(Fixture):
             elif mode == "on":
                 joint_val = self.rng.uniform(0.40, 0.50)
 
-            joint_id = env.scene.articulations[self.name].data.joint_names.index("handle_joint")
+            joint_names = env.scene.articulations[self.name].data.joint_names
+            joint_names_l = [j.lower() for j in joint_names]
+            handle_indices = [i for i, n in enumerate(joint_names_l) if "handle_joint" in n]
+            if not handle_indices:
+                continue
+            # set primary axis (flow)
             env.scene.articulations[self.name].write_joint_position_to_sim(
                 torch.tensor([[joint_val]]).to(env.device),
-                torch.tensor([joint_id]).to(env.device),
+                torch.tensor([handle_indices[0]]).to(env.device),
                 env_ids=torch.tensor([env_id], device=env.device)
             )
+            # optionally set temperature axis if present
+            if temp is not None and len(handle_indices) >= 2:
+                # Directional temperature around midpoint: one side hot, opposite side cold
+                temp_joint_idx = handle_indices[1]
+                temp_limits = env.scene.articulations[self.name].data.joint_pos_limits[0, temp_joint_idx, :]
+                jmin = float(temp_limits[0])
+                jmax = float(temp_limits[1])
+                mid = (jmin + jmax) * 0.5
+                span = (jmax - jmin)
+                delta = 0.15 * span
+                if temp == "hot":
+                    temp_val = mid - delta
+                elif temp == "cold":
+                    temp_val = mid + delta
+                else:  # warm or unspecified -> near midpoint
+                    temp_val = mid
+                env.scene.articulations[self.name].write_joint_position_to_sim(
+                    torch.tensor([[temp_val]]).to(env.device),
+                    torch.tensor([temp_joint_idx]).to(env.device),
+                    env_ids=torch.tensor([env_id], device=env.device)
+                )
 
     def get_handle_state(self, env):
         """
@@ -85,8 +114,15 @@ class Sink(Fixture):
             env (ManagerBasedRLEnv): environment
 
         Returns:
-            dict: maps handle_joint to the angle of the handle_joint, water_on to whether the water is flowing,
-            spout_joint to the angle of the spout_joint, and spout_ori to the orientation of the spout (left, right, center)
+            dict: keys include
+              - handle_joint (Tensor): primary handle angle (flow axis)
+              - water_on (Tensor[bool]): water flowing or not
+              - water_scale (Tensor): relative flow scale
+              - temp_joint (Tensor, optional): secondary handle angle (temperature axis) if present
+              - temp_level (Tensor, optional): normalized temperature level in [-1 (cold), +1 (hot)] if present
+              - temp (list[str], optional): categorical temperature labels per env if present
+              - spout_joint (Tensor, optional)
+              - spout_ori (list[str], optional)
         """
         handle_state = {}
         if self.handle_joint is None:
@@ -94,7 +130,11 @@ class Sink(Fixture):
 
         joint_names = env.scene.articulations[self.name].data.joint_names
         joint_names = [j.lower() for j in joint_names]
-        handle_joint_idx = next(i for i, name in enumerate(joint_names) if "handle_joint" in name.lower())
+        handle_indices = [i for i, n in enumerate(joint_names) if "handle_joint" in n]
+        if not handle_indices:
+            return handle_state
+        # primary (flow) axis
+        handle_joint_idx = handle_indices[0]
         handle_joint_range = env.scene.articulations[self.name].data.joint_pos_limits[:, handle_joint_idx]
         handle_joint_qpos = env.scene.articulations[self.name].data.joint_pos[:, handle_joint_idx]
 
@@ -104,6 +144,32 @@ class Sink(Fixture):
         handle_state["water_on"] = (0.40 < handle_joint_qpos) & (handle_joint_qpos < torch.pi)
         handle_state["water_on"] = torch.logical_and(0.1 < handle_joint_qpos, handle_joint_qpos < torch.pi)
         handle_state["water_scale"] = (handle_joint_qpos - handle_joint_range[:, 0]) / (handle_joint_range[:, 1] - handle_joint_range[:, 0])
+
+        # secondary (temperature) axis if present
+        if len(handle_indices) >= 2:
+            temp_joint_idx = handle_indices[1]
+            temp_joint_range = env.scene.articulations[self.name].data.joint_pos_limits[:, temp_joint_idx]
+            temp_joint_qpos = env.scene.articulations[self.name].data.joint_pos[:, temp_joint_idx]
+            temp_joint_qpos = temp_joint_qpos % (2 * torch.pi)
+            temp_joint_qpos[temp_joint_qpos < 0] += 2 * torch.pi
+            handle_state["temp_joint"] = temp_joint_qpos
+            # normalize to [0,1]
+            temp_norm = (temp_joint_qpos - temp_joint_range[:, 0]) / (temp_joint_range[:, 1] - temp_joint_range[:, 0])
+            # directional level: -1 => hot (below mid), 0 => warm (near mid), +1 => cold (above mid)
+            eps = 0.05
+            temp_dir = temp_norm - 0.5
+            temp_level = torch.where(temp_dir > eps, torch.tensor(1.0, device=env.device),
+                                     torch.where(temp_dir < -eps, torch.tensor(-1.0, device=env.device), torch.tensor(0.0, device=env.device)))
+            handle_state["temp_level"] = temp_level
+            temp_label = []
+            for v in temp_dir:
+                if v <= -eps:
+                    temp_label.append("hot")
+                elif v >= eps:
+                    temp_label.append("cold")
+                else:
+                    temp_label.append("warm")
+            handle_state["temp"] = temp_label
 
         spout_joint_idx = next(i for i, name in enumerate(joint_names) if "spout_joint" in name.lower())
         spout_joint_qpos = env.scene.articulations[self.name].data.joint_pos[:, spout_joint_idx]
@@ -130,7 +196,9 @@ class Sink(Fixture):
             for handle_prim in handle_prims:
                 if handle_prim is not None and handle_prim.IsValid():
                     handle_joints.append(handle_prim)
-        assert len(handle_joints) == len(self.prim_paths), f"Handle joint not found!"
+        # allow multiple axes per sink (flow + temperature); ensure at least one exists overall
+        if len(handle_joints) < 1:
+            return None
         return handle_joints
 
     @cached_property
