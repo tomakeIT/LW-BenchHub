@@ -985,6 +985,9 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
         self.actions.left_arm_action = None
         self.actions.right_arm_action = None
         self.init_robot_base_height = 0.75
+        self.init_waist_yaw = 0.0
+        self.init_waist_pitch = 0.0
+        self.init_waist_roll = 0.0
         self.sim.dt = 1 / 200  # physics frequency: 100Hz
         self.decimation = 4  # action frequency: 50Hz
 
@@ -996,7 +999,13 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
         base_action = torch.zeros(7,)
         # default as standing
         base_action[3] = self.init_robot_base_height
+        base_action[4:] = torch.tensor([self.init_waist_roll, self.init_waist_pitch, self.init_waist_yaw], device=action['lbase'].device)
         # Left squeeze released: Moving-base related cmds
+        # left joystick up/down to control pitch movement of the base
+        base_action[5] = self.init_waist_pitch + 0.02 * torch.tensor([action['lbase'][0]], device=action['lbase'].device)
+        base_action[5] = torch.clamp(base_action[5], min=-0.5, max=0.5)
+        self.init_waist_pitch = base_action[5]
+
         if action['lsqueeze'] <= 0.5:
             if action['rsqueeze'] > 0.5:
                 # right joystick up/down to control linear x, left/right to control turning yaw
@@ -1005,11 +1014,19 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
                 # right joystick up/down to control linear x, left/right to control linear y
                 base_action[:3] = torch.tensor([action['rbase'][0], action['rbase'][1], 0,], device=action['rbase'].device)
             # left joystick left/right to control yaw, up/down to control pitch movement of the base
-            base_action[4:] = torch.tensor([0, action['lbase'][0], action['lbase'][1]], device=action['lbase'].device)
+            # base_action[4:] = torch.tensor([0, action['lbase'][0], action['lbase'][1]], device=action['lbase'].device)
+            # left joystick left/right to control yaw movement of the base
+            base_action[6] = self.init_waist_yaw + 0.05 * torch.tensor([action['lbase'][1]], device=action['lbase'].device)
+            base_action[6] = torch.clamp(base_action[6], min=-2, max=2)
+            self.init_waist_yaw = base_action[6]
         # Left squeeze pressed
         else:
             # left joystick left/right to control roll, up/down to control pitch movement of the base
-            base_action[4:] = torch.tensor([-1 * action['lbase'][1], action['lbase'][0], 0], device=action['lbase'].device)
+            # base_action[4:] = torch.tensor([-1 * action['lbase'][1], action['lbase'][0], 0], device=action['lbase'].device)
+            # left joystick left/right to control roll movement of the base
+            base_action[4] = self.init_waist_roll + 0.02 * torch.tensor([-action['lbase'][1]], device=action['lbase'].device)
+            base_action[4] = torch.clamp(base_action[4], min=-0.5, max=0.5)
+            self.init_waist_roll = base_action[4]
 
             # Left squeeze pressed and Right squeeze pressed: right joystick up/down to control base_height_cmd (relative to current height)
             if action['rsqueeze'] > 0.5:
