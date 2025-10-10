@@ -133,6 +133,26 @@ def get_rel_transform(fixture_A, fixture_B):
     return T_AB[:3, 3], T_AB[:3, :3]
 
 
+def transform_global_to_local(global_x, global_y, rot):
+    """
+    Transforms a global movement vector from a global frame (with rotation `rot`)
+    into local coordinates (assumed to be rotation 0).
+    Args:
+        global_x (float): Movement along local x-axis
+        global_y (float): Movement along local y-axis
+        rot (float): Rotation of the local frame (in radians)
+    Returns:
+        (float, float): Transformed (local_x, local_y)
+    """
+    cos_yaw = torch.cos(rot)
+    sin_yaw = torch.sin(rot)
+
+    local_x = cos_yaw * global_x - sin_yaw * global_y
+    local_y = sin_yaw * global_x + cos_yaw * global_y
+
+    return local_x, local_y
+
+
 def compute_rel_transform(A_pos, A_mat, B_pos, B_mat):
     """
     Gets B's position and rotation relative to A's frame
@@ -274,7 +294,7 @@ def fixture_pairwise_dist(f1, f2):
     return np.min(all_dists)
 
 
-def obj_fixture_bbox_min_dist(env, obj_name, fixture):  # to use it can search line_up_condiments.py for help
+def obj_fixture_bbox_min_dist(env, obj_name, fixture):
     """
     Gets the minimum distance between a fixture and an object by computing the minimal axis-aligned bounding separation.
     """
@@ -283,11 +303,11 @@ def obj_fixture_bbox_min_dist(env, obj_name, fixture):  # to use it can search l
     fix_min = fix_coords.min(axis=0)
     fix_max = fix_coords.max(axis=0)
     rigid_obj = env.scene.rigid_objects[obj_name]
-    trans = rigid_obj.data.body_com_pos_w[0, 0, :].cpu().numpy()
-    rot_quat = rigid_obj.data.body_com_quat_w[0, 0, :].cpu().numpy()
+    trans = rigid_obj.data.body_com_pos_w[0, 0, :].cpu()
+    rot_quat = rigid_obj.data.body_com_quat_w[0, 0, :].cpu()
     rot_quat = T.convert_quat(rot_quat, to="xyzw")
     obj_cfg = env.cfg.objects[obj_name]
-    obj_pts = obj_cfg.get_bbox_points(trans=trans, rot=rot_quat)
+    obj_pts = obj_cfg.get_bbox_points(trans=trans.numpy(), rot=rot_quat)
     obj_coords = np.array(obj_pts)
     obj_min = obj_coords.min(axis=0)
     obj_max = obj_coords.max(axis=0)
@@ -300,7 +320,7 @@ def obj_fixture_bbox_min_dist(env, obj_name, fixture):  # to use it can search l
             sep[i] = fix_min[i] - obj_max[i]
             sep[i] = 0.0
 
-    return np.linalg.norm(sep)
+    return torch.tensor(np.linalg.norm(sep), device=env.device).repeat(env.num_envs)
 
 
 def objs_intersect(
@@ -416,9 +436,9 @@ def check_obj_any_counter_contact(env, kit_env, obj_name):  # use example: check
     from lwlab.core.models.fixtures import Counter
     for fixture in kit_env.fixtures.values():
         if isinstance(fixture, Counter):
-            if check_obj_fixture_contact(env, obj_name, fixture):
-                return True
-    return False
+            if check_obj_fixture_contact(env, obj_name, fixture).any():
+                return torch.tensor([True], device=env.device, dtype=torch.bool).repeat(env.num_envs)
+    return torch.tensor([False], device=env.device, dtype=torch.bool).repeat(env.num_envs)
 
 
 def check_fixture_in_receptacle(env, fixture_name, fixture_object, receptacle_name, th=None):
