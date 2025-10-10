@@ -76,11 +76,16 @@ VALID_PLACEMENT_KEYS = set(
         "rotation",
         "ensure_object_boundary_in_range",
         "ensure_valid_placement",
+        # "ensure_valid_auxiliary_placement",
         "sample_args",
         "sample_region_kwargs",
+        "reuse_region_from",
         "ref_obj",
         "fixture",
         "try_to_place_in",
+        "anchor_to",
+        "object",
+        "try_to_place_in_kwargs",
     }
 )
 
@@ -657,6 +662,7 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
                 ref=placement.get("ref", None),
                 full_name_check=True if cfg["type"] == "fixture" else False,
             )
+            reuse_region_from = placement.get("reuse_region_from", None)
             sample_region_kwargs = placement.get("sample_region_kwargs", {})
             ref_fixture = sample_region_kwargs.get("ref", None)
             if isinstance(ref_fixture, str):
@@ -682,10 +688,22 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
                     and rotation_axis == "z"
                 ):
                     sample_region_kwargs["min_size"] = mj_obj.size
-                print(f"get valid reset region for {cfg['name']}")
-                reset_region = fixture.get_all_valid_reset_region(
-                    env=env, **sample_region_kwargs
-                )
+                if reuse_region_from is None:
+                    print(f"get valid reset region for {cfg['name']}")
+                    reset_region = fixture.get_all_valid_reset_region(
+                        env=env, **sample_region_kwargs
+                    )
+                else:
+                    # find and re-use sampling region from another object
+                    print(f"reuse region from {reuse_region_from}")
+                    reset_region = None
+                    for this_obj_config in cfg_list:
+                        if this_obj_config["name"] == reuse_region_from:
+                            reset_region = this_obj_config["reset_region"]
+                            break
+                    assert (
+                        reset_region is not None
+                    ), "Could not find reset region to reuse"
 
                 reference_object = fixture.name
 

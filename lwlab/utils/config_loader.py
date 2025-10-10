@@ -16,7 +16,6 @@ import yaml
 from pathlib import Path
 import argparse
 import importlib.metadata
-from pathlib import Path
 from lwlab import CONFIGS_PATH
 
 

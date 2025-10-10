@@ -397,7 +397,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         else:
             self.object_cfgs = self._get_obj_cfgs()
             self.object_cfgs = self.apply_object_init_offset(self.object_cfgs)
-            addl_obj_cfgs = []
+            all_obj_cfgs = []
             for obj_num, cfg in enumerate(self.object_cfgs):
                 cfg["type"] = "object"
                 if "name" not in cfg:
@@ -407,6 +407,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                 self.objects[model.task_name] = model
                 # self.model.merge_objects([model])
                 try_to_place_in = cfg["placement"].get("try_to_place_in", None)
+                object_ref = cfg["placement"].get("object", None)
 
                 # place object in a container and add container as an object to the scene
                 if try_to_place_in and (
@@ -419,13 +420,25 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                         "type": "object",
                     }
 
+                    init_robot_here = cfg.get("init_robot_here", False)
+                    if init_robot_here is True:
+                        cfg["init_robot_here"] = False
+                        container_cfg["init_robot_here"] = True
+
+                    try_to_place_in_kwargs = cfg["placement"].get(
+                        "try_to_place_in_kwargs", None
+                    )
+                    if try_to_place_in_kwargs is not None:
+                        for k, v in try_to_place_in_kwargs.items():
+                            container_cfg[k] = v
+
                     container_kwargs = cfg["placement"].get("container_kwargs", None)
                     if container_kwargs is not None:
                         for k, v in container_kwargs.items():
                             container_cfg[k] = v
 
                     # add in the new object to the model
-                    addl_obj_cfgs.append(container_cfg)
+                    all_obj_cfgs.append(container_cfg)
                     model, info = EnvUtils.create_obj(self, container_cfg)
                     container_cfg["info"] = info
                     self.objects[model.task_name] = model
@@ -445,7 +458,28 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                             ref_fixture=cfg["placement"]["fixture"],
                         ),
                     )
-            self.object_cfgs = addl_obj_cfgs + self.object_cfgs
+                elif (
+                    object_ref
+                    and "in_container" in cfg["info"]["groups_containing_sampled_obj"]
+                ):
+                    parent = object_ref
+                    if parent in self.objects:
+                        container_name = parent
+                        container_obj = self.objects[parent]
+                        container_size = container_obj.size
+                        smaller_dim = min(container_size[0], container_size[1])
+                        sampling_size = (smaller_dim * 0.5, smaller_dim * 0.5)
+                        cfg["placement"] = {
+                            "size": sampling_size,
+                            "ensure_object_boundary_in_range": False,
+                            "sample_args": {"reference": container_name},
+                        }
+
+                # append the config for this object
+                all_obj_cfgs.append(cfg)
+
+            self.object_cfgs = all_obj_cfgs
+
         # update cache_usd_version
         objects_version = []
         for cfg in self.object_cfgs:
@@ -755,6 +789,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         return OU.get_obj_lang(self, obj_name=obj_name, get_preposition=get_preposition)
 
     def _update_fxtr_obj_placement(self, object_placements):
+        updated_obj_names = []
         for obj_name, obj_placement in object_placements.items():
             updated_placement = list(obj_placement)
             obj_cfg = [cfg for cfg in self.object_cfgs if cfg["name"] == obj_name][0]
@@ -767,10 +802,11 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             if fixture_is_type(ref_fixture, FixtureType.DRAWER):
                 ref_rot_mat = Tn.euler2mat(np.array([0, 0, ref_fixture.rot]))
                 updated_placement[0] = np.array(updated_placement[0]) + ref_fixture._regions["int"]["per_env_offset"] @ ref_rot_mat.T
+                updated_obj_names.append(obj_name)
             else:
                 updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.num_envs, axis=0)
             object_placements[obj_name] = updated_placement
-        return object_placements
+        return object_placements, updated_obj_names
 
     def get_robot_anchor(self):
         (
@@ -820,22 +856,25 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         """
         reset the root state of objects and robot in the environment
         """
+        if env_ids is None:
+            env_ids = torch.arange(env.num_envs, device=self.device, dtype=torch.int64)
+        object_placements = EnvUtils.sample_object_placements(self, need_retry=False)
+        object_placements, updated_obj_names = self._update_fxtr_obj_placement(object_placements)
         if env.cfg.reset_objects_enabled and self.fix_object_pose_cfg is None:
-            if env_ids is None:
-                env_ids = torch.arange(env.num_envs, device=self.device, dtype=torch.int64)
-            object_placements = EnvUtils.sample_object_placements(self, need_retry=False)
-            object_placements = self._update_fxtr_obj_placement(object_placements)
-            for obj_name, obj_placement in object_placements.items():
-                obj_poses, obj_quat, _ = obj_placement
-                obj_pos = torch.tensor(obj_poses, device=self.device, dtype=torch.float32)[env_ids] + env.scene.env_origins[env_ids]
-                obj_quat = Tt.convert_quat(torch.tensor(obj_quat, device=self.device, dtype=torch.float32), to="wxyz")
-                obj_quat = obj_quat.view(obj_pos.shape[0], -1)
-                root_pos = torch.concatenate([obj_pos, obj_quat], dim=-1)
-                env.scene.rigid_objects[obj_name].write_root_pose_to_sim(
-                    root_pos,
-                    env_ids=env_ids
-                )
-            env.sim.forward()
+            reset_objs = object_placements.keys()
+        else:
+            reset_objs = updated_obj_names
+        for obj_name in reset_objs:
+            obj_poses, obj_quat, _ = object_placements[obj_name]
+            obj_pos = torch.tensor(obj_poses, device=self.device, dtype=torch.float32)[env_ids] + env.scene.env_origins[env_ids]
+            obj_quat = Tt.convert_quat(torch.tensor(obj_quat, device=self.device, dtype=torch.float32), to="wxyz")
+            obj_quat = obj_quat.unsqueeze(0).repeat(obj_pos.shape[0], 1)
+            root_pos = torch.concatenate([obj_pos, obj_quat], dim=-1)
+            env.scene.rigid_objects[obj_name].write_root_pose_to_sim(
+                root_pos,
+                env_ids=env_ids
+            )
+        env.sim.forward()
 
         if env.cfg.reset_robot_enabled:
             self.sample_robot_base(env, env_ids)

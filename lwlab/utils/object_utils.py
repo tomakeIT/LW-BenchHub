@@ -294,35 +294,6 @@ def fixture_pairwise_dist(f1, f2):
     return np.min(all_dists)
 
 
-def obj_fixture_bbox_min_dist(env, obj_name, fixture):
-    """
-    Gets the minimum distance between a fixture and an object by computing the minimal axis-aligned bounding separation.
-    """
-    fix_pts = fixture.get_ext_sites(all_points=True, relative=False)
-    fix_coords = np.array(fix_pts)
-    fix_min = fix_coords.min(axis=0)
-    fix_max = fix_coords.max(axis=0)
-    rigid_obj = env.scene.rigid_objects[obj_name]
-    trans = rigid_obj.data.body_com_pos_w[0, 0, :].cpu()
-    rot_quat = rigid_obj.data.body_com_quat_w[0, 0, :].cpu()
-    rot_quat = T.convert_quat(rot_quat, to="xyzw")
-    obj_cfg = env.cfg.objects[obj_name]
-    obj_pts = obj_cfg.get_bbox_points(trans=trans.numpy(), rot=rot_quat)
-    obj_coords = np.array(obj_pts)
-    obj_min = obj_coords.min(axis=0)
-    obj_max = obj_coords.max(axis=0)
-
-    sep = np.zeros(3)
-    for i in range(3):
-        if fix_max[i] < obj_min[i]:
-            sep[i] = obj_min[i] - fix_max[i]
-        elif obj_max[i] < fix_min[i]:
-            sep[i] = fix_min[i] - obj_max[i]
-            sep[i] = 0.0
-
-    return torch.tensor(np.linalg.norm(sep), device=env.device).repeat(env.num_envs)
-
-
 def objs_intersect(
     obj,
     obj_pos,

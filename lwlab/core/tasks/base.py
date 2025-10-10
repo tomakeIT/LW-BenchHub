@@ -155,7 +155,7 @@ class BaseTaskEnvCfg(LwBaseCfg):
     terminations: TerminationsCfg = TerminationsCfg()
     events: EventCfg = EventCfg()
     task_name: str = MISSING
-    reset_objects_enabled: bool = False
+    reset_objects_enabled: bool = True
     reset_robot_enabled: bool = True
     task_type: str = "teleop"
     fix_object_pose_cfg: dict = None
