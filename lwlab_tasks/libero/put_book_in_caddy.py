@@ -5,8 +5,6 @@ from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import copy
 from isaaclab.utils.math import matrix_from_quat
-# from lightwheel_sdk.loader import floorplan_loader, object_loader, ENDPOINT, login_manager
-# login_manager.login(force_login=True)
 from time import time
 
 import numpy as np
