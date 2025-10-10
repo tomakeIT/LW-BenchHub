@@ -529,7 +529,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
 
         # sort samplers by object size (large -> small)
         self.samplers_with_args = list(zip(self.samplers.values(), self.sample_args.values()))
-        # self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
+        self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
         self.samplers_with_args = self.adjust_order_by_container(self.samplers_with_args)
 
     def hide(self, mujoco_objects):

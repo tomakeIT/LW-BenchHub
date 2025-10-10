@@ -1125,7 +1125,7 @@ class PnPToasterToCounter(PnP):  # DONE
                         ref=self.toaster,
                     ),
                     size=(0.80, 0.30),
-                    pos=("ref", -1.0),
+                    pos=(0.0, -1.0),
                 ),
             )
         )
