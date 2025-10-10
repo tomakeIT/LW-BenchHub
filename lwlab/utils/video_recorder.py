@@ -233,3 +233,35 @@ class VideoProcessor:
     def get_video_path(self):
         """Get the video file path"""
         return self.replay_mp4_path
+
+
+def get_video_duration(video_path):
+    """
+    Get video duration in seconds
+
+    Args:
+        video_path (str): Path to the video file
+
+    Returns:
+        float: Video duration in seconds, or 0.0 if failed to read
+    """
+    try:
+        cap = cv2.VideoCapture(str(video_path))
+        if not cap.isOpened():
+            print(f"Unable to open video file: {video_path}")
+            return 0.0
+
+        fps = cap.get(cv2.CAP_PROP_FPS)
+        frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+
+        cap.release()
+
+        if fps > 0:
+            duration = frame_count / fps
+            return round(duration, 2)
+        else:
+            return 0.0
+
+    except Exception as e:
+        print(f"Failed to obtain video duration: {e}")
+        return 0.0

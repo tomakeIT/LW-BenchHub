@@ -26,7 +26,7 @@ import h5py
 from pathlib import Path
 from isaaclab.app import AppLauncher
 import pinocchio  # noqa: F401
-from lwlab.scripts.teleop.teleop_launcher import get_video_duration
+from lwlab.utils.video_recorder import get_video_duration
 from lwlab.utils.video_recorder import VideoProcessor
 
 
