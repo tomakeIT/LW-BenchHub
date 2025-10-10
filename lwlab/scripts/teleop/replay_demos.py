@@ -148,6 +148,7 @@ def main():
             seed=env_args["seed"] if "seed" in env_args else None,
             sources=env_args["sources"] if "sources" in env_args else None,
             object_projects=env_args["object_projects"] if "object_projects" in env_args else None,
+            headless_mode=args_cli.headless,
         )
         env_name = f"Robocasa-{task_name}-{robot_name}-v0"
         gym.register(

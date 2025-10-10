@@ -112,6 +112,7 @@ def main():
             seed=args_cli.seed,
             sources=args_cli.sources,
             object_projects=args_cli.object_projects,
+            headless_mode=args_cli.headless,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 

@@ -158,6 +158,7 @@ def parse_env_cfg(
     sources: list[str] | None = None,
     object_projects: list[str] | None = None,
     initial_state: dict | None = None,
+    headless_mode: bool = False,
     ** kwargs,
 ) -> "ManagerBasedRLEnvCfg":
     """Parse configuration for an environment and override based on inputs.
@@ -222,6 +223,7 @@ def parse_env_cfg(
     RobocasaEnvCfg.sources = sources
     RobocasaEnvCfg.object_projects = object_projects
     RobocasaEnvCfg.initial_state = initial_state
+    RobocasaEnvCfg.headless_mode = headless_mode
 
     if scene_type == "USD":
         cfg = RobocasaEnvCfg(

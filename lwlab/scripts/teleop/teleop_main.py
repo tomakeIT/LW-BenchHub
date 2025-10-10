@@ -305,6 +305,9 @@ def main():
 
     def create_teleop_interface(env):
         """Create teleoperation interface based on device type."""
+        if args_cli.headless:
+            return None
+
         env_cfg = env.cfg
         nonlocal teleoperation_active
 
@@ -326,14 +329,11 @@ def main():
             )
         else:
             if args_cli.teleop_device.lower() == "keyboard":
-                if args_cli.headless:
-                    teleop_interface = None
-                else:
-                    device_type = KEYCONTROLLER_MAP[args_cli.teleop_device.lower() + "-" + args_cli.robot.lower().split("-")[0]]
-                    teleop_interface = device_type(
-                        pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity,
-                        base_sensitivity=0.5 * args_cli.sensitivity, base_yaw_sensitivity=0.8 * args_cli.sensitivity
-                    )
+                device_type = KEYCONTROLLER_MAP[args_cli.teleop_device.lower() + "-" + args_cli.robot.lower().split("-")[0]]
+                teleop_interface = device_type(
+                    pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity,
+                    base_sensitivity=0.5 * args_cli.sensitivity, base_yaw_sensitivity=0.8 * args_cli.sensitivity
+                )
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(env,
                                                  pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.2 * args_cli.sensitivity
@@ -459,7 +459,8 @@ def main():
                     seed=args_cli.seed,
                     sources=args_cli.sources,
                     object_projects=args_cli.object_projects,
-                    initial_state=initial_state
+                    initial_state=initial_state,
+                    headless_mode=args_cli.headless,
                 )
                 if hasattr(args_cli, "reset_objects_enabled"):
                     env_cfg.reset_objects_enabled = args_cli.reset_objects_enabled

@@ -73,6 +73,7 @@ def make_env_cfg():
             object_projects=args_cli.object_projects,
             for_rl=args_cli.for_rl,
             rl_variant=args_cli.variant,
+            headless_mode=args_cli.headless,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
 
