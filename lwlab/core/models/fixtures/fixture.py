@@ -31,11 +31,13 @@ from .fixture_types import FixtureType
 
 FIXTURES = {}
 FIXTURE_TYPES = defaultdict(list)
-SURFACE_FIXTURE_TYPES = {
+Z_OPEN_FIXTURE_TYPES = {
     FixtureType.DINING_COUNTER,
     FixtureType.COUNTER,
     FixtureType.TABLE,
-    FixtureType.FLOOR_LAYOUT
+    FixtureType.FLOOR_LAYOUT,
+    FixtureType.SINK,
+    FixtureType.TOASTER,
 }
 
 
@@ -677,7 +679,7 @@ class Fixture:
                 if max(min_size[:2]) > max(reg_size[:2]):
                     # object cannot fit plane
                     continue
-                if not any(fixture_is_type(self, fixture_type) for fixture_type in SURFACE_FIXTURE_TYPES):
+                if not any(fixture_is_type(self, fixture_type) for fixture_type in Z_OPEN_FIXTURE_TYPES):
                     if (
                         reg_height is not None
                         and len(min_size) == 3
