@@ -274,6 +274,35 @@ def fixture_pairwise_dist(f1, f2):
     return np.min(all_dists)
 
 
+def obj_fixture_bbox_min_dist(env, obj_name, fixture):  # to use it can search line_up_condiments.py for help
+    """
+    Gets the minimum distance between a fixture and an object by computing the minimal axis-aligned bounding separation.
+    """
+    fix_pts = fixture.get_ext_sites(all_points=True, relative=False)
+    fix_coords = np.array(fix_pts)
+    fix_min = fix_coords.min(axis=0)
+    fix_max = fix_coords.max(axis=0)
+    rigid_obj = env.scene.rigid_objects[obj_name]
+    trans = rigid_obj.data.body_com_pos_w[0, 0, :].cpu().numpy()
+    rot_quat = rigid_obj.data.body_com_quat_w[0, 0, :].cpu().numpy()
+    rot_quat = T.convert_quat(rot_quat, to="xyzw")
+    obj_cfg = env.cfg.objects[obj_name]
+    obj_pts = obj_cfg.get_bbox_points(trans=trans, rot=rot_quat)
+    obj_coords = np.array(obj_pts)
+    obj_min = obj_coords.min(axis=0)
+    obj_max = obj_coords.max(axis=0)
+
+    sep = np.zeros(3)
+    for i in range(3):
+        if fix_max[i] < obj_min[i]:
+            sep[i] = obj_min[i] - fix_max[i]
+        elif obj_max[i] < fix_min[i]:
+            sep[i] = fix_min[i] - obj_max[i]
+            sep[i] = 0.0
+
+    return np.linalg.norm(sep)
+
+
 def objs_intersect(
     obj,
     obj_pos,
@@ -378,6 +407,18 @@ def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
     obj = env.cfg.objects[obj_name]
     fixture = env.cfg.get_fixture(fixture_name)
     return env.cfg.check_contact(obj, fixture)
+
+
+def check_obj_any_counter_contact(env, kit_env, obj_name):  # use example: check_obj_any_counter_contact(self.env,self,obj_name)
+    """
+    check if the object is in contact with any counter fixture in the environment.
+    """
+    from lwlab.core.models.fixtures import Counter
+    for fixture in kit_env.fixtures.values():
+        if isinstance(fixture, Counter):
+            if check_obj_fixture_contact(env, obj_name, fixture):
+                return True
+    return False
 
 
 def check_fixture_in_receptacle(env, fixture_name, fixture_object, receptacle_name, th=None):
