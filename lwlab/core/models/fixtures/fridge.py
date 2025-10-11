@@ -73,7 +73,7 @@ class Fridge(Fixture):
     def get_reset_region_names(self):
         return self._fridge_reg_names + self._freezer_reg_names
 
-    def get_reset_regions(self, env, reg_type="fridge", z_range=(0.50, 1.50)):
+    def get_reset_regions(self, env, reg_type="fridge", z_range=(0.50, 1.50), rack_index=None):
         assert reg_type in ["fridge", "freezer"]
         reset_region_names = [
             reg_name
@@ -94,17 +94,40 @@ class Fridge(Fixture):
                 # region is too small, skip
                 continue
 
-            if z_range is not None:
+            # bypass z-range check if rack_index is specified
+            bypass_z_range = rack_index is not None
+            if not bypass_z_range:
                 reg_abs_z = self.pos[2] + p0[2]
                 if reg_abs_z < z_range[0] or reg_abs_z > z_range[1]:
-                    # region hard to reach, skip
                     continue
 
             reset_regions[reg_name] = {
                 "offset": (np.mean((p0[0], px[0])), np.mean((p0[1], py[1])), p0[2]),
                 "size": (px[0] - p0[0], py[1] - p0[1]),
             }
-        return reset_regions
+        # sort by Z height (top shelf/drawer first)
+        sorted_regions = sorted(
+            reset_regions.items(),
+            key=lambda item: self.pos[2] + self._regions[item[0]]["p0"][2],
+            reverse=False,
+        )
+
+        if rack_index is not None:
+            if rack_index == -1:
+                return dict([sorted_regions[-1]]) if sorted_regions else {}
+            elif rack_index == -2:
+                if len(sorted_regions) > 1:
+                    return dict([sorted_regions[-2]])
+                else:
+                    return dict([sorted_regions[-1]]) if sorted_regions else {}
+            elif 0 <= rack_index < len(sorted_regions):
+                return dict([sorted_regions[rack_index]])
+            else:
+                raise ValueError(
+                    f"rack_index {rack_index} out of range for {reg_type} regions. "
+                    f"Available indices: {list(range(len(sorted_regions)))}"
+                )
+        return dict(sorted_regions)
 
 
 class FridgeFrenchDoor(Fridge):

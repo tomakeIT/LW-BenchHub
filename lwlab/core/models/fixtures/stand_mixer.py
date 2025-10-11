@@ -119,11 +119,12 @@ class StandMixer(Fixture):
                 mid = p0 + 0.5 * (pz - p0)
                 for pt_id in range(pts.shape[0]):
                     cu, cv, cw = np.dot(u, pts[pt_id]), np.dot(v, pts[pt_id]), np.dot(w, pts[pt_id])
-                    if not (
-                        (np.dot(u, p0[env_id]) - tol <= cu <= np.dot(u, px[env_id]) + tol)
-                        and (np.dot(v, p0[env_id]) - tol <= cv <= np.dot(v, py[env_id]) + tol)
-                        and (np.dot(w, p0[env_id]) - tol <= cw <= np.dot(w, mid[env_id]) + tol)
-                    ):
+                    # Check if point is within bounds for each dimension
+                    u_in_bounds = (np.dot(u, p0[env_id]) - tol <= cu) & (cu <= np.dot(u, px[env_id]) + tol)
+                    v_in_bounds = (np.dot(v, p0[env_id]) - tol <= cv) & (cv <= np.dot(v, py[env_id]) + tol)
+                    w_in_bounds = (np.dot(w, p0[env_id]) - tol <= cw) & (cw <= np.dot(w, mid[env_id]) + tol)
+
+                    if not (u_in_bounds and v_in_bounds and w_in_bounds):
                         all_in[env_id] = False
                         break
         return torch.from_numpy(all_in).to(cfg.device)

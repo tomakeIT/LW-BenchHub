@@ -122,7 +122,7 @@ class Counter(ProcGenFixture):
         return geoms
 
     def get_reset_regions(
-        self, env, ref=None, loc="nn", top_size=(0.40, 0.25), ref_rot_flag=False
+        self, env, ref=None, loc="nn", top_size=(0.40, 0.25), ref_rot_flag=False, full_depth_region=False,
     ):
 
         all_geoms = []
@@ -143,7 +143,17 @@ class Counter(ProcGenFixture):
                         size=list(scale),
                     )
                 )
-
+        is_island_group = hasattr(self, "name") and "island_group" in self.name
+        if full_depth_region and is_island_group and len(all_geoms) > 1:
+            region_sizes = [np.array(g.get("size")) * 2 for g in all_geoms]
+            areas = [sz[0] * sz[1] for sz in region_sizes]
+            sorted_indices = sorted(range(len(areas)), key=lambda i: areas[i])
+            min_area = areas[sorted_indices[0]]
+            next_min_area = areas[sorted_indices[1]] if len(areas) > 1 else min_area
+            if min_area < 0.8 * next_min_area:
+                all_geoms = [
+                    g for i, g in enumerate(all_geoms) if i != sorted_indices[0]
+                ]
         reset_regions = {}
 
         if ref is None:

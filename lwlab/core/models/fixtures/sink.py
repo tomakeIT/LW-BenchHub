@@ -20,6 +20,8 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 from .fixture_types import FixtureType
+import numpy as np
+import lwlab.utils.object_utils as OU
 
 
 class Sink(Fixture):
@@ -105,6 +107,35 @@ class Sink(Fixture):
                     torch.tensor([temp_joint_idx]).to(env.device),
                     env_ids=torch.tensor([env_id], device=env.device)
                 )
+
+    def check_obj_under_water(self, env, obj_name, xy_thresh=None):
+        if xy_thresh is None:
+            xy_thresh = env.cfg.objects[obj_name].horizontal_radius
+        obj_pos = OU.get_object_pos(env, obj_name)  # shape: (3,)
+        result = torch.tensor([False] * env.num_envs, device=env.device)
+        for env_id, (site, origin_radius) in enumerate(self.water_sites):
+            if site is None or not site.IsValid():
+                continue
+            water_site_pos = torch.tensor([usd.get_prim_pos_rot_in_world(site)[0]], device=env.device) + env.scene.env_origins  # (env_num, 3)
+            # obj_pos is (3,), water_site_pos is (env_num, 3)
+            obj_pos_xy = obj_pos[0:2]  # (2,)
+            water_site_pos_xy = water_site_pos[:, 0:2]  # (env_num, 2)
+            # Broadcast obj_pos_xy to match water_site_pos_xy
+            xy_check = torch.norm(water_site_pos_xy - obj_pos_xy.unsqueeze(0), dim=1) < xy_thresh
+            # Get cylinder height/length
+            cylinder_height = 0.0
+            if site.GetAttribute("height").Get():
+                cylinder_height = site.GetAttribute("height").Get()
+
+            if cylinder_height > 0:
+                z_check = (
+                    obj_pos[2]
+                    < water_site_pos[:, 2] + cylinder_height
+                )
+                result |= xy_check & z_check
+            else:
+                result |= xy_check
+        return result & self.get_handle_state(env)["water_on"]
 
     def get_handle_state(self, env):
         """

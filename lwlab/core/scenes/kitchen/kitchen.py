@@ -531,7 +531,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         ep_meta["seed"] = self.seed
         return ep_meta
 
-    def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None):
+    def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None, full_depth_region=False):
         """
         search fixture by id (name, object, or type)
 
@@ -541,6 +541,8 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             ref (str, Fixture, FixtureType): if specified, will search for fixture close to ref (within 0.10m)
 
             size (tuple): if sampling counter, minimum size (x,y) that the counter region must be
+
+            full_depth_region (bool): if True, will only sample island counter regions that can be accessed
 
         Returns:
             Fixture: fixture object
@@ -574,6 +576,30 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     for name in matches
                     if FixtureUtils.is_fxtr_valid(self, self.fixtures[name], size)
                 ]
+            if (
+                len(matches) > 1
+                and any("island" in name for name in matches)
+                and full_depth_region
+            ):
+                island_matches = [name for name in matches if "island" in name]
+                if len(island_matches) >= 3:
+                    depths = [self.fixtures[name].size[1] for name in island_matches]
+                    sorted_indices = sorted(range(len(depths)), key=lambda i: depths[i])
+                    min_depth = depths[sorted_indices[0]]
+                    next_min_depth = (
+                        depths[sorted_indices[1]] if len(depths) > 1 else min_depth
+                    )
+                    if min_depth < 0.8 * next_min_depth:
+                        keep = [
+                            i
+                            for i in range(len(island_matches))
+                            if i != sorted_indices[0]
+                        ]
+                        filtered_islands = [island_matches[i] for i in keep]
+                        matches = [
+                            name for name in matches if name not in island_matches
+                        ] + filtered_islands
+
             if len(matches) == 0:
                 return None
             # sample random key
