@@ -41,6 +41,8 @@ STOVE_LOCATIONS = [
 class Stove(Fixture):
     _env = None
     fixture_types = [FixtureType.STOVE]
+    STOVE_LOW_MIN = 0.35
+    STOVE_HIGH_MIN = np.deg2rad(80)
 
     def __init__(self, name="stove", prim=None, num_envs=1, *args, **kwargs):
         super().__init__(name, prim, num_envs, *args, **kwargs)
@@ -100,22 +102,30 @@ class Stove(Fixture):
 
             knob (str): location of the knob
 
-            mode (str): "on" or "off"
+            mode (str): "on", "off", "high", or "low"
         """
-        assert mode in ["on", "off"]
+        assert mode in ["on", "off", "high", "low"]
         if env_ids is None:
             env_ids = torch.arange(env.num_envs)
         for env_id in env_ids:
+            knob_joint_id = env.scene.articulations[self.name].data.joint_names.index(f"knob_{knob}_joint")
+            joint_limits = env.scene.articulations[self.name].data.joint_limits[:, knob_joint_id]
+            joint_min, joint_max = joint_limits[0, 0].item(), joint_limits[0, 1].item()
+            if knob not in self._knob_joint_ranges:
+                self._knob_joint_ranges[knob] = joint_limits
+
             if mode == "off":
                 joint_val = 0.0
+            elif mode == "low":
+                joint_val = self.rng.uniform(self.STOVE_LOW_MIN, self.STOVE_HIGH_MIN - 1e-5)
+            elif mode == "high":
+                joint_val = self.rng.uniform(self.STOVE_HIGH_MIN, joint_max)
             else:
                 if self.rng.uniform() < 0.5:
                     joint_val = self.rng.uniform(0.50, np.pi / 2)
                 else:
                     joint_val = self.rng.uniform(2 * np.pi - np.pi / 2, 2 * np.pi - 0.50)
-            knob_joint_id = env.scene.articulations[self.name].data.joint_names.index(f"knob_{knob}_joint")
-            if knob not in self._knob_joint_ranges:
-                self._knob_joint_ranges[knob] = env.scene.articulations[self.name].data.joint_limits[:, knob_joint_id]
+
             env.scene.articulations[self.name].write_joint_position_to_sim(
                 torch.tensor([[joint_val]]).to(env.device),
                 torch.tensor([knob_joint_id]).to(env.device),
