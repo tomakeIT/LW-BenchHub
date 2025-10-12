@@ -1041,27 +1041,29 @@ def create_obj(env, cfg, version=None):
 
 
 def sample_object_placements(env, need_retry=True):
-    if env.is_replay_mode:
-        return env._load_placement()
-
-    if not need_retry:
-        return env.placement_initializer.sample(
-            placed_objects=env.fxtr_placements,
-            max_attempts=15000,
-        )
-
-    # Check if scene retry count exceeds max
-    if env.scene_retry_count >= env.max_scene_retry:
-        raise RuntimeError(f"Maximum scene retries ({env.max_scene_retry}) exceeded. Failed to place objects after {env.max_scene_retry} scene reloads.")
-
-    # Check if object retry count exceeds max
-    if env.object_retry_count >= env.max_object_placement_retry:
-        env.scene_retry_count += 1
-        print(f"All object placement retries failed, reloading entire model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
-        env._load_model()
-
     try:
-        env.placement_initializer = _get_placement_initializer(env, env.object_cfgs, env.seed)
+        if not hasattr(env, "placement_initializer"):
+            env.placement_initializer = _get_placement_initializer(env, env.object_cfgs, env.seed)
+
+        if env.is_replay_mode:
+            return env._load_placement()
+
+        if not need_retry:
+            return env.placement_initializer.sample(
+                placed_objects=env.fxtr_placements,
+                max_attempts=15000,
+            )
+
+        # Check if scene retry count exceeds max
+        if env.scene_retry_count >= env.max_scene_retry:
+            raise RuntimeError(f"Maximum scene retries ({env.max_scene_retry}) exceeded. Failed to place objects after {env.max_scene_retry} scene reloads.")
+
+        # Check if object retry count exceeds max
+        if env.object_retry_count >= env.max_object_placement_retry:
+            env.scene_retry_count += 1
+            print(f"All object placement retries failed, reloading entire model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
+            env._load_model()
+
         return env.placement_initializer.sample(
             placed_objects=env.fxtr_placements,
             max_attempts=15000,
@@ -1069,7 +1071,6 @@ def sample_object_placements(env, need_retry=True):
 
     except SamplingError as e:
         error_message = str(e)
-        print(f"Placement failed: {error_message}")
 
         failed_obj_name = extract_failed_object_name(error_message)
 
