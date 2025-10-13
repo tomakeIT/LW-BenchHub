@@ -590,7 +590,7 @@ def main():
         if args_cli.save_video:
             video_recorder = VideoRecorder(args_cli.video_save_dir, args_cli.video_fps, args_cli.task, args_cli.robot, args_cli.layout)
 
-        if args_cli.enable_log:
+        if args_cli.enable_debug_log:
             log_path = log_scene_rigid_objects(env)
 
         # add frame rate analyzer (only in debug mode)
@@ -702,7 +702,7 @@ def main():
                     for _ in range(env.cfg.warmup_steps):
                         env.cfg.update_sensors(env, env.physics_dt)
 
-                if args_cli.enable_log:
+                if args_cli.enable_debug_log:
                     try:
                         env.step(actions)
                         if initial_state is None:

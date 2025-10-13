@@ -108,6 +108,10 @@ parser.add_argument("--task_config", type=str, default=None, help="task config")
 parser.add_argument("--checkpoint_path", type=str, default=None, help="path to save/load teleop checkpoint (env state)")
 parser.add_argument("--auto_load_checkpoint", action="store_true", default=False, help="auto-load checkpoint on start if available")
 parser.add_argument("--batch_name", type=str, default="default-batch", help="batch name for data collection")
+parser.add_argument("--action_delay_time", type=float, default=0.0, help="delay in seconds to simulate real-world action execution time")
+parser.add_argument("--action_delay_type", type=str, default="fixed", choices=["fixed", "random"], help="type of delay: fixed, random")
+parser.add_argument("--action_buffer_size", type=int, default=10, help="size of action buffer for delayed actions")
+parser.add_argument("--action_delay_async", action="store_true", default=False, help="enable asynchronous action delay (non-blocking)")
 
 # append AppLauncher cli args
 AppLauncher.add_app_launcher_args(parser)
@@ -237,6 +241,38 @@ def optimize_rendering(env):
     # settings.set_int("/persistent/physics/numThreads", 0)
 
 
+def log_sliding_window_delay_statistics(delay_stats, sliding_window_manager, args_cli):
+    """Log sliding window delay statistics for async mode.
+
+    Args:
+        delay_stats: Dictionary containing delay statistics
+        sliding_window_manager: Sliding window manager instance
+        args_cli: Command line arguments containing delay configuration
+    """
+    if not args_cli.action_delay_async or delay_stats["async_actions_buffered"] <= 0:
+        return
+
+    logger = get_default_logger()
+    logger.info("[Sliding Window Action Delay Statistics]")
+    logger.info("  Sliding window mode: ENABLED")
+    logger.info(f"  Actions buffered: {delay_stats['async_actions_buffered']}")
+    logger.info(f"  Actions executed: {delay_stats['async_actions_executed']}")
+    logger.info(f"  Window utilization: {delay_stats['buffer_utilization']:.2%}")
+    logger.info(f"  Window size: {args_cli.action_buffer_size}")
+
+    # Get detailed window statistics
+    window_stats = sliding_window_manager.get_window_stats()
+    if window_stats['window_size'] > 0:
+        logger.info(f"  Current window size: {window_stats['window_size']}")
+        logger.info(f"  Average delay in window: {window_stats['avg_delay']:.3f}s")
+        logger.info(f"  Oldest delay: {window_stats['oldest_delay']:.3f}s")
+        logger.info(f"  Newest delay: {window_stats['newest_delay']:.3f}s")
+        logger.info(f"  Total executions: {window_stats['execution_count']}")
+
+    logger.info(f"  Delay type: {args_cli.action_delay_type}")
+    logger.info(f"  Base delay: {args_cli.action_delay_time:.3f}s")
+
+
 def main():
     """Running keyboard teleoperation with Isaac Lab manipulation environment."""
 
@@ -282,6 +318,141 @@ def main():
         frame_index = save_checkpoint(teleop_interface.env, args_cli.checkpoint_path)
         if isinstance(teleop_interface, VRController):
             teleop_interface.set_checkpoint_frame_idx(frame_index)
+
+    class SlidingWindowActionDelay:
+        """Asynchronous action delay system with sliding window implementation"""
+
+        def __init__(self):
+            self.action_window = []  # Sliding window of actions
+            self.window_size = args_cli.action_buffer_size
+            self.current_time = 0.0
+            self.last_executed_time = 0.0
+            self.execution_history = []  # Track execution timing
+
+        def calculate_delay(self):
+            """Calculate delay based on configuration"""
+            if args_cli.action_delay_time <= 0.0:
+                return 0.0
+
+            import random
+            import numpy as np
+
+            delay = args_cli.action_delay_time
+
+            if args_cli.action_delay_type == "random":
+                delay = random.uniform(0, args_cli.action_delay_time)
+
+            return delay
+
+        def add_action_to_window(self, action, current_time):
+            """Add action to sliding window with calculated delay"""
+            if not args_cli.action_delay_async or args_cli.action_delay_time <= 0.0:
+                return action
+
+            delay = self.calculate_delay()
+            execute_time = current_time + delay
+
+            # Add to sliding window
+            window_entry = {
+                'action': action,
+                'execute_time': execute_time,
+                'delay': delay,
+                'added_time': current_time,
+                'index': len(self.action_window)
+            }
+
+            self.action_window.append(window_entry)
+
+            # Maintain sliding window size
+            if len(self.action_window) > self.window_size:
+                # Remove oldest entry (sliding window behavior)
+                removed = self.action_window.pop(0)
+                # Update indices
+                for i, entry in enumerate(self.action_window):
+                    entry['index'] = i
+
+            return None  # No immediate action
+
+        def get_action_from_window(self, current_time):
+            """Get action from sliding window based on timing and window strategy"""
+            if not self.action_window:
+                return None
+
+            # Strategy 1: Execute ready actions (FIFO)
+            ready_actions = [entry for entry in self.action_window
+                             if entry['execute_time'] <= current_time]
+
+            if ready_actions:
+                # Execute the oldest ready action
+                ready_actions.sort(key=lambda x: x['execute_time'])
+                executed_entry = ready_actions[0]
+
+                # Remove from window
+                self.action_window = [entry for entry in self.action_window
+                                      if entry['index'] != executed_entry['index']]
+
+                # Update indices
+                for i, entry in enumerate(self.action_window):
+                    entry['index'] = i
+
+                # Record execution
+                self.execution_history.append({
+                    'execute_time': current_time,
+                    'delay': executed_entry['delay'],
+                    'window_position': executed_entry['index']
+                })
+
+                return executed_entry['action']
+
+            # Strategy 2: Use sliding window interpolation
+            return self._interpolate_from_window(current_time)
+
+        def _interpolate_from_window(self, current_time):
+            """Interpolate action from sliding window based on timing"""
+            if not self.action_window:
+                return None
+
+            # Find the closest actions in time
+            future_actions = [entry for entry in self.action_window
+                              if entry['execute_time'] > current_time]
+            past_actions = [entry for entry in self.action_window
+                            if entry['execute_time'] <= current_time]
+
+            if past_actions:
+                # Use the most recent past action
+                past_actions.sort(key=lambda x: x['execute_time'], reverse=True)
+                return past_actions[0]['action']
+
+            if future_actions:
+                # Use the nearest future action
+                future_actions.sort(key=lambda x: x['execute_time'])
+                return future_actions[0]['action']
+
+            # Fallback: use the latest action in window
+            return self.action_window[-1]['action']
+
+        def get_window_stats(self):
+            """Get sliding window statistics"""
+            if not self.action_window:
+                return {
+                    'window_size': 0,
+                    'oldest_delay': 0,
+                    'newest_delay': 0,
+                    'avg_delay': 0,
+                    'execution_count': len(self.execution_history)
+                }
+
+            delays = [entry['delay'] for entry in self.action_window]
+            return {
+                'window_size': len(self.action_window),
+                'oldest_delay': min(delays),
+                'newest_delay': max(delays),
+                'avg_delay': sum(delays) / len(delays),
+                'execution_count': len(self.execution_history)
+            }
+
+    # Create sliding window delay manager
+    sliding_window_manager = SlidingWindowActionDelay()
 
     def rollback_to_checkpoint():
         nonlocal rollback_to_checkpoint_flag
@@ -582,7 +753,7 @@ def main():
         if args_cli.save_video:
             video_recorder = VideoRecorder(args_cli.video_save_dir, args_cli.video_fps, args_cli.task, args_cli.robot, args_cli.layout)
 
-        if args_cli.enable_log:
+        if args_cli.enable_debug_log:
             log_path = log_scene_rigid_objects(env)
 
         # add frame rate analyzer (only in debug mode)
@@ -590,6 +761,13 @@ def main():
         debug_print("Frame rate analyzer initialized in debug mode")
 
         vis_helper_prims = []
+
+        # Initialize delay statistics (only for async mode)
+        delay_stats = {
+            "async_actions_buffered": 0,
+            "async_actions_executed": 0,
+            "buffer_utilization": 0.0
+        }
 
         # simulate environment
         while simulation_app.is_running():
@@ -623,6 +801,27 @@ def main():
 
             teleop_time = time.time() - teleop_start
             frame_analyzer.record_stage('teleop_advance', teleop_time)
+
+            # Handle sliding window action delay (only async mode supported)
+            current_time = time.time()
+            if actions is not None and args_cli.action_delay_async:
+                # Add action to sliding window
+                delayed_action = sliding_window_manager.add_action_to_window(actions, current_time)
+                if delayed_action is not None:
+                    actions = delayed_action
+                    delay_stats["async_actions_executed"] += 1
+                else:
+                    delay_stats["async_actions_buffered"] += 1
+                    # Get action from sliding window
+                    window_action = sliding_window_manager.get_action_from_window(current_time)
+                    if window_action is not None:
+                        actions = window_action
+                        delay_stats["async_actions_executed"] += 1
+
+                # Update window statistics
+                window_stats = sliding_window_manager.get_window_stats()
+                delay_stats["buffer_utilization"] = window_stats['window_size'] / args_cli.action_buffer_size
+
             if actions is None or should_reset_recording_instance or should_reset_env_instance:
                 destroy_robot_vis_helper(vis_helper_prims, env)
                 if should_reset_env_instance:
@@ -670,42 +869,30 @@ def main():
                     for _ in range(env.cfg.warmup_steps):
                         env.cfg.update_sensors(env, env.physics_dt)
 
-                if args_cli.enable_log:
-                    try:
-                        env.step(actions)
-                        if hasattr(env_cfg, 'get_warning_text'):
-                            update_checkers_status(env, env_cfg.get_warning_text())
-                    except Exception as e:
-                        import traceback
-                        print(f"Error during env step: {traceback.format_exc()}")
-                        handle_exception_and_log(e, log_path)
-                        break
+                frame_count += 1
+                step_start = time.time()
+                if rollback_to_checkpoint_flag:
+                    load_checkpoint(env, args_cli.checkpoint_path)
+                    rollback_to_checkpoint_flag = False
 
-                else:
-                    frame_count += 1
-                    step_start = time.time()
-                    if rollback_to_checkpoint_flag:
-                        load_checkpoint(env, args_cli.checkpoint_path)
-                        rollback_to_checkpoint_flag = False
-
-                    if not args_cli.headless and isinstance(teleop_interface, VRController):
-                        if teleop_interface.tv.left_controller_state["b_button"]:
-                            if teleop_interface.get_rollback_action() is not None:
-                                actions = teleop_interface.get_rollback_action()
-                            else:
-                                continue
-
-                    with trace_profile(f"env_step_frame_{frame_count:06d}"):
-                        carb.profiler.begin(1, "env_step")
-                        if actions is None:
+                if not args_cli.headless and isinstance(teleop_interface, VRController):
+                    if teleop_interface.tv.left_controller_state["b_button"]:
+                        if teleop_interface.get_rollback_action() is not None:
+                            actions = teleop_interface.get_rollback_action()
+                        else:
                             continue
-                        obs, *_ = env.step(actions)
-                        carb.profiler.end(1)
-                    step_time = time.time() - step_start
-                    frame_analyzer.record_stage('env_step', step_time)
 
-                    if hasattr(env_cfg, 'get_warning_text'):
-                        update_checkers_status(env, env_cfg.get_warning_text())
+                with trace_profile(f"env_step_frame_{frame_count:06d}"):
+                    carb.profiler.begin(1, "env_step")
+                    if actions is None:
+                        continue
+                    obs, *_ = env.step(actions)
+                    carb.profiler.end(1)
+                step_time = time.time() - step_start
+                frame_analyzer.record_stage('env_step', step_time)
+
+                if hasattr(env_cfg, 'get_warning_text'):
+                    update_checkers_status(env, env_cfg.get_warning_text())
 
                 # Recorded
                 if env_cfg.enable_cameras and start_record_state and video_recorder is not None:
@@ -794,6 +981,9 @@ def main():
         # ensure to stop recording before exiting
         if video_recorder is not None:
             video_recorder.stop_recording()
+
+        # Print sliding window delay statistics (only for async mode)
+        log_sliding_window_delay_statistics(delay_stats, sliding_window_manager, args_cli)
 
         return env
 
@@ -898,6 +1088,7 @@ def main():
         print(f"Error during mainloop execution: {e}")
         import traceback
         traceback.print_exc()
+        handle_exception_and_log()
 
     # close the simulator
     env.close()

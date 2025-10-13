@@ -2,7 +2,7 @@ dataset_file: ./datasets/dataset.hdf5
 device: cpu
 disable_fabric: false
 enable_cameras: false
-enable_log: false
+enable_debug_log: false
 enable_multiple_viewports: false
 enable_optimization: true
 enable_pinocchio: false

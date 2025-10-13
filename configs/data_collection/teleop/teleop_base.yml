@@ -33,7 +33,7 @@ seed: 0
 record: false
 dataset_file: ./datasets/dataset.hdf5
 num_demos: 1
-enable_log: false
+enable_debug_log: false
 continue_teleop_after_success: true
 
 # =========================
