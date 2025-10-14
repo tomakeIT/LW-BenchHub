@@ -56,12 +56,12 @@ class OpenUsd:
             return "Normal"
 
     @staticmethod
-    def usd_simplify(stage, usd_path, ref_prim, prim=None):
+    def usd_simplify(stage, ref_fixture_names, prim=None):
         """Remove useless rigidbody and collisions in the scene"""
         if prim is None:
             prim = stage.GetPseudoRoot()
         for child in prim.GetAllChildren():
-            if any(value.name == child.GetName() for value in ref_prim.values()):
+            if any(name == child.GetName() for name in ref_fixture_names.keys()):
                 continue
             if not child.IsValid():
                 continue
@@ -86,7 +86,7 @@ class OpenUsd:
             if UsdPhysics.Joint(child):
                 stage.RemovePrim(child.GetPath().pathString)
                 continue
-            OpenUsd.usd_simplify(stage, usd_path, ref_prim, child)
+            OpenUsd.usd_simplify(stage, ref_fixture_names, child)
         return stage
 
     @staticmethod
@@ -456,8 +456,8 @@ class OpenUsdWrapper:
     def get_all_prims(self, prim=None, prims_list=None):
         return self._usd.get_all_prims(self.stage, prim, prims_list)
 
-    def usd_simplify(self, usd_path, ref_prim, prim=None):
-        return self._usd.usd_simplify(self.stage, usd_path, ref_prim, prim)
+    def usd_simplify(self, ref_prim, prim=None):
+        return self._usd.usd_simplify(self.stage, ref_prim, prim)
 
     def activate_prim(self, name):
         return self._usd.activate_prim(self.stage, name)

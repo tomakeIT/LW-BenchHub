@@ -16,10 +16,12 @@
 
 import os
 import time
+import random
 
 from lightwheel_sdk.loader import floorplan_loader
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.core.models.scenes.scene_parser import parse_fixtures
+from lwlab.utils.usd_utils import usd_simplify
 
 
 class KitchenArena:
@@ -40,28 +42,51 @@ class KitchenArena:
                  exclude_layouts=[],
                  enable_fixtures=None,
                  removable_fixtures=None,
-                 ref_fixtures=None,
+                 ref_fixture_types=None,
+                 ref_fixture_ids=None,
                  usd_simplify=False,
                  scene_cfg=None,
                  ):
         # download floorplan usd
         self.scene_cfg = scene_cfg
+        self.enable_fixtures = enable_fixtures
+        self.removable_fixtures = removable_fixtures
+        self.ref_fixture_types = ref_fixture_types
+        self.ref_fixture_ids = ref_fixture_ids
+        self.ref_fixtures = {}
+        self.ref_fixture_names = []
+        self.usd_simplify = usd_simplify
         if self.scene_cfg.cache_usd_version is not None and "floorplan_version" in self.scene_cfg.cache_usd_version:
             self.floorplan_version = self.scene_cfg.cache_usd_version["floorplan_version"]
         else:
             self.floorplan_version = None
         self.load_floorplan(layout_id, style_id, exclude_layouts, scene_type=scene_cfg.scene_type)
         self.stage = usd.get_stage(self.usd_path)
+        # enable / movable fixtures in usd
+        is_updated_usd = self._is_updated_usd()
 
-        # enable fixtures in usd
-        if self._is_updated_usd():
+        # load fixtures & task-related fixture names
+        self.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.seed, scene_cfg.device)
+        ref_fxtr_type_names = {}
+        for fxtr_type in self.ref_fixture_types:
+            ref_fxtr_type_names[fxtr_type] = [fxtr_name for fxtr_name, fxtr_obj in self.fixtures if fxtr_type in fxtr_obj.fixture_types]
+
+        for fxtr_type, fxtr_names in ref_fxtr_type_names:
+            if self.ref_fixture_ids[fxtr_type] is not None:
+                selected_fxtr_name = fxtr_names[self.ref_fixture_ids[fxtr_type]]
+            else:
+                selected_fxtr_name = random.choice(fxtr_names)
+            self.ref_fixture_names.append(selected_fxtr_name)
+            self.ref_fixtures.update({selected_fxtr_name: self.fixtures[selected_fxtr_name]})
+
+        # usd simplified / export
+        if is_updated_usd and self.usd_simplify:
+            self.stage = usd_simplify(self.stage, self.ref_fixture_names)
             dir_name = os.path.dirname(self.usd_path)
             base_name = os.path.basename(self.usd_path)
-            new_path = os.path.join(dir_name, base_name.replace(".usd", "_enabled.usd"))
+            new_path = os.path.join(dir_name, base_name.replace(".usd", "_modified.usd"))
             self.stage.GetRootLayer().Export(new_path)
             self.usd_path = new_path
-        # load fixtures
-        self.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.seed, scene_cfg.device)
 
     def _is_updated_usd(self):
         is_updated_usd = False
@@ -88,7 +113,7 @@ class KitchenArena:
             list: list of fixture configurations
         """
         fixture_cfgs = []
-        for (name, fxtr) in self.scene_cfg.fixtures.items():
+        for (name, fxtr) in self.fixtures.items():
             cfg = {}
             cfg["name"] = name
             cfg["model"] = fxtr

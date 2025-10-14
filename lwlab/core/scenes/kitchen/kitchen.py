@@ -29,6 +29,7 @@ from isaaclab.sensors import ContactSensorCfg
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from lwlab.core.tasks.base import TerminationsCfg
 
 from ..base import BaseSceneEnvCfg
 import lwlab.utils.object_utils as OU
@@ -51,6 +52,9 @@ from lwlab.utils.place_utils.env_utils import set_robot_to_position, sample_robo
 
 from isaac_arena.scene.scene import Scene
 from isaac_arena.assets.background import Background
+from isaac_arena.assets.object_reference import ObjectReference
+from isaac_arena.assets.object_base import ObjectType
+from isaaclab.utils import configclass
 
 '''
 What second stage need to do:
@@ -65,6 +69,16 @@ What second stage need to do:
     - retry (init scene_cfg / task_cfg again)
 3. 
 '''
+
+
+@configclass
+class EventCfg:
+    pass
+
+
+@configclass
+class TerminationCfg:
+    pass
 
 
 class LwScene(Scene):
@@ -119,8 +133,13 @@ class LwScene(Scene):
             self.is_replay_mode = False
 
         self.replay_cfgs = replay_cfgs
+        self.events_cfg = EventCfg()
+        self.termination_cfg = TerminationCfg()
 
         self._setup_config()
+        self.init_checkers_cfg()
+        self.checkers = get_checkers_from_cfg(self.checkers_cfg)
+        self.checkers_results = form_checker_result(self.checkers_cfg)
 
     # first stage (just init from itself)
     def _setup_config(self):
@@ -153,10 +172,6 @@ class LwScene(Scene):
 
     # second stage (init from ArenaEnvironment) ouhe logic
     def setup_env_config(self, arena_env):
-
-        if self.layout_id in arena_env.task.EXCLUDE_LAYOUTS:
-            raise ValueError(f"Layout {self.layout_id} is excluded in task {self.task_name}")
-
         self.lwlab_arena = KitchenArena(
             layout_id=self.layout_id,
             style_id=self.style_id,
@@ -167,23 +182,216 @@ class LwScene(Scene):
             usd_simplify=arena_env.task.usd_simplify,
             scene_type=self.scene_type,
         )
+        self.fixtures = self.lwlab_arena.fixtures
+        self.ref_fixtures = self.lwlab_arena.ref_fixtures
+        self.cache_usd_version.update({"floorplan_version": self.lwlab_arena.version_id})
+        self.fixture_cfgs = self.lwlab_arena.get_fixture_cfgs()
+        self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
 
-        # usd simplify
+        if self.lwlab_arena.layout_id in arena_env.task.EXCLUDE_LAYOUTS:
+            raise ValueError(f"Layout {self.lwlab_arena.layout_id} is excluded in task {self.task_name}")
 
-        background_obj = Background(
+        background = Background(
             name=self.scene_type,
             usd_path=self.lwlab_arena.usd_path,
             object_min_z=0.1,
         )
 
-        # if background asset is not in the scene, add it, otherwise update it
-        if self.assets.get(self.scene_type) is None:
-            self.add_asset(background_obj)
-        else:
-            self.assets[self.scene_type] = background_obj
+        ref_fixture_references = [
+            ObjectReference(
+                name=ref_fxtr_name,
+                prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{ref_fxtr_name}",
+                parent_asset=background,
+                obj_type=ObjectType.ARTICULATION,
+            )
+            for ref_fxtr_name in self.lwlab_arena.ref_fixture_names
+        ]
+
+        # flush self.assets
+        self.assets = {}
+        self.add_asset(background)
+        self.add_assets(ref_fixture_references)
+
+        def init_kitchen(env, env_ids):
+            self.env = env
+            for fixtr in self.ref_fixture.values():
+                if isinstance(fixtr, IsaacFixture):
+                    fixtr.setup_env(env)
+
+        def check_success_caller(env):
+            self.update_state()
+            for checker in self.checkers:
+                self.checkers_results[checker.type] = checker.check(env)
+
+            # at the begining of the episode, dont check success for stabilization
+            success_check_result = self._check_success()
+            assert isinstance(success_check_result, torch.Tensor), f"_check_success must be a torch.Tensor, but got {type(success_check_result)}"
+            assert len(success_check_result.shape) == 1 and success_check_result.shape[0] == self.num_envs, f"_check_success must be a torch.Tensor of shape ({self.num_envs},), but got {success_check_result.shape}"
+            success_check_result &= (env.episode_length_buf >= self.start_success_check_count)
+
+            # success delay
+            self.success_flag &= (self.success_cache < self.success_count)
+            self.success_cache *= (self.success_cache < self.success_count)
+            self.success_flag |= success_check_result
+            self.success_cache += self.success_flag.int()
+            return self.success_cache >= self.success_count
+
+        self.events_cfg.init_kitchen = EventTerm(func=init_kitchen, mode="startup")
+        self.termination_cfg.success = DoneTerm(func=check_success_caller)
 
     def set_ep_meta(self, meta):
         self._ep_meta = meta
+
+    def init_checkers_cfg(self):
+        # checkers
+        if self.execute_mode in self.is_replay_mode:
+            print("INFO: Running in Replay Mode. Using replay-specific checker config.")
+            self.checkers_cfg = {
+                "motion": {
+                    "warning_on_screen": False
+                },
+                "kitchen_clipping": {
+                    "warning_on_screen": False
+                },
+                "velocity_jump": {
+                    "warning_on_screen": False
+                }
+            }
+        else:
+            print("INFO: Running in Teleop Mode. Using default checker config.")
+            self.checkers_cfg = {
+                "motion": {
+                    "warning_on_screen": False
+                },
+                "kitchen_clipping": {
+                    "warning_on_screen": False
+                },
+                "velocity_jump": {
+                    "warning_on_screen": False
+                },
+                "start_object_move": {
+                    "warning_on_screen": False
+                }
+            }
+
+    def update_state(self):
+        """
+        Updates the state of the environment.
+        This involves updating the state of all fixtures in the environment.
+        """
+        for fixtr in self.ref_fixtures.values():
+            fixtr.update_state(self.env)
+
+    def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None, full_depth_region=False):
+        """
+        search fixture by id (name, object, or type)
+
+        Args:
+            id (str, Fixture, FixtureType): id of fixture to search for
+
+            ref (str, Fixture, FixtureType): if specified, will search for fixture close to ref (within 0.10m)
+
+            size (tuple): if sampling counter, minimum size (x,y) that the counter region must be
+
+            full_depth_region (bool): if True, will only sample island counter regions that can be accessed
+
+        Returns:
+            Fixture: fixture object
+        """
+        from lwlab.core.models.fixtures import Fixture, FixtureType, fixture_is_type
+        import lwlab.utils.fixture_utils as FixtureUtils
+
+        # case 1: id refers to fixture object directly
+        if isinstance(id, Fixture):
+            return id
+        # case 2: id refers to exact name of fixture
+        elif id in self.fixtures.keys():
+            return self.fixtures[id]
+
+        if ref is None:
+            # find all fixtures with names containing given name
+            if isinstance(id, FixtureType) or isinstance(id, int):
+                matches = [
+                    name
+                    for (name, fxtr) in self.fixtures.items()
+                    if fixture_is_type(fxtr, id)
+                ]
+            else:
+                if full_name_check:
+                    matches = [name for name in self.fixtures.keys() if name == id]
+                else:
+                    matches = [name for name in self.fixtures.keys() if id in name]
+            if id == FixtureType.COUNTER or id == FixtureType.COUNTER_NON_CORNER:
+                matches = [
+                    name
+                    for name in matches
+                    if FixtureUtils.is_fxtr_valid(self, self.fixtures[name], size)
+                ]
+            if (
+                len(matches) > 1
+                and any("island" in name for name in matches)
+                and full_depth_region
+            ):
+                island_matches = [name for name in matches if "island" in name]
+                if len(island_matches) >= 3:
+                    depths = [self.fixtures[name].size[1] for name in island_matches]
+                    sorted_indices = sorted(range(len(depths)), key=lambda i: depths[i])
+                    min_depth = depths[sorted_indices[0]]
+                    next_min_depth = (
+                        depths[sorted_indices[1]] if len(depths) > 1 else min_depth
+                    )
+                    if min_depth < 0.8 * next_min_depth:
+                        keep = [
+                            i
+                            for i in range(len(island_matches))
+                            if i != sorted_indices[0]
+                        ]
+                        filtered_islands = [island_matches[i] for i in keep]
+                        matches = [
+                            name for name in matches if name not in island_matches
+                        ] + filtered_islands
+
+            if len(matches) == 0:
+                return None
+            # sample random key
+            if fix_id is not None:
+                key = matches[fix_id]
+            else:
+                key = self.rng.choice(matches)
+            return self.fixtures[key]
+        else:
+            ref_fixture = self.get_fixture(ref)
+
+            # NOTE: I dont konw why error here?
+            # assert isinstance(id, FixtureType)
+            cand_fixtures = []
+            for fxtr in self.fixtures.values():
+                if not fixture_is_type(fxtr, id):
+                    continue
+                if fxtr is ref_fixture:
+                    continue
+                if id == FixtureType.COUNTER:
+                    fxtr_is_valid = FixtureUtils.is_fxtr_valid(self, fxtr, size)
+                    if not fxtr_is_valid:
+                        continue
+                cand_fixtures.append(fxtr)
+
+            if len(cand_fixtures) == 0:
+                raise ValueError(f"No fixture found for {id} with size {size}")
+
+            # first, try to find fixture "containing" the reference fixture
+            for fxtr in cand_fixtures:
+                if OU.point_in_fixture(ref_fixture.pos, fxtr, only_2d=True):
+                    return fxtr
+            # if no fixture contains reference fixture, sample all close fixtures
+            dists = [
+                OU.fixture_pairwise_dist(ref_fixture, fxtr) for fxtr in cand_fixtures
+            ]
+            min_dist = np.min(dists)
+            close_fixtures = [
+                fxtr for (fxtr, d) in zip(cand_fixtures, dists) if d - min_dist < 0.10
+            ]
+            return self.rng.choice(close_fixtures)
 
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
@@ -435,7 +643,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         self._setup_kitchen_references()
 
         if self.usd_simplify:
-            new_stage = usd.usd_simplify(self.lwlab_arena.stage, self.usd_path, self.fixture_refs)
+            new_stage = usd.usd_simplify(self.lwlab_arena.stage, self.fixture_refs)
             dir_name = os.path.dirname(self.usd_path)
             base_name = os.path.basename(self.usd_path)
             new_path = os.path.join(dir_name, base_name.replace(".usd", "_simplified.usd"))

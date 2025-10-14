@@ -31,13 +31,12 @@ def parse_fixtures(stage, num_envs, seed, device):
     """
     fixtures = {}
     root_prim = stage.GetPseudoRoot().GetChildren()[0]
-    xform_infos = usd.get_child_xform_infos(root_prim)
+    xform_infos = usd.get_all_child_xform_infos(root_prim)
     for info in xform_infos:
         size_attr = info["prim"].GetAttribute("size").Get()
         if size_attr is None or np.fromstring(size_attr, sep=',').size == 0:
             continue
         fixture_type = info["type"] if info["type"] in FIXTURES else "Accessory"
-        # fixtures[info["name"]] = FIXTURES[fixture_type](info["name"], info["prim"], num_envs, seed=seed, device=device)
-        fixtures[info["name"]] = fixture_type
+        fixtures[info["name"]] = FIXTURES[fixture_type](info["name"], info["prim"], num_envs, seed=seed, device=device)
 
     return fixtures
