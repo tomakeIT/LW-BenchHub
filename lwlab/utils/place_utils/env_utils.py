@@ -4,9 +4,11 @@ import numpy as np
 import contextlib
 from pathlib import Path
 from collections import deque
-
+from typing import Dict, List, Any
 
 from copy import deepcopy
+from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
+from lwlab.core.cfg.compositional import BaseCompositionalEnvCfg
 import lwlab.utils.object_utils as OU
 from lwlab.utils.place_utils.placement_samplers import (
     SequentialCompositeSampler,
@@ -105,18 +107,18 @@ def determine_face_dir(fixture_rot, ref_rot, epsilon=1e-2):
         return 2
 
 
-def get_current_layout_stool_rotations(env):
+def get_current_layout_stool_rotations(env_cfg: BaseCompositionalEnvCfg):
     """
     Automatically detect the current layout and extract unique stool rotation values (z_rot)
     from a YAML layout file associated with the environment.
 
     Args:
-        env: The environment object (must have layout_id attribute)
+        env_cfg: The environment configuration object (must have layout_id attribute)
 
     Returns:
         list: List of unique rotation values (floats) found in stool configurations
     """
-    root_prim = env.lwlab_arena.stage.GetPseudoRoot()
+    root_prim = env_cfg.lwlab_arena.stage.GetPseudoRoot()
     stool_prims = OpenUsd.get_prim_by_prefix(root_prim, "stool", only_xform=True)
 
     unique_rots = set()
@@ -184,7 +186,7 @@ def categorize_stool_rotations(stool_rotations, ground_fixture_rot=None):
     return categorized_rotations
 
 
-def get_island_group_counter_names(env):
+def get_island_group_counter_names(env_cfg: BaseCompositionalEnvCfg):
     """
     Automatically detect all counter fixture names under all island_group groups in the current layout.
     Used to get bounding box combo of multiple counters.
@@ -193,7 +195,7 @@ def get_island_group_counter_names(env):
     Returns:
         list: List of counter fixture names (str) under all island_group groups
     """
-    root_prim = env.lwlab_arena.stage.GetPseudoRoot()
+    root_prim = env_cfg.lwlab_arena.stage.GetPseudoRoot()
     island_prims = OpenUsd.get_prim_by_suffix(root_prim, "island_group", only_xform=True)
     counter_names = []
     for island_prim in island_prims:
@@ -202,13 +204,13 @@ def get_island_group_counter_names(env):
     return counter_names
 
 
-def get_combined_counters_2d_bbox_corners(env, counter_names):
+def get_combined_counters_2d_bbox_corners(env_cfg: BaseCompositionalEnvCfg, counter_names):
     """
     Used to get bounding box combo of multiple counters - useful for dining counters with multiple defined counters.
     """
     all_pts = []
     for name in counter_names:
-        fx = env.get_fixture(name)
+        fx = env_cfg.get_fixture(name)
         all_pts.extend(fx.get_ext_sites(all_points=False, relative=False))
     all_pts = np.asarray(all_pts)
 
@@ -233,7 +235,7 @@ def get_combined_counters_2d_bbox_corners(env, counter_names):
     return abs_sites
 
 
-def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=None):
+def compute_robot_base_placement_pose(env_cfg: BaseCompositionalEnvCfg, ref_fixture, ref_object=None, offset=None):
     """
     steps:
     1. find the nearest counter to this fixture
@@ -261,14 +263,14 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
 
     # manipulate drawer envs are exempt from dining counter/stool placement rules
     manipulate_drawer_env = any(
-        cls.__name__ == "ManipulateDrawer" for cls in env.__class__.__mro__
+        cls.__name__ == "ManipulateDrawer" for cls in env_cfg.__class__.__mro__
     )
 
     if not fixture_is_type(ref_fixture, FixtureType.DINING_COUNTER):
         # get all base fixtures in the environment
         ground_fixtures = [
             fxtr
-            for fxtr in env.fixtures.values()
+            for fxtr in env_cfg.fixtures.values()
             if isinstance(fxtr, Counter)
             or isinstance(fxtr, Stove)
             or isinstance(fxtr, Stovetop)
@@ -313,15 +315,15 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
         fixture_is_type(ground_fixture, FixtureType.DINING_COUNTER)
         and not manipulate_drawer_env
     ):
-        if hasattr(env, "object_cfgs") and env.object_cfgs is not None:
-            for cfg in env.object_cfgs:
+        if hasattr(env_cfg, "object_cfgs") and env_cfg.object_cfgs is not None:
+            for cfg in env_cfg.object_cfgs:
                 placement = cfg.get("placement", None)
                 if placement is None:
                     continue
                 fixture_id = placement.get("fixture", None)
                 if fixture_id is None:
                     continue
-                fixture = env.get_fixture(
+                fixture = env_cfg.get_fixture(
                     id=fixture_id,
                     ref=placement.get("ref", None),
                     full_name_check=True if cfg["type"] == "fixture" else False,
@@ -332,16 +334,16 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
                     if ref_to_fixture is None:
                         continue
                     # in case ref_to_fixture is a string, get the corresponding fixture object
-                    ref_to_fixture = env.get_fixture(ref_to_fixture)
+                    ref_to_fixture = env_cfg.get_fixture(ref_to_fixture)
 
     face_dir = 1  # 1 is facing front of fixture, -1 is facing south end of fixture
     if fixture_is_type(ground_fixture, FixtureType.DINING_COUNTER) or stool_only:
-        stool_rotations = get_current_layout_stool_rotations(env)
+        stool_rotations = get_current_layout_stool_rotations(env_cfg)
 
         # for dining counters, can face either north of south end of fixture
         if ref_object is not None:
             # choose the end that is closest to the ref object
-            ref_point = env.object_placements[ref_object][0]
+            ref_point = env_cfg.object_placements[ref_object][0]
             categorized_stool_rotations = categorize_stool_rotations(
                 stool_rotations, ground_fixture.rot
             )
@@ -359,10 +361,10 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
         elif fixture_is_type(ref_fixture, FixtureType.STOOL) and ref_object is None:
             face_dir = determine_face_dir(ground_fixture.rot, ref_fixture.rot)
         else:
-            island_group_counter_names = get_island_group_counter_names(env)
+            island_group_counter_names = get_island_group_counter_names(env_cfg)
             if len(island_group_counter_names) > 1:
                 abs_sites = get_combined_counters_2d_bbox_corners(
-                    env, island_group_counter_names
+                    env_cfg, island_group_counter_names
                 )
             else:
                 abs_sites = ground_fixture.get_ext_sites(relative=False)
@@ -415,8 +417,8 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
 
                 # these dining counters only have 1 accesssible side for robot to spawn
                 one_accessible_layout_ids = [11, 27, 30, 35, 49, 60]
-                if env.layout_id in one_accessible_layout_ids:
-                    stool_rotations = get_current_layout_stool_rotations(env)
+                if env_cfg.layout_id in one_accessible_layout_ids:
+                    stool_rotations = get_current_layout_stool_rotations(env_cfg)
                     categorized_stool_rotations = categorize_stool_rotations(
                         stool_rotations, ground_fixture.rot
                     )
@@ -429,7 +431,7 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
     fixture_to_robot_offset[0] = ground_to_ref[0]
 
     # y direction it's facing from perspective of host fixture
-    robot_to_fixture_dist = env.robot_to_fixture_dist if hasattr(env, "robot_to_fixture_dist") else 0.20
+    robot_to_fixture_dist = env_cfg.robot_to_fixture_dist if hasattr(env_cfg, "robot_to_fixture_dist") else 0.20
     if face_dir == 1:  # north
         fixture_p = fixture_ext_sites[0]
         fixture_to_robot_offset[1] = fixture_p[1] - robot_to_fixture_dist
@@ -448,7 +450,7 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
         fixture_to_robot_offset[1] += offset[1]
     elif ref_object is not None:
         print(f"placement initializer object: {ref_object}")
-        sampler = env.placement_initializer.samplers[f"{ref_object}_Sampler"]
+        sampler = env_cfg.placement_initializer.samplers[f"{ref_object}_Sampler"]
         if face_dir == -1 or face_dir == 1:
             fixture_to_robot_offset[0] += np.mean(sampler.x_ranges)
         if face_dir == 2 or face_dir == -2:
@@ -464,9 +466,9 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
     # move back a bit for the stools
     if fixture_is_type(ground_fixture, FixtureType.DINING_COUNTER):
         abs_sites = ground_fixture.get_ext_sites(relative=False)
-        stool = ref_to_fixture or env.get_fixture(FixtureType.STOOL)
+        stool = ref_to_fixture or env_cfg.get_fixture(FixtureType.STOOL)
 
-        stool_rotations = get_current_layout_stool_rotations(env)
+        stool_rotations = get_current_layout_stool_rotations(env_cfg)
 
         def rotation_matrix_z(theta):
             """
@@ -542,7 +544,7 @@ def compute_robot_base_placement_pose(env, ref_fixture, ref_object=None, offset=
                     )
 
     # apply robot-specific offset relative to the base fixture for x,y dims
-    # robot_model = env.robots[0].robot_model
+    # robot_model = env_cfg.robots[0].robot_model
     # robot_class_name = robot_model.__class__.__name__
     # if robot_class_name in _ROBOT_POS_OFFSETS:
     #     for dimension in range(0, 2):
@@ -595,7 +597,7 @@ def _check_cfg_is_valid(cfg):
         ), f"got invaild key \"{k}\" in placement config for {cfg['name']}"
 
 
-def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
+def _get_placement_initializer(env_cfg: BaseCompositionalEnvCfg, cfg_list, seed, z_offset=0.01) -> SequentialCompositeSampler:
     """
     Creates a placement initializer for the objects/fixtures based on the specifications in the configurations list.
 
@@ -615,9 +617,9 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
         _check_cfg_is_valid(cfg)
 
         if cfg["type"] == "fixture":
-            mj_obj = env.fixtures[cfg["name"]]
+            mj_obj = env_cfg.fixtures[cfg["name"]]
         elif cfg["type"] == "object":
-            mj_obj = env.objects[cfg["name"]]
+            mj_obj = env_cfg.objects[cfg["name"]]
         else:
             raise ValueError
 
@@ -657,7 +659,7 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
             ref_pos = [0, 0, 0]
             ref_rot = 0.0
         else:
-            fixture = env.get_fixture(
+            fixture = env_cfg.get_fixture(
                 id=fixture_id,
                 ref=placement.get("ref", None),
                 full_name_check=True if cfg["type"] == "fixture" else False,
@@ -666,7 +668,7 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
             sample_region_kwargs = placement.get("sample_region_kwargs", {})
             ref_fixture = sample_region_kwargs.get("ref", None)
             if isinstance(ref_fixture, str):
-                ref_fixture = env.get_fixture(ref_fixture)
+                ref_fixture = env_cfg.get_fixture(ref_fixture)
 
             # this checks if the reference fixture and dining counter are facing different directions
             ref_dining_counter_mismatch = False
@@ -679,7 +681,7 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
             ref_obj_name = placement.get("ref_obj", None)
 
             if ref_obj_name is not None and cfg["name"] != ref_obj_name:
-                ref_obj_cfg = find_object_cfg_by_name(env, ref_obj_name)
+                ref_obj_cfg = find_object_cfg_by_name(env_cfg, ref_obj_name)
                 reset_region = ref_obj_cfg["reset_region"]
             else:
                 if (
@@ -691,7 +693,7 @@ def _get_placement_initializer(env, cfg_list, seed, z_offset=0.01):
                 if reuse_region_from is None:
                     print(f"get valid reset region for {cfg['name']}")
                     reset_region = fixture.get_all_valid_reset_region(
-                        env=env, **sample_region_kwargs
+                        env_cfg=env_cfg, **sample_region_kwargs
                     )
                 else:
                     # find and re-use sampling region from another object
@@ -950,7 +952,7 @@ def find_object_cfg_by_name(env, name):
     raise ValueError
 
 
-def create_obj(env, cfg, version=None):
+def create_obj(env_cfg: BaseCompositionalEnvCfg, cfg: Dict[str, Any], version=None):
     """
     Helper function for creating objects.
     Called by _create_objects()
@@ -999,7 +1001,7 @@ def create_obj(env, cfg, version=None):
     if "placement" in cfg and "fixture" in cfg["placement"]:
         ref_fixture = cfg["placement"]["fixture"]
         if isinstance(ref_fixture, str):
-            ref_fixture = env.get_fixture(ref_fixture)
+            ref_fixture = env_cfg.get_fixture(ref_fixture)
         if fixture_is_type(ref_fixture, FixtureType.SINK):
             object_properties["washable"] = True
         elif fixture_is_type(ref_fixture, FixtureType.DISHWASHER):
@@ -1031,41 +1033,43 @@ def create_obj(env, cfg, version=None):
 
     return sample_kitchen_object(
         object_cfgs,
-        source=cfg.get("source", env.sources),
+        source=cfg.get("source", env_cfg.sources),
         max_size=cfg.get("max_size", (None, None, None)),
         object_scale=cfg.get("object_scale", None),
         rotate_upright=cfg.get("rotate_upright", False),
-        projects=env.object_projects,
+        projects=env_cfg.object_projects,
         version=version,
     )
 
 
-def sample_object_placements(env, need_retry=True):
+def sample_object_placements(env_cfg: BaseCompositionalEnvCfg, need_retry=True) -> dict:
     try:
-        if not hasattr(env, "placement_initializer"):
-            env.placement_initializer = _get_placement_initializer(env, env.object_cfgs, env.seed)
+        if not hasattr(env_cfg, "placement_initializer"):
+            env_cfg.placement_initializer = _get_placement_initializer(env_cfg, env_cfg.object_cfgs, env_cfg.seed)
+        else:
+            assert isinstance(env_cfg.placement_initializer, SequentialCompositeSampler), "placement_initializer must be a SequentialCompositeSampler"
 
-        if env.is_replay_mode:
-            return env._load_placement()
+        if env_cfg.is_replay_mode:
+            return env_cfg._load_placement()
 
         if not need_retry:
-            return env.placement_initializer.sample(
-                placed_objects=env.fxtr_placements,
+            return env_cfg.placement_initializer.sample(
+                placed_objects=env_cfg.fxtr_placements,
                 max_attempts=15000,
             )
 
         # Check if scene retry count exceeds max
-        if env.scene_retry_count >= env.max_scene_retry:
-            raise RuntimeError(f"Maximum scene retries ({env.max_scene_retry}) exceeded. Failed to place objects after {env.max_scene_retry} scene reloads.")
+        if env_cfg.scene_retry_count >= env_cfg.max_scene_retry:
+            raise RuntimeError(f"Maximum scene retries ({env_cfg.max_scene_retry}) exceeded. Failed to place objects after {env_cfg.max_scene_retry} scene reloads.")
 
         # Check if object retry count exceeds max
-        if env.object_retry_count >= env.max_object_placement_retry:
-            env.scene_retry_count += 1
-            print(f"All object placement retries failed, reloading entire model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
-            env._load_model()
+        if env_cfg.object_retry_count >= env_cfg.max_object_placement_retry:
+            env_cfg.scene_retry_count += 1
+            print(f"All object placement retries failed, reloading entire model (scene retry {env_cfg.scene_retry_count}/{env_cfg.max_scene_retry})")
+            env_cfg._load_model()
 
-        return env.placement_initializer.sample(
-            placed_objects=env.fxtr_placements,
+        return env_cfg.placement_initializer.sample(
+            placed_objects=env_cfg.fxtr_placements,
             max_attempts=15000,
         )
 
@@ -1077,27 +1081,27 @@ def sample_object_placements(env, need_retry=True):
         if failed_obj_name:
             if failed_obj_name.endswith('.usd'):
                 print(f"Failed object {failed_obj_name} can not be replaced, directly reloading model")
-                env.scene_retry_count += 1
-                env._load_model()
-                return env.object_placements
+                env_cfg.scene_retry_count += 1
+                env_cfg._load_model()
+                return env_cfg.object_placements
             else:
                 # No cached versions, try to replace object
                 print(f"Attempting to replace failed object: {failed_obj_name}")
-                if recreate_object(env, failed_obj_name):
-                    env.object_retry_count += 1
-                    return sample_object_placements(env, need_retry)
+                if recreate_object(env_cfg, failed_obj_name):
+                    env_cfg.object_retry_count += 1
+                    return sample_object_placements(env_cfg, need_retry)
                 else:
                     # If recreate failed, increment scene retry and reload model
-                    env.scene_retry_count += 1
-                    print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
-                    env._load_model()
-                    return env.object_placements
+                    env_cfg.scene_retry_count += 1
+                    print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {env_cfg.scene_retry_count}/{env_cfg.max_scene_retry})")
+                    env_cfg._load_model()
+                    return env_cfg.object_placements
         else:
             print("Could not identify failed object, falling back to model reload")
-            env.scene_retry_count += 1
-            print(f"Reloading model (scene retry {env.scene_retry_count}/{env.max_scene_retry})")
-            env._load_model()
-            return env.object_placements
+            env_cfg.scene_retry_count += 1
+            print(f"Reloading model (scene retry {env_cfg.scene_retry_count}/{env_cfg.max_scene_retry})")
+            env_cfg._load_model()
+            return env_cfg.object_placements
 
 
 @contextlib.contextmanager
@@ -1134,7 +1138,7 @@ def generate_random_robot_pos(anchor_pos, anchor_ori, pos_dev_x, pos_dev_y):
 
 
 def sample_robot_base_helper(
-    env,
+    env: ManagerBasedRLEnv,
     anchor_pos,
     anchor_ori,
     rot_dev,
@@ -1172,7 +1176,7 @@ def sample_robot_base_helper(
     return robot_pos
 
 
-def set_robot_to_position(env, global_pos, global_ori, keep_z=True, env_ids=None):
+def set_robot_to_position(env: ManagerBasedRLEnv, global_pos, global_ori, keep_z=True, env_ids=None):
     """
     Set robot root pose directly using position (x, y, z) and quaternion (w, x, y, z) in world coordinates.
 
@@ -1200,7 +1204,7 @@ def set_robot_to_position(env, global_pos, global_ori, keep_z=True, env_ids=None
     env.sim.forward()
 
 
-def set_seed(seed, env=None, torch_deterministic=True):
+def set_seed(seed, env: ManagerBasedRLEnv = None, torch_deterministic=True):
     if seed is not None:
         torch.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
@@ -1211,7 +1215,7 @@ def set_seed(seed, env=None, torch_deterministic=True):
     torch.backends.cudnn.deterministic = torch_deterministic
 
 
-def check_valid_robot_pose(env, robot_pos, env_ids=None):
+def check_valid_robot_pose(env: ManagerBasedRLEnv, robot_pos, env_ids=None):
     """
     Check if the robot pose is valid.
 
@@ -1263,7 +1267,7 @@ def check_valid_robot_pose(env, robot_pos, env_ids=None):
     return True
 
 
-def calculate_robot_bbox(env, robot_pos, arm_margin=0.08, floor_margin=0.1, env_ids=None):
+def calculate_robot_bbox(env: ManagerBasedRLEnv, robot_pos, arm_margin=0.08, floor_margin=0.1, env_ids=None):
     """
     Calculate the bounding box of the robot in the environment.
 
@@ -1324,7 +1328,7 @@ def check_overlap(env, bbox1, bbox2):
     return overlaps_x and overlaps_y and overlaps_z
 
 
-def detect_robot_out_of_scene(env, robot_bbox, scene_bbox):
+def detect_robot_out_of_scene(env: ManagerBasedRLEnv, robot_bbox, scene_bbox):
     """
     Detect if the robot is out of the scene.
 
@@ -1351,7 +1355,7 @@ def detect_robot_out_of_scene(env, robot_bbox, scene_bbox):
                 scene_bbox_max[1] > robot_bbox_max[1])
 
 
-def detect_robot_collision(env, env_ids=None):
+def detect_robot_collision(env: ManagerBasedRLEnv, env_ids=None) -> bool:
     # check if base contact is available
     if "base_contact" in env.scene.sensors:
         robot_contact = env.scene.sensors["base_contact"].data.net_forces_w[env_ids]
@@ -1360,7 +1364,7 @@ def detect_robot_collision(env, env_ids=None):
         return False
 
 
-def get_safe_robot_anchor(cfg, unsafe_anchor_pos, unsafe_anchor_ori):
+def get_safe_robot_anchor(cfg: BaseCompositionalEnvCfg, unsafe_anchor_pos, unsafe_anchor_ori):
     """
     Takes the default "unsafe" anchor from robocasa and corrects it
     by moving it backwards based on the robot's arm reach to ensure safety.
@@ -1402,7 +1406,7 @@ def get_safe_robot_anchor(cfg, unsafe_anchor_pos, unsafe_anchor_ori):
     return safe_anchor_pos, unsafe_anchor_ori
 
 
-def set_camera_follow_pose(env, offset, lookat):
+def set_camera_follow_pose(env: ManagerBasedRLEnv, offset, lookat):
     if env.cfg.robot_base_link is not None:
         robot_base_link_idx = env.scene.articulations["robot"].data.body_names.index(env.cfg.robot_base_link)
         robot_mat = T.quat2mat(env.scene.articulations["robot"].data.body_com_quat_w[..., robot_base_link_idx, :][0].cpu().numpy()[[1, 2, 3, 0]])

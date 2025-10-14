@@ -13,6 +13,7 @@
 # limitations under the License.
 
 from dataclasses import MISSING
+from typing import Any
 
 from isaaclab.utils import configclass
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -21,7 +22,9 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
+from isaac_arena.tasks.task_base import TaskBase
 
+from lwlab.core.context import get_context
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
 from lwlab.core.cfg import LwBaseCfg
@@ -147,13 +150,33 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
+class BaseTaskCfg(TaskBase):
+    task_name: str
+
+    def __init__(self):
+        self.context = get_context()
+
+    def get_termination_cfg(self):
+        return TerminationsCfg()
+
+    def get_events_cfg(self):
+        return EventCfg()
+
+
+
+
+
+
+
+
+
 class BaseTaskEnvCfg(LwBaseCfg):
-    execute_mode: ExecuteMode = MISSING
-    observations: ObservationsCfg = ObservationsCfg()
+    execute_mode: ExecuteMode = MISSING  # DONE
+    observations: ObservationsCfg = ObservationsCfg()  # TODO
     # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    terminations: TerminationsCfg = TerminationsCfg()
-    events: EventCfg = EventCfg()
+    rewards: RewardsCfg = RewardsCfg()  # TODO
+    terminations: TerminationsCfg = TerminationsCfg()  # DONE
+    events: EventCfg = EventCfg()  # DONE
     task_name: str = MISSING
     reset_objects_enabled: bool = True
     reset_robot_enabled: bool = True

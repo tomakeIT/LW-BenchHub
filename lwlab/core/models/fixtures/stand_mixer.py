@@ -16,6 +16,8 @@ import torch
 import numpy as np
 
 import lwlab.utils.math_utils.transform_utils.torch_impl as T
+from lwlab.core.cfg.compositional import BaseCompositionalEnvCfg
+from isaaclab.envs import ManagerBasedRLEnv
 from .fixture import Fixture
 from .fixture_types import FixtureType
 
@@ -23,7 +25,7 @@ from .fixture_types import FixtureType
 class StandMixer(Fixture):
     fixture_types = [FixtureType.STAND_MIXER]
 
-    def __init__(self, name, prim, num_envs, **kwargs):
+    def __init__(self, name: str, prim: str, num_envs: int, **kwargs):
         super().__init__(name, prim, num_envs, **kwargs)
         self.mirror_placement = False
         self._button_head_lock = torch.tensor([False], device=self.device).repeat(self.num_envs)
@@ -37,7 +39,7 @@ class StandMixer(Fixture):
             "head": "head_joint",
         }
 
-    def set_speed_dial_knob(self, env, knob_val):
+    def set_speed_dial_knob(self, env: ManagerBasedRLEnv, knob_val):
         """
         Sets the speed of the stand mixer
 
@@ -54,7 +56,7 @@ class StandMixer(Fixture):
             joint_names=[jn],
         )
 
-    def set_head_pos(self, env, head_val=1.0):
+    def set_head_pos(self, env: ManagerBasedRLEnv, head_val=1.0):
         """
         Sets the position of the head
 
@@ -92,7 +94,7 @@ class StandMixer(Fixture):
             if jn in env.scene.articulations[self.name].data.joint_names:
                 setattr(self, attr, self.get_joint_state(env, [jn])[jn])
 
-    def check_item_in_bowl(self, cfg, obj_name, partial_check=False):
+    def check_item_in_bowl(self, cfg: BaseCompositionalEnvCfg, obj_name: str, partial_check=False):
         """
         Check if an object is in the bowl of the stand mixer.
         """
@@ -129,7 +131,7 @@ class StandMixer(Fixture):
                         break
         return torch.from_numpy(all_in).to(cfg.device)
 
-    def get_state(self, env):
+    def get_state(self, env: ManagerBasedRLEnv):
         """
         Returns a dictionary representing the state of the stand mixer.
         """

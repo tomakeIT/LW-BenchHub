@@ -45,8 +45,9 @@ import lwlab.utils.place_utils.env_utils as EnvUtils
 from lwlab.utils.place_utils.kitchen_object_utils import extract_failed_object_name, recreate_object
 from lwlab.core.scenes.kitchen.kitchen_arena import KitchenArena
 from lwlab.utils.errors import SamplingError
-from lwlab.core.models.fixtures.fixture import FixtureType
+from lwlab.core.models.fixtures.fixture import FixtureType, Fixture
 from lwlab.utils.fixture_utils import fixture_is_type
+from lwlab.utils.place_utils.usd_object import USDObject
 from lwlab.utils.place_utils.env_utils import set_robot_to_position, sample_robot_base_helper, get_safe_robot_anchor
 
 
@@ -398,7 +399,7 @@ class LwScene(Scene):
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
     """Configuration for the robocasa kitchen environment."""
-    fixtures: Dict[str, Any] = {}
+    fixtures: Dict[str, Fixture] = {}
     scene_name: str = MISSING
     scene_group: int = None
     enable_fixtures: Optional[List[str]] = None
@@ -706,9 +707,9 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         Helper function called by _create_objects()
         """
         # add objects
-        self.objects = {}
+        self.objects: Dict[str, USDObject] = {}
         if "object_cfgs" in self._ep_meta:
-            self.object_cfgs = self._ep_meta["object_cfgs"]
+            self.object_cfgs: List[Dict[str, Any]] = self._ep_meta["object_cfgs"]
             for obj_num, cfg in enumerate(self.object_cfgs):
                 if "name" not in cfg:
                     cfg["name"] = "obj_{}".format(obj_num + 1)
@@ -878,7 +879,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
         ep_meta["seed"] = self.seed
         return ep_meta
 
-    def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None, full_depth_region=False):
+    def get_fixture(self, id, ref=None, size=(0.2, 0.2), full_name_check=False, fix_id=None, full_depth_region=False) -> Fixture | None:
         """
         search fixture by id (name, object, or type)
 
@@ -960,7 +961,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
 
             # NOTE: I dont konw why error here?
             # assert isinstance(id, FixtureType)
-            cand_fixtures = []
+            cand_fixtures: List[Fixture] = []
             for fxtr in self.fixtures.values():
                 if not fixture_is_type(fxtr, id):
                     continue
@@ -989,7 +990,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
             ]
             return self.rng.choice(close_fixtures)
 
-    def register_fixture_ref(self, ref_name, fn_kwargs):
+    def register_fixture_ref(self, ref_name: str, fn_kwargs: dict):
         """
         Registers a fixture reference for later use. Initializes the fixture
         if it has not been initialized yet.
