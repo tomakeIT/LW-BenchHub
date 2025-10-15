@@ -1,4 +1,3 @@
-# lwlab/core/environments/orchestrate.py
 from typing import Any, Dict, Optional
 from isaac_arena.orchestrator.orchestrator_base import OrchestratorBase
 from isaac_arena.embodiments.embodiment_base import EmbodimentBase
@@ -7,6 +6,7 @@ from isaac_arena.tasks.task_base import TaskBase
 from isaac_arena.utils.pose import Pose
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 import torch
+from lwlab.utils.place_utils import env_utils as EnvUtils
 
 
 class PlacementStrategy:
@@ -16,8 +16,11 @@ class PlacementStrategy:
         fixtures: Dict[str, Any],
         robot_cfg: Any
     ) -> Optional[Pose]:
-
-        raise NotImplementedError
+        """
+        Compute the pose of the robot in the scene.
+        """
+        robot_pose = EnvUtils.compute_robot_base_placement_pose(self.scene, fixtures, robot_cfg)
+        return robot_pose
 
     def compute_object_poses(
         self,
@@ -25,7 +28,11 @@ class PlacementStrategy:
         fixtures: Dict[str, Any],
         robot_pose: Optional[Pose]
     ) -> Dict[str, Pose]:
-        raise NotImplementedError
+        """
+        Compute the poses of the objects in the scene.
+        """
+        object_placements = EnvUtils.sample_object_placements(self.scene, need_retry=False)
+        return object_placements
 
 
 class LwLabBaseOrchestrator(OrchestratorBase):
@@ -58,9 +65,6 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         # place robot and objects
         self.place_robot_and_objects()
 
-        # reset event
-        self.reset_event()
-
         # setup scene done terms
         self.setup_scene_done_terms()
 
@@ -79,11 +83,12 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         ep_meta.update(self.task.get_ep_meta())
         return ep_meta
 
-    def reset_event(self):
+    def _reset_internal(self, env_ids, env):
         """
         Reset the event.
         """
-        self.scene.reset_event()
+        self.scene._setup_scene(env_ids)
+        self.scene.reset_root_state(env=env, env_ids=env_ids)
 
     def init_scene(self, env):
         for fixture_controller in self.fixture_controllers.values():
