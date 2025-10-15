@@ -596,7 +596,7 @@ def _check_cfg_is_valid(cfg):
         ), f"got invaild key \"{k}\" in placement config for {cfg['name']}"
 
 
-def _get_placement_initializer(env_cfg, cfg_list, seed, z_offset=0.01) -> SequentialCompositeSampler:
+def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> SequentialCompositeSampler:
     """
     Creates a placement initializer for the objects/fixtures based on the specifications in the configurations list.
 
@@ -616,9 +616,9 @@ def _get_placement_initializer(env_cfg, cfg_list, seed, z_offset=0.01) -> Sequen
         _check_cfg_is_valid(cfg)
 
         if cfg["type"] == "fixture":
-            mj_obj = env_cfg.fixtures[cfg["name"]]
+            mj_obj = orchestrator.scene.fixtures[cfg["name"]]
         elif cfg["type"] == "object":
-            mj_obj = env_cfg.objects[cfg["name"]]
+            mj_obj = orchestrator.task.objects[cfg["name"]]
         else:
             raise ValueError
 
@@ -658,7 +658,7 @@ def _get_placement_initializer(env_cfg, cfg_list, seed, z_offset=0.01) -> Sequen
             ref_pos = [0, 0, 0]
             ref_rot = 0.0
         else:
-            fixture = env_cfg.get_fixture(
+            fixture = orchestrator.task.get_fixture(
                 id=fixture_id,
                 ref=placement.get("ref", None),
                 full_name_check=True if cfg["type"] == "fixture" else False,
@@ -667,7 +667,7 @@ def _get_placement_initializer(env_cfg, cfg_list, seed, z_offset=0.01) -> Sequen
             sample_region_kwargs = placement.get("sample_region_kwargs", {})
             ref_fixture = sample_region_kwargs.get("ref", None)
             if isinstance(ref_fixture, str):
-                ref_fixture = env_cfg.get_fixture(ref_fixture)
+                ref_fixture = orchestrator.task.get_fixture(ref_fixture)
 
             # this checks if the reference fixture and dining counter are facing different directions
             ref_dining_counter_mismatch = False
@@ -680,7 +680,7 @@ def _get_placement_initializer(env_cfg, cfg_list, seed, z_offset=0.01) -> Sequen
             ref_obj_name = placement.get("ref_obj", None)
 
             if ref_obj_name is not None and cfg["name"] != ref_obj_name:
-                ref_obj_cfg = find_object_cfg_by_name(env_cfg, ref_obj_name)
+                ref_obj_cfg = find_object_cfg_by_name(orchestrator.task.object_cfgs, ref_obj_name)
                 reset_region = ref_obj_cfg["reset_region"]
             else:
                 if (
@@ -691,9 +691,7 @@ def _get_placement_initializer(env_cfg, cfg_list, seed, z_offset=0.01) -> Sequen
                     sample_region_kwargs["min_size"] = mj_obj.size
                 if reuse_region_from is None:
                     print(f"get valid reset region for {cfg['name']}")
-                    reset_region = fixture.get_all_valid_reset_region(
-                        env_cfg=env_cfg, **sample_region_kwargs
-                    )
+                    reset_region = fixture.get_all_valid_reset_region(**sample_region_kwargs)
                 else:
                     # find and re-use sampling region from another object
                     print(f"reuse region from {reuse_region_from}")
@@ -935,7 +933,7 @@ def init_robot_base_pose(env):
     return robot_base_pos, robot_base_ori
 
 
-def find_object_cfg_by_name(env, name):
+def find_object_cfg_by_name(object_cfgs, name):
     """
     Finds and returns the object configuration with the given name.
 
@@ -945,7 +943,7 @@ def find_object_cfg_by_name(env, name):
     Returns:
         dict: object configuration with the given name
     """
-    for cfg in env.object_cfgs:
+    for cfg in object_cfgs:
         if cfg["name"] == name:
             return cfg
     raise ValueError
@@ -1040,35 +1038,42 @@ def create_obj(env_cfg, cfg: Dict[str, Any], version=None):
         version=version,
     )
 
+# replay mode load placement
+# some parameters used in the function change from context
+# placement_initializer
+# sample
+# retry
 
-def sample_object_placements(env_cfg, need_retry=True) -> dict:
+
+def sample_object_placements(orchestrator, need_retry=True) -> dict:
     try:
-        if not hasattr(env_cfg, "placement_initializer"):
-            env_cfg.placement_initializer = _get_placement_initializer(env_cfg, env_cfg.object_cfgs, env_cfg.seed)
+        if not hasattr(orchestrator.scene, "placement_initializer"):
+            orchestrator.scene.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, orchestrator.scene.context.seed)
         else:
-            assert isinstance(env_cfg.placement_initializer, SequentialCompositeSampler), "placement_initializer must be a SequentialCompositeSampler"
+            assert isinstance(orchestrator.scene.placement_initializer, SequentialCompositeSampler), "placement_initializer must be a SequentialCompositeSampler"
 
-        if env_cfg.is_replay_mode:
-            return env_cfg._load_placement()
+        if orchestrator.scene.is_replay_mode:
+            return orchestrator.task._load_placement()
 
         if not need_retry:
-            return env_cfg.placement_initializer.sample(
-                placed_objects=env_cfg.fxtr_placements,
+            return orchestrator.scene.placement_initializer.sample(
+                placed_objects=orchestrator.scene.fxtr_placements,
                 max_attempts=15000,
             )
 
         # Check if scene retry count exceeds max
-        if env_cfg.scene_retry_count >= env_cfg.max_scene_retry:
-            raise RuntimeError(f"Maximum scene retries ({env_cfg.max_scene_retry}) exceeded. Failed to place objects after {env_cfg.max_scene_retry} scene reloads.")
+        if orchestrator.task.scene_retry_count >= orchestrator.task.max_scene_retry:
+            raise RuntimeError(f"Maximum scene retries ({orchestrator.task.max_scene_retry}) exceeded. Failed to place objects after {orchestrator.task.max_scene_retry} scene reloads.")
 
         # Check if object retry count exceeds max
-        if env_cfg.object_retry_count >= env_cfg.max_object_placement_retry:
-            env_cfg.scene_retry_count += 1
-            print(f"All object placement retries failed, reloading entire model (scene retry {env_cfg.scene_retry_count}/{env_cfg.max_scene_retry})")
-            env_cfg._load_model()
+        if orchestrator.task.object_retry_count >= orchestrator.task.max_object_placement_retry:
+            orchestrator.task.scene_retry_count += 1
+            print(f"All object placement retries failed, reloading entire model (scene retry {orchestrator.task.scene_retry_count}/{orchestrator.task.max_scene_retry})")
+            # TODO:(ju.zheng) need to init task first stage
+            orchestrator.scene.setup_env_config(orchestrator)
 
-        return env_cfg.placement_initializer.sample(
-            placed_objects=env_cfg.fxtr_placements,
+        return orchestrator.scene.placement_initializer.sample(
+            placed_objects=orchestrator.scene.fxtr_placements,
             max_attempts=15000,
         )
 
@@ -1080,27 +1085,30 @@ def sample_object_placements(env_cfg, need_retry=True) -> dict:
         if failed_obj_name:
             if failed_obj_name.endswith('.usd'):
                 print(f"Failed object {failed_obj_name} can not be replaced, directly reloading model")
-                env_cfg.scene_retry_count += 1
-                env_cfg._load_model()
-                return env_cfg.object_placements
+                orchestrator.task.scene_retry_count += 1
+                # TODO:(ju.zheng) need to init task first stage
+                orchestrator.scene.setup_env_config(orchestrator)
+                return orchestrator.task.object_placements
             else:
                 # No cached versions, try to replace object
                 print(f"Attempting to replace failed object: {failed_obj_name}")
-                if recreate_object(env_cfg, failed_obj_name):
-                    env_cfg.object_retry_count += 1
-                    return sample_object_placements(env_cfg, need_retry)
+                if recreate_object(orchestrator, failed_obj_name):
+                    orchestrator.task.object_retry_count += 1
+                    return sample_object_placements(orchestrator, need_retry)
                 else:
                     # If recreate failed, increment scene retry and reload model
-                    env_cfg.scene_retry_count += 1
-                    print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {env_cfg.scene_retry_count}/{env_cfg.max_scene_retry})")
-                    env_cfg._load_model()
-                    return env_cfg.object_placements
+                    orchestrator.task.scene_retry_count += 1
+                    print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {orchestrator.task.scene_retry_count}/{orchestrator.task.max_scene_retry})")
+                    # TODO:(ju.zheng) need to init task first stage
+                    orchestrator.scene.setup_env_config(orchestrator)
+                    return orchestrator.task.object_placements
         else:
             print("Could not identify failed object, falling back to model reload")
-            env_cfg.scene_retry_count += 1
-            print(f"Reloading model (scene retry {env_cfg.scene_retry_count}/{env_cfg.max_scene_retry})")
-            env_cfg._load_model()
-            return env_cfg.object_placements
+            orchestrator.task.scene_retry_count += 1
+            print(f"Reloading model (scene retry {orchestrator.task.scene_retry_count}/{orchestrator.task.max_scene_retry})")
+            # TODO:(ju.zheng) need to init task first stage
+            orchestrator.scene.setup_env_config(orchestrator)
+            return orchestrator.task.object_placements
 
 
 @contextlib.contextmanager

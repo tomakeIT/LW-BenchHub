@@ -12,26 +12,21 @@ from lwlab.utils.place_utils import env_utils as EnvUtils
 class PlacementStrategy:
 
     def compute_robot_pose(
-        self,
-        fixtures: Dict[str, Any],
-        robot_cfg: Any
+        self, orchestrator
     ) -> Optional[Pose]:
         """
         Compute the pose of the robot in the scene.
         """
-        robot_pose = EnvUtils.compute_robot_base_placement_pose(self.scene, fixtures, robot_cfg)
+        robot_pose = EnvUtils.compute_robot_base_placement_pose(orchestrator)
         return robot_pose
 
     def compute_object_poses(
-        self,
-        objects: Dict[str, Any],
-        fixtures: Dict[str, Any],
-        robot_pose: Optional[Pose]
+        self, orchestrator
     ) -> Dict[str, Pose]:
         """
         Compute the poses of the objects in the scene.
         """
-        object_placements = EnvUtils.sample_object_placements(self.scene, need_retry=False)
+        object_placements = EnvUtils.sample_object_placements(orchestrator, need_retry=False)
         return object_placements
 
 
@@ -101,8 +96,11 @@ class LwLabBaseOrchestrator(OrchestratorBase):
                 fixtr.setup_cfg(self)
 
     def _add_ref_fixtures_to_arena(self):
-        # TODO: add ref fixtures to arena
-        pass
+        # add ref fixtures to arena
+        from isaac_arena.assets.object_reference import ObjectReference
+        for fixtr in self.fixture_refs.values():
+            if isinstance(fixtr, IsaacFixture):
+                self.scene.add_asset(ObjectReference(parent_asset=self.scene.assets[self.scene.scene_type]))
 
     def _reset_internal(self, env_ids, env):
         """
@@ -176,25 +174,11 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         if not self.placement_strategy:
             return
 
-        scene_cfg = self.scene.get_scene_cfg()
-        embodiment_cfg = self.embodiment.get_scene_cfg()
-        task_cfg = self.task.get_scene_cfg()
-        fixtures = self._extract_fixtures(scene_cfg)
-        objects = self._extract_objects(task_cfg)
-
-        robot_pose = self.placement_strategy.compute_robot_pose(fixtures, embodiment_cfg)
-        object_poses = self.placement_strategy.compute_object_poses(objects, fixtures, robot_pose)
+        robot_pose = self.placement_strategy.compute_robot_pose(self)
+        object_poses = self.placement_strategy.compute_object_poses(self)
 
         self._apply_robot_pose(embodiment_cfg, robot_pose)
         self._apply_object_poses(task_cfg, object_poses)
-
-    def _extract_fixtures(self, scene_cfg) -> Dict[str, Any]:
-        fixtures = scene_cfg.get_fixtures()
-        return fixtures
-
-    def _extract_objects(self, task_cfg) -> Dict[str, Any]:
-        objects = task_cfg.get_objects()
-        return objects
 
     def _apply_robot_pose(self, embodiment_cfg, robot_pose: Optional[Pose]):
         if robot_pose and embodiment_cfg and hasattr(embodiment_cfg, 'robot'):

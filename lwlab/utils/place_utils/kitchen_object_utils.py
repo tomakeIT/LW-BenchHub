@@ -243,20 +243,23 @@ def extract_failed_object_name(error_message):
     return None
 
 
-def recreate_object(env, failed_obj_name):
+def recreate_object(orchestrator, failed_obj_name):
     try:
-        obj_cfg = next((cfg for cfg in env.object_cfgs if cfg.get("name") == failed_obj_name), None)
+        obj_cfg = next((cfg for cfg in orchestrator.task.object_cfgs if cfg.get("name") == failed_obj_name), None)
         if not obj_cfg:
             print(f"Could not find config for failed object: {failed_obj_name}")
             return False
 
-        env.objects.pop(failed_obj_name, None)
+        orchestrator.task.objects.pop(failed_obj_name, None)
         obj_cfg.pop("info", None)
 
-        model, info = EnvUtils.create_obj(env, obj_cfg)
+        model, info = EnvUtils.create_obj(orchestrator.task, obj_cfg)
         obj_cfg["info"] = info
-        env.objects[model.task_name] = model
-        for obj_version in env.cache_usd_version["objects_version"]:
+        orchestrator.task.objects[model.task_name] = model
+
+        # TODO:(ju.zheng) need to remove task.assets and add new lwlabobject assets
+
+        for obj_version in orchestrator.task.objects_version:
             if failed_obj_name in obj_version:
                 obj_version.update({failed_obj_name: info.get("obj_version", None)})
                 break
