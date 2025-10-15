@@ -1428,24 +1428,3 @@ def set_camera_follow_pose(env: ManagerBasedRLEnv, offset, lookat):
         robot_lookat = robot_pos + (robot_mat @ np.array(lookat).reshape(3, 1))[:, 0]
 
     env.sim.set_camera_view(robot_pos, robot_lookat)
-
-
-class ContactQueue:
-    def __init__(self):
-        self.queue = deque()
-
-    def is_empty(self):
-        return len(self.queue) == 0
-
-    def add(self, contact_view):
-        self.queue.append(contact_view)
-
-    def pop(self):
-        if self.is_empty():
-            return None
-        contact_view = self.queue.popleft()
-        self.queue.append(contact_view)
-        return contact_view
-
-    def clear(self):
-        self.queue.clear()

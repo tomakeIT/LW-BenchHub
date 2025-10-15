@@ -29,7 +29,7 @@ from lwlab.core.context import get_context
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
 from lwlab.core.cfg import LwBaseCfg
-from lwlab.utils.place_utils.env_utils import ContactQueue
+from lwlab.utils.place_utils.contact_queue import ContactQueue
 from lwlab.core.checks.checker_factory import get_checkers_from_cfg, form_checker_result
 from lwlab.utils.place_utils.usd_object import USDObject
 import lwlab.utils.place_utils.env_utils as EnvUtils
