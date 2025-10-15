@@ -32,6 +32,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from lwlab.core.tasks.base import TerminationsCfg
 
 from ..base import BaseSceneEnvCfg
+from lwlab.core.context import get_context
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 from lwlab.utils.env import ExecuteMode
@@ -83,18 +84,12 @@ class LwLabScene(Scene):
                  replay_cfgs: Dict[str, Any] = None,
                  **kwargs,
                  ):
-
+        self.context = get_context()
         self.layout_id: int = None
         self.style_id: int = None
         self.fixture_refs = {}
-
-        if self.execute_mode in [ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE]:
-            self.is_replay_mode = True
-        else:
-            self.is_replay_mode = False
-
+        self.is_replay_mode = self.context.execute_mode in [ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE]
         self.replay_cfgs = replay_cfgs
-
         self._setup_config()
 
     # first stage (just init from itself)

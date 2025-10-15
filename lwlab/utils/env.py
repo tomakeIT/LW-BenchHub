@@ -25,6 +25,7 @@ from isaaclab.utils.configclass import configclass
 if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedRLEnvCfg
 
+from lwlab.core.context import get_context
 from lwlab.utils.log_utils import get_default_logger
 
 
@@ -159,7 +160,7 @@ def parse_env_cfg(
     object_projects: list[str] | None = None,
     headless_mode: bool = False,
     teleop_device: str = None,
-    ** kwargs,
+    **kwargs,
 ) -> "ManagerBasedRLEnvCfg":
     """Parse configuration for an environment and override based on inputs.
 
@@ -180,6 +181,22 @@ def parse_env_cfg(
     """
     # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
     # Import all configs in this package
+    context = get_context()
+    context.execute_mode = execute_mode
+    context.device = device
+    context.robot_scale = robot_scale
+    context.first_person_view = first_person_view
+    context.enable_cameras = enable_cameras
+    context.usd_simplify = usd_simplify
+    context.object_init_offset = object_init_offset
+    context.max_scene_retry = max_scene_retry
+    context.max_object_placement_retry = max_object_placement_retry
+    context.seed = seed
+    context.sources = sources
+    context.object_projects = object_projects
+    context.headless_mode = headless_mode
+    context.extra_params = kwargs
+    # context.replay_cfgs = replay_cfgs
     discover_and_import_lwlab_modules()
 
     from isaac_arena.environments.isaac_arena_environment import IsaacArenaEnvironment
@@ -226,7 +243,8 @@ def parse_env_cfg(
     arena_builder = ArenaEnvBuilder(isaac_arena_environment, args)
     env_name, cfg = arena_builder.build_registered()
 
-    # # set num_envs in task_env_cfg
+    ###########
+    # set num_envs in task_env_cfg
     # if num_envs is not None:
     #     RobocasaEnvCfg.num_envs = num_envs
     # RobocasaEnvCfg.device = device
@@ -258,6 +276,7 @@ def parse_env_cfg(
     #         robot_scale=robot_scale,
     #         seed=seed,
     #     )
+    ###########
 
     # check that it is not a dict
     # we assume users always use a class for the configuration

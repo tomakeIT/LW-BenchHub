@@ -27,6 +27,7 @@ import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
 from lwlab.utils.isaaclab_utils import get_robot_joint_target_from_scene
 from lwlab.core.cfg import LwBaseCfg
+from lwlab.core.context import get_context
 
 
 @configclass
@@ -121,8 +122,10 @@ from isaac_arena.utils.pose import Pose
 from typing import Dict, Any, Callable
 
 
-class LwEmbodimentBase(EmbodimentBase):
+class LwLabEmbodimentBase(EmbodimentBase):
+
     def __init__(self, enable_cameras: bool = False, initial_pose: Optional[Pose] = None):
+        self.context = get_context()
         super().__init__(enable_cameras, initial_pose)
         self.scene_config = MISSING
         self.action_config = ActionsCfg()
