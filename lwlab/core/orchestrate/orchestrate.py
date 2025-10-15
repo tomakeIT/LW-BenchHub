@@ -67,11 +67,15 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         # set up kitchen references
         self.fixture_refs = self.task.fixture_refs
 
+        # usd simplify
         if context.get("usd_simplify", False):
-            # TODO: usd_simplify
-
-            # TODO: modify background
-            pass
+            from lwlab.utils.usd_utils import OpenUsd as usd
+            new_stage = usd.usd_simplify(self.scene.lwlab_arena.stage, self.fixture_refs)
+            self.scene.scene_type
+            self.scene.usd_path = self.scene.usd_path.replace(".usd", "_simplified.usd")
+            new_stage.GetRootLayer().Export(self.scene.usd_path)
+            # modify background
+            self.scene.assets[self.scene.scene_type].usd_path = self.scene.usd_path
 
         # init ref fixtures
         self._init_ref_fixtures()
