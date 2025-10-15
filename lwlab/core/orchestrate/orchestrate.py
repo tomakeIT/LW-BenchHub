@@ -7,6 +7,8 @@ from isaac_arena.utils.pose import Pose
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 import torch
 from lwlab.utils.place_utils import env_utils as EnvUtils
+import numpy as np
+from lwlab.utils.place_utils.env_utils import get_safe_robot_anchor
 
 
 class PlacementStrategy:
@@ -17,8 +19,7 @@ class PlacementStrategy:
         """
         Compute the pose of the robot in the scene.
         """
-        robot_pose = EnvUtils.compute_robot_base_placement_pose(orchestrator)
-        return robot_pose
+        self.get_robot_anchor()
 
     def compute_object_poses(
         self, orchestrator
@@ -28,6 +29,30 @@ class PlacementStrategy:
         """
         object_placements = EnvUtils.sample_object_placements(orchestrator, need_retry=False)
         return object_placements
+
+    @staticmethod
+    def get_robot_anchor(orchestrator):
+        (
+            robot_base_pos_anchor,
+            robot_base_ori_anchor,
+        ) = EnvUtils.init_robot_base_pose(orchestrator)
+
+        if hasattr(orchestrator, "robot_base_offset"):
+            try:
+                robot_base_pos_anchor += np.array(orchestrator.robot_base_offset["pos"])
+                robot_base_ori_anchor += np.array(orchestrator.robot_base_offset["rot"])
+            except KeyError:
+                raise ValueError("offset value is not correct !! please make sure offset has key pos and rot !!")
+
+        # Intercept the unsafe anchor and make it safe
+        safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
+            cfg=orchestrator.robot,
+            # TODO:(ju.zheng) add robot offset in robot cfg
+            unsafe_anchor_pos=robot_base_pos_anchor,
+            unsafe_anchor_ori=robot_base_ori_anchor
+        )
+
+        return safe_anchor_pos, safe_anchor_ori
 
 
 class LwLabBaseOrchestrator(OrchestratorBase):
@@ -201,3 +226,52 @@ class LwLabBaseOrchestrator(OrchestratorBase):
     def _apply_cfg(self, cfg, key, value):
         if hasattr(cfg, key):
             setattr(cfg, key, value)
+
+    # TODO:(ju.zheng) need to update this
+    def reset_root_state(self, env, env_ids=None):
+        """
+        reset the root state of objects and robot in the environment
+        """
+        if env_ids is None:
+            env_ids = torch.arange(env.num_envs, device=self.device, dtype=torch.int64)
+        object_placements = EnvUtils.sample_object_placements(self, need_retry=False)
+        object_placements, updated_obj_names = self._update_fxtr_obj_placement(object_placements)
+        if env.cfg.reset_objects_enabled and self.fix_object_pose_cfg is None:
+            reset_objs = object_placements.keys()
+        else:
+            reset_objs = updated_obj_names
+        for obj_name in reset_objs:
+            obj_poses, obj_quat, _ = object_placements[obj_name]
+            obj_pos = torch.tensor(obj_poses, device=self.device, dtype=torch.float32)[env_ids] + env.scene.env_origins[env_ids]
+            obj_quat = Tt.convert_quat(torch.tensor(obj_quat, device=self.device, dtype=torch.float32), to="wxyz")
+            obj_quat = obj_quat.unsqueeze(0).repeat(obj_pos.shape[0], 1)
+            root_pos = torch.concatenate([obj_pos, obj_quat], dim=-1)
+            env.scene.rigid_objects[obj_name].write_root_pose_to_sim(
+                root_pos,
+                env_ids=env_ids
+            )
+        env.sim.forward()
+
+        if env.cfg.reset_robot_enabled:
+            self.sample_robot_base(env, env_ids)
+            set_robot_to_position(env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)
+
+    def _update_fxtr_obj_placement(self, object_placements):
+        updated_obj_names = []
+        for obj_name, obj_placement in object_placements.items():
+            updated_placement = list(obj_placement)
+            obj_cfg = [cfg for cfg in self.object_cfgs if cfg["name"] == obj_name][0]
+            ref_fixture = None
+            if "fixture" in obj_cfg["placement"]:
+                ref_fixture = obj_cfg["placement"]["fixture"]
+            if isinstance(ref_fixture, str):
+                ref_fixture = self.get_fixture(ref_fixture)
+            # TODO: add other sliding fxtr types
+            if fixture_is_type(ref_fixture, FixtureType.DRAWER):
+                ref_rot_mat = Tn.euler2mat(np.array([0, 0, ref_fixture.rot]))
+                updated_placement[0] = np.array(updated_placement[0]) + ref_fixture._regions["int"]["per_env_offset"] @ ref_rot_mat.T
+                updated_obj_names.append(obj_name)
+            else:
+                updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.num_envs, axis=0)
+            object_placements[obj_name] = updated_placement
+        return object_placements, updated_obj_names
