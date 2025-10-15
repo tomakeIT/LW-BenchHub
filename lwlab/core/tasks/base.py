@@ -182,7 +182,7 @@ class LwLabTaskBase(TaskBase):
 
     def __init__(self):
         self.context = get_context()
-        self.usd_simplified = self.context.usd_simplified
+        self.usd_simplify = self.context.usd_simplify
         self.exclude_layouts = self.EMPTY_EXCLUDE_LAYOUTS
         self.objects_version = self.context.ep_meta["cache_usd_version"].get("objects_version", None)
         self.sources = self.context.sources
