@@ -13,7 +13,8 @@
 # limitations under the License.
 
 from dataclasses import MISSING
-from typing import Any
+from typing import Any, Dict, List
+from copy import deepcopy
 
 from isaaclab.utils import configclass
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -29,6 +30,9 @@ import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
 from lwlab.core.cfg import LwBaseCfg
 from lwlab.utils.place_utils.env_utils import ContactQueue
+from lwlab.core.checks.checker_factory import get_checkers_from_cfg, form_checker_result
+from lwlab.utils.place_utils.usd_object import USDObject
+import lwlab.utils.place_utils.env_utils as EnvUtils
 
 
 @configclass
@@ -150,24 +154,230 @@ class TerminationsCfg:
     time_out = DoneTerm(func=mdp.time_out, time_out=True)
 
 
-class BaseTaskCfg(TaskBase):
+class LwLabTaskBase(TaskBase):
     task_name: str
+    EMPTY_EXCLUDE_LAYOUTS: list = []
+    OVEN_EXCLUDED_LAYOUTS: list = [1, 3, 5, 6, 8, 10, 11, 13, 14, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 33, 36, 38, 40, 41, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
+    DOUBLE_CAB_EXCLUDED_LAYOUTS: list = [32, 41, 59]
+    DINING_COUNTER_EXCLUDED_LAYOUTS: list = [1, 3, 5, 6, 18, 20, 36, 39, 40, 43, 47, 50, 52]
+    ISLAND_EXCLUDED_LAYOUTS: list = [1, 3, 5, 6, 8, 9, 10, 13, 18, 19, 22, 27, 30, 36, 40, 43, 46, 47, 49, 52, 53, 60]
+    STOOL_EXCLUDED_LAYOUT: list = [1, 3, 5, 6, 18, 20, 36, 39, 40, 43, 47, 50, 52]
+    SHELVES_INCLUDED_LAYOUT: list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+    DOUBLE_CAB_EXCLUDED_LAYOUTS: list = [32, 41, 59]
 
-    def __init__(self):
+    def __init__(self, execute_mode: ExecuteMode = ExecuteMode.TELEOP):
         self.context = get_context()
+        self.exclude_layouts = self.EMPTY_EXCLUDE_LAYOUTS
+        self.objects_version = self.context.ep_meta["cache_usd_version"].get("objects_version", None)
+        self.events_cfg = EventCfg()
+        self.termination_cfg = TerminationsCfg()
+        self.init_checkers_cfg()
+        self.checkers = get_checkers_from_cfg(self.checkers_cfg)
+        self.checkers_results = form_checker_result(self.checkers_cfg)
 
     def get_termination_cfg(self):
-        return TerminationsCfg()
+        return self.termination_cfg
 
     def get_events_cfg(self):
-        return EventCfg()
+        return self.events_cfg
 
+    def init_checkers_cfg(self):
+        # checkers
+        if self.context.execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
+            print("INFO: Running in Replay Mode. Using replay-specific checker config.")
+            self.checkers_cfg = {
+                "motion": {
+                    "warning_on_screen": False
+                },
+                "kitchen_clipping": {
+                    "warning_on_screen": False
+                },
+                "velocity_jump": {
+                    "warning_on_screen": False
+                }
+            }
+        else:
+            print("INFO: Running in Teleop Mode. Using default checker config.")
+            self.checkers_cfg = {
+                "motion": {
+                    "warning_on_screen": False
+                },
+                "kitchen_clipping": {
+                    "warning_on_screen": False
+                },
+                "velocity_jump": {
+                    "warning_on_screen": False
+                },
+                "start_object_move": {
+                    "warning_on_screen": False
+                }
+            }
 
+    def get_metrics(self):
+        """
+        Get all metrics data for JSON export. This function integrates various types of metrics
+        and can be extended to include additional metrics in the future.
 
+        Returns:
+            dict: Complete metrics data combining all available metrics
+        """
+        metrics_data = {}
 
+        for checker in self.checkers:
+            metrics_data[checker.type] = checker.get_metrics(self.checkers_results[checker.type])
 
+        return metrics_data
 
+    def get_warning_text(self):
+        warning_text = ""
+        for checker in self.checkers:
+            if self.checkers_results[checker.type].get("warning_text"):
+                warning_text += self.checkers_results[checker.type].get("warning_text")
+                warning_text += "\n"
+        return warning_text
 
+    def _get_obj_cfgs(self):
+        """
+        Returns a list of object configurations to use in the environment.
+        The object configurations are usually environment-specific and should
+        be implemented in the subclass.
+
+        Returns:
+            list: list of object configurations
+        """
+
+        return []
+
+    def _create_objects(self):
+        """
+        Creates and places objects in the kitchen environment.
+        Helper function called by _create_objects()
+        """
+        # add objects
+        self.objects: Dict[str, USDObject] = {}
+        if "object_cfgs" in self.context.ep_meta:
+            self.object_cfgs: List[Dict[str, Any]] = self.context.ep_meta["object_cfgs"]
+            for obj_num, cfg in enumerate(self.object_cfgs):
+                if "name" not in cfg:
+                    cfg["name"] = "obj_{}".format(obj_num + 1)
+                if self.objects_version is not None:
+                    for obj_version in self.objects_version:
+                        if cfg["name"] in obj_version:
+                            object_version = obj_version[cfg["name"]]
+                            break
+                        # TODO(geng.wang): temp code for task_1w_dev data, will be deleted in the future
+                        else:
+                            if "mjcf_path" in cfg.get("info", {}).keys():
+                                xml_path = cfg.get("info", {})["mjcf_path"]
+                                name = xml_path.split("/")[-2]
+                                if name in obj_version:
+                                    object_version = obj_version[name]
+                                    break
+                        ##
+                model, info = EnvUtils.create_obj(self, cfg, version=object_version)
+                cfg["info"] = info
+                self.objects[model.task_name] = model
+        else:
+            self.object_cfgs = self._get_obj_cfgs()
+            self.object_cfgs = self.apply_object_init_offset(self.object_cfgs)
+            all_obj_cfgs = []
+            for obj_num, cfg in enumerate(self.object_cfgs):
+                cfg["type"] = "object"
+                if "name" not in cfg:
+                    cfg["name"] = "obj_{}".format(obj_num + 1)
+                model, info = EnvUtils.create_obj(self, cfg)
+                cfg["info"] = info
+                self.objects[model.task_name] = model
+                # self.model.merge_objects([model])
+                try_to_place_in = cfg["placement"].get("try_to_place_in", None)
+                object_ref = cfg["placement"].get("object", None)
+
+                # place object in a container and add container as an object to the scene
+                if try_to_place_in and (
+                    "in_container" in cfg["info"]["groups_containing_sampled_obj"]
+                ):
+                    container_cfg = {
+                        "name": cfg["name"] + "_container",
+                        "obj_groups": cfg["placement"].get("try_to_place_in"),
+                        "placement": deepcopy(cfg["placement"]),
+                        "type": "object",
+                    }
+
+                    init_robot_here = cfg.get("init_robot_here", False)
+                    if init_robot_here is True:
+                        cfg["init_robot_here"] = False
+                        container_cfg["init_robot_here"] = True
+
+                    try_to_place_in_kwargs = cfg["placement"].get(
+                        "try_to_place_in_kwargs", None
+                    )
+                    if try_to_place_in_kwargs is not None:
+                        for k, v in try_to_place_in_kwargs.items():
+                            container_cfg[k] = v
+
+                    container_kwargs = cfg["placement"].get("container_kwargs", None)
+                    if container_kwargs is not None:
+                        for k, v in container_kwargs.items():
+                            container_cfg[k] = v
+
+                    # add in the new object to the model
+                    all_obj_cfgs.append(container_cfg)
+                    model, info = EnvUtils.create_obj(self, container_cfg)
+                    container_cfg["info"] = info
+                    self.objects[model.task_name] = model
+
+                    # modify object config to lie inside of container
+                    reset_regions = model.get_reset_regions()
+                    if "int" in reset_regions:
+                        int_region = reset_regions["int"]
+                    else:
+                        int_region = reset_regions[model.bounded_region_name]
+                    cfg["placement"] = dict(
+                        size=(int_region["size"][0] / 4, int_region["size"][1] / 4),
+                        pos=int_region["offset"],
+                        ensure_object_boundary_in_range=False,
+                        sample_args=dict(
+                            reference=container_cfg["name"],
+                            ref_fixture=cfg["placement"]["fixture"],
+                        ),
+                    )
+                elif (
+                    object_ref
+                    and "in_container" in cfg["info"]["groups_containing_sampled_obj"]
+                ):
+                    parent = object_ref
+                    if parent in self.objects:
+                        container_name = parent
+                        container_obj = self.objects[parent]
+                        container_size = container_obj.size
+                        smaller_dim = min(container_size[0], container_size[1])
+                        sampling_size = (smaller_dim * 0.5, smaller_dim * 0.5)
+                        cfg["placement"] = {
+                            "size": sampling_size,
+                            "ensure_object_boundary_in_range": False,
+                            "sample_args": {"reference": container_name},
+                        }
+
+                # append the config for this object
+                all_obj_cfgs.append(cfg)
+
+            self.object_cfgs = all_obj_cfgs
+
+        # update cache_usd_version
+        objects_version = []
+        for cfg in self.object_cfgs:
+            objects_version.append({cfg["name"]: cfg["info"]["obj_version"]})
+        self.context.ep_meta["cache_usd_version"].update({"objects_version": objects_version})
+
+    def apply_object_init_offset(self, cfgs):
+        if hasattr(self, "object_init_offset"):
+            object_init_offset = getattr(self, "object_init_offset", [0.0, 0.0])
+            for cfg in cfgs:
+                if "placement" in cfg and "pos" in cfg["placement"]:
+                    pos = cfg["placement"]["pos"]
+                    cfg["placement"]["pos"] = ((object_init_offset[0] + pos[0]) if (isinstance(pos[0], float) or isinstance(pos[0], int)) else pos[0],
+                                               (object_init_offset[1] + pos[1]) if (isinstance(pos[1], float) or isinstance(pos[1], int)) else pos[1])
+        return cfgs
 
 
 class BaseTaskEnvCfg(LwBaseCfg):

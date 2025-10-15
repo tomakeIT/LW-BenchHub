@@ -8,6 +8,7 @@ CURRENT_CONTEXT = None
 class Context:
     execute_mode: ExecuteMode | None = None
     device: str | None = None
+    ep_meta: dict | None = None
 
 
 def get_context():

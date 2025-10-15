@@ -126,7 +126,7 @@ class LwLabScene(Scene):
         self.layout_id = int(layout_id) if layout_id is not None else None
         self.style_id = int(style_id) if style_id is not None else None
 
-    # second stage (init from ArenaEnvironment) ouhe logic
+    # second stage (init from ArenaEnvironment)
     def setup_env_config(self, orchestrator):
         self.lwlab_arena = KitchenArena(
             layout_id=self.layout_id,
