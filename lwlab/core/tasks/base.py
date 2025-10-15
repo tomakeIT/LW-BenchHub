@@ -46,6 +46,8 @@ from lwlab.utils.log_utils import copy_dict_for_json
 from lightwheel_sdk.loader import ENDPOINT
 from lwlab.core.models.objects.LwLabObject import LwLabObject
 from isaaclab.sensors import ContactSensorCfg
+from lwlab.core.models.fixtures import Fixture, FixtureType, fixture_is_type
+import lwlab.utils.fixture_utils as FixtureUtils
 
 
 @configclass
@@ -514,9 +516,6 @@ class LwLabTaskBase(TaskBase):
         Returns:
             Fixture: fixture object
         """
-        from lwlab.core.models.fixtures import Fixture, FixtureType, fixture_is_type
-        import lwlab.utils.fixture_utils as FixtureUtils
-
         # case 1: id refers to fixture object directly
         if isinstance(id, Fixture):
             return id
