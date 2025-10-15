@@ -158,6 +158,7 @@ def parse_env_cfg(
     sources: list[str] | None = None,
     object_projects: list[str] | None = None,
     headless_mode: bool = False,
+    teleop_device: str = None,
     ** kwargs,
 ) -> "ManagerBasedRLEnvCfg":
     """Parse configuration for an environment and override based on inputs.
@@ -180,6 +181,39 @@ def parse_env_cfg(
     # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
     # Import all configs in this package
     discover_and_import_lwlab_modules()
+
+    from isaac_arena.environments.isaac_arena_environment import IsaacArenaEnvironment
+    from isaac_arena.examples.example_environments.example_environment_base import ExampleEnvironmentBase
+
+    environment_base = ExampleEnvironmentBase()
+    robot = environment_base.asset_registry.get_asset_by_name(robot_name)()
+    scene = environment_base.asset_registry.get_asset_by_name(scene_name)()
+    task = environment_base.asset_registry.get_asset_by_name(task_name)()
+    if teleop_device is not None:
+        teleop_device = environment_base.device_registry.get_device_by_name(teleop_device)()
+    else:
+        teleop_device = None
+
+    isaac_arena_environment = IsaacArenaEnvironment(
+        name=task_name,
+        embodiment=robot,
+        scene=scene,
+        task=task,
+        teleop_device=teleop_device,
+    )
+
+    # parse the configuration for the isaac arena environment ;now fake here
+    # TODO: fix this
+    import argparse
+    args = {"device": device, "num_envs": num_envs, "disable_fabric": use_fabric, 'mimic': False}
+    args = argparse.Namespace(**args)
+
+    from isaac_arena.environments.compile_env import ArenaEnvBuilder
+    arena_builder = ArenaEnvBuilder(isaac_arena_environment, args)
+    env_name, env_cfg = arena_builder.build_registered()
+
+    return env_name, env_cfg
+
     if scene_name.endswith(".usd"):
         scene_type = "USD"
     else:
