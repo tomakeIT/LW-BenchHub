@@ -649,6 +649,12 @@ class LwLabTaskBase(TaskBase):
         ep_meta["seed"] = self.context.seed
         ep_meta["LW_API_ENDPOINT"] = ENDPOINT
 
+    def get_mimic_env_cfg(self):
+        return None
+
+    def get_prompt(self):
+        return self.get_ep_meta()["lang"]
+
 
 class BaseTaskEnvCfg(LwBaseCfg):
     execute_mode: ExecuteMode = MISSING  # DONE
