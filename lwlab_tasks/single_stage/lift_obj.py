@@ -155,7 +155,7 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        if self.env.cfg.execute_mode == ExecuteMode.TRAIN:
+        if self.context.execute_mode == ExecuteMode.TRAIN:
             return torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
         gripper_contact_force = self.env.scene.sensors["gripper_object_contact"]._data.force_matrix_w[:, 0, 0, :]
         jaw_contact_force = self.env.scene.sensors["jaw_object_contact"]._data.force_matrix_w[:, 0, 0, :]

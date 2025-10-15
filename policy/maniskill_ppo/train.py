@@ -29,7 +29,7 @@ from typing import Optional
 from lwlab import CONFIGS_PATH
 
 from lwlab.utils.config_loader import config_loader
-
+from lwlab.core.context import get_context
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
@@ -139,7 +139,7 @@ def main(args):
         checkpoint_path = agent.save_model(iteration)
 
     if hasattr(args_cli, "check_success") and args_cli.check_success:
-        env.env.cfg.execute_mode = ExecuteMode.EVAL
+        get_context().execute_mode = ExecuteMode.EVAL
         next_obs, _ = env.reset()
         next_obs = observation(next_obs['policy'])
         eval_iter = 640

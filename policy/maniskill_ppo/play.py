@@ -121,7 +121,6 @@ def main(args):
     eval_iter = 640
     success_count = 0
     episode_count = 0
-    env.env.cfg.execute_mode = ExecuteMode.EVAL
     with torch.inference_mode():
         for _ in tqdm(range(eval_iter), desc="Evaluation Progress"):
             action = agent.agent.get_action(next_obs, deterministic=True)

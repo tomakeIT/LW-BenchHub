@@ -18,7 +18,7 @@ class BaseRLEnvCfg(LwBaseCfg):
     terminations: TerminationsCfg = TerminationsCfg()
 
     def _check_success(self):
-        # if self.env.cfg.execute_mode == ExecuteMode.TRAIN:
+        # if self.context.execute_mode == ExecuteMode.TRAIN:
         #     # check_succuss only work in eval mode
         #     # no need to run in train mode
         #     return False
