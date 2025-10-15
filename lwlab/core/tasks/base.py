@@ -45,6 +45,7 @@ import lwlab.utils.math_utils.transform_utils.torch_impl as Tt
 from lwlab.utils.log_utils import copy_dict_for_json
 from lightwheel_sdk.loader import ENDPOINT
 from lwlab.core.models.objects.LwLabObject import LwLabObject
+from isaaclab.sensors import ContactSensorCfg
 
 
 @configclass
@@ -394,6 +395,7 @@ class LwLabTaskBase(TaskBase):
         self.context.ep_meta["cache_usd_version"].update({"objects_version": objects_version})
 
         self.assets = {}
+        self.contact_sensors = {}
         for cfg in self.object_cfgs:
             self.assets[cfg["info"]["task_name"]] = LwLabObject(
                 name=cfg["info"]["task_name"],
@@ -401,6 +403,14 @@ class LwLabTaskBase(TaskBase):
                 usd_path=cfg["info"]["obj_path"],
                 prim_path=f"{{ENV_REGEX_NS}}/{self.context.scene_name.split('-')[0]}/{cfg['info']['task_name']}",
                 object_type=ObjectType.RIGID,
+            )
+            self.contact_sensors[f"{cfg['info']['task_name']}_contact"] = ContactSensorCfg(
+                prim_path=f"{{ENV_REGEX_NS}}/{self.context.scene_name.split('-')[0]}/{cfg["info"]["task_name"]}/{cfg["info"]["name"]}",
+                update_period=0.0,
+                history_length=6,
+                debug_vis=False,
+                force_threshold=0.0,
+                filter_prim_paths_expr=[],
             )
 
     def get_obj_lang(self, obj_name="obj", get_preposition=False):
@@ -435,6 +445,8 @@ class LwLabTaskBase(TaskBase):
         for asset in self.assets.values():
             for asset_cfg_name, asset_cfg in asset.get_cfgs().items():
                 fields.append((asset_cfg_name, type(asset_cfg), asset_cfg))
+        for sensor_name, sensor_cfg in self.contact_sensors.values():
+            fields.append((sensor_name, type(sensor_cfg), sensor_cfg))
         NewConfigClass = make_configclass("TaskCfg", fields)
         new_config_class = NewConfigClass()
         return new_config_class
