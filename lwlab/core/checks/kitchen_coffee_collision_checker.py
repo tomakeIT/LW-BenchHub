@@ -1,6 +1,7 @@
 from lwlab.core.checks.base_checker import BaseChecker
 import torch
 from lwlab.core.models.fixtures.fixture_types import FixtureType
+from lwlab.utils.object_utils import check_contact
 
 
 class KitchenCoffeeCollisionChecker(BaseChecker):
@@ -42,8 +43,8 @@ class KitchenCoffeeCollisionChecker(BaseChecker):
 
         cup_coffee_collision = False
 
-        cup_coffee_collision = env.cfg.check_contact(env.cfg.objects["obj"], self.coffee_machine)
-        z_checks = env.cfg.coffee_machine.get_z_checks()
+        cup_coffee_collision = check_contact(env, env.cfg.isaac_arena_env.task.objects["obj"], self.coffee_machine)
+        z_checks = env.cfg.isaac_arena_env.task.coffee_machine.get_z_checks()
         for z_check in z_checks:
             if not z_check and cup_coffee_collision and self._coffee_collision_warning_frame_count == 0:
                 self._coffee_collision_warning_text = "kitchen_coffee_collision Warning: Collision between <<Mug>> and <<Coffee_Machine>> happens"

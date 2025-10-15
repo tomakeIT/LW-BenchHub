@@ -3,6 +3,7 @@ import torch
 from lwlab.core.models.fixtures import FixtureType
 import omni
 from isaaclab.sensors import ContactSensorCfg
+from lwlab.utils.object_utils import calculate_contact_force
 
 
 class KitchenClippingChecker(BaseChecker):
@@ -65,8 +66,8 @@ class KitchenClippingChecker(BaseChecker):
 
             current_frame = self._frame_count
 
-            left_force = env.cfg.calculate_contact_force(left_gripper)
-            right_force = env.cfg.calculate_contact_force(right_gripper)
+            left_force = calculate_contact_force(env, left_gripper)
+            right_force = calculate_contact_force(env, right_gripper)
             # Handle both scalar and multi-environment tensors
             if left_force.dim() == 0:
                 left_force_val = left_force.item()

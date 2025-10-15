@@ -3,6 +3,7 @@ import torch
 from lwlab.core.models.fixtures.fixture_types import FixtureType
 from lwlab.utils.object_utils import check_contact
 
+
 class GripperCollisionChecker(BaseChecker):
     type = "gripper_collision"
 
