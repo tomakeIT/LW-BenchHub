@@ -47,7 +47,6 @@ class PlacementStrategy:
         # Intercept the unsafe anchor and make it safe
         safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
             cfg=orchestrator.robot,
-            # TODO:(ju.zheng) add robot offset in robot cfg
             unsafe_anchor_pos=robot_base_pos_anchor,
             unsafe_anchor_ori=robot_base_ori_anchor
         )

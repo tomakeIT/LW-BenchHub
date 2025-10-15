@@ -184,7 +184,8 @@ class LwLabTaskBase(TaskBase):
         self.context = get_context()
         self.usd_simplify = self.context.usd_simplify
         self.exclude_layouts = self.EMPTY_EXCLUDE_LAYOUTS
-        self.objects_version = self.context.ep_meta["cache_usd_version"].get("objects_version", None)
+        self.cache_usd_version = self.context.ep_meta.get("cache_usd_version", {})
+        self.objects_version = self.cache_usd_version.get("objects_version", None)
         self.sources = self.context.sources
         self.object_projects = self.context.object_projects
         self.seed = self.context.seed
@@ -394,7 +395,7 @@ class LwLabTaskBase(TaskBase):
         objects_version = []
         for cfg in self.object_cfgs:
             objects_version.append({cfg["name"]: cfg["info"]["obj_version"]})
-        self.context.ep_meta["cache_usd_version"].update({"objects_version": objects_version})
+        self.objects_version = objects_version
 
         self.assets = {}
         self.contact_sensors = {}

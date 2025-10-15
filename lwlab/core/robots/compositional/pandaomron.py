@@ -56,6 +56,7 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
         self.event_config = MISSING
         self.mimic_env = MISSING
         self.camera_config = PandaOmronCameraCfg()
+        self.offset_config = OFFSET_CONFIG
 
     def get_simulation_parameters(self, env_cfg: ManagerBasedEnvCfg) -> Any:
         env_cfg.viewport_cfg = {
