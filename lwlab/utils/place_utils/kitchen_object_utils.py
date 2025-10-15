@@ -256,8 +256,7 @@ def recreate_object(orchestrator, failed_obj_name):
         model, info = EnvUtils.create_obj(orchestrator.task, obj_cfg)
         obj_cfg["info"] = info
         orchestrator.task.objects[model.task_name] = model
-
-        # TODO:(ju.zheng) need to remove task.assets and add new lwlabobject assets
+        orchestrator.task.assets[info["task_name"]].usd_path = info["obj_path"]
 
         for obj_version in orchestrator.task.objects_version:
             if failed_obj_name in obj_version:
