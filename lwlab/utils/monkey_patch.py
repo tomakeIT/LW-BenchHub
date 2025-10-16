@@ -82,18 +82,47 @@ def patch_reset():
 # monkey patch the configclass to allow validate dict with key is not a string
 
 
+# def patch_configclass():
+#     from isaaclab.utils.configclass import configclass
+#     import sys
+#     configclass_module = sys.modules["isaaclab.utils.configclass"]
+
+#     orig_validate = configclass_module._validate
+
+#     def _validate_with_dict_key_not_string(obj, prefix=""):
+#         if isinstance(obj, dict):
+#             if any(not isinstance(key, str) for key in obj.keys()):
+#                 obj = {str(key): value for key, value in obj.items()}
+#         return orig_validate(obj, prefix=prefix)
+
+#     configclass_module._validate = _validate_with_dict_key_not_string
+
+
 def patch_configclass():
     from isaaclab.utils.configclass import configclass
     import sys
-    configclass_module = sys.modules["isaaclab.utils.configclass"]
 
+    configclass_module = sys.modules["isaaclab.utils.configclass"]
     orig_validate = configclass_module._validate
 
     def _validate_with_dict_key_not_string(obj, prefix=""):
-        if isinstance(obj, dict):
-            if any(not isinstance(key, str) for key in obj.keys()):
-                obj = {str(key): value for key, value in obj.items()}
-        return orig_validate(obj, prefix=prefix)
+        if not hasattr(_validate_with_dict_key_not_string, '_visited'):
+            _validate_with_dict_key_not_string._visited = set()
+            is_top_level = True
+        else:
+            is_top_level = False
+
+        try:
+            obj_id = id(obj)
+            if obj_id in _validate_with_dict_key_not_string._visited:
+                return []
+            if isinstance(obj, (dict, list, tuple)) or hasattr(obj, "__dict__"):
+                _validate_with_dict_key_not_string._visited.add(obj_id)
+
+            return orig_validate(obj, prefix=prefix)
+        finally:
+            if is_top_level:
+                delattr(_validate_with_dict_key_not_string, '_visited')
 
     configclass_module._validate = _validate_with_dict_key_not_string
 

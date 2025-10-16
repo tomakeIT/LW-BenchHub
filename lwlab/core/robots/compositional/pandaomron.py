@@ -53,7 +53,7 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
         super().__init__(enable_cameras, initial_pose)
         self.scene_config = PandaOmronSceneCfg()
         self.action_config = None
-        self.observation_config = None
+        self.observation_config = PandaOmronObservationsCfg()
         self.event_config = None
         self.mimic_env = None
         self.camera_config = PandaOmronCameraCfg()
@@ -138,7 +138,7 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
 
 @configclass
 class PandaOmronSceneCfg:
-    robot: ArticulationCfg = FRANKA_OMRON_HIGH_PD_CFG
+    robot: ArticulationCfg = FRANKA_OMRON_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
 
     ee_frame: FrameTransformerCfg = FrameTransformerCfg(
         prim_path="{ENV_REGEX_NS}/Robot/omron_v2/Franka/panda_link0",
@@ -256,9 +256,32 @@ class PandaOmronCameraCfg:
     }
 
 
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+import lwlab.core.mdp as mdp_isaac_lab
+from isaaclab_tasks.manager_based.manipulation.stack.mdp.observations import ee_frame_pos, ee_frame_quat, gripper_pos
+
+
 @configclass
 class PandaOmronObservationsCfg:
-    pass
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group with state values."""
+
+        actions = ObsTerm(func=mdp_isaac_lab.last_action)
+        joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
+        eef_pos = ObsTerm(func=ee_frame_pos)
+        eef_quat = ObsTerm(func=ee_frame_quat)
+        gripper_pos = ObsTerm(func=gripper_pos)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
