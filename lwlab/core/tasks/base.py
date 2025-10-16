@@ -236,6 +236,21 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
             self._success_count = int(1 / env_cfg.sim.dt / 2)
         else:
             self._success_count = 1
+
+        # general settings
+        env_cfg.episode_length_s = 8.0
+        env_cfg.viewer.eye = (3.0, -4.0, 2.0)
+        env_cfg.viewer.lookat = (3.0, 1.0, 0.3)
+        # env_cfg.viewer.origin_type = "asset_root"
+        # env_cfg.viewer.asset_name = "robot"
+        # simulation settings
+        env_cfg.sim.dt = 1 / 100  # physics frequency: 100Hz
+        env_cfg.sim.render_interval = 4  # render frequency: 25Hz
+        env_cfg.decimation = 2  # action frequency: 50Hz
+        env_cfg.sim.physx.bounce_threshold_velocity = 0.2
+        env_cfg.sim.physx.bounce_threshold_velocity = 0.01
+        env_cfg.sim.physx.friction_correlation_distance = 0.00625
+
         return env_cfg
 
     def get_termination_cfg(self):
