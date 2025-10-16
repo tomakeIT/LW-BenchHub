@@ -690,6 +690,7 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
                     and rotation_axis == "z"
                 ):
                     sample_region_kwargs["min_size"] = mj_obj.size
+                sample_region_kwargs["task"] = orchestrator.task
                 if reuse_region_from is None:
                     print(f"get valid reset region for {cfg['name']}")
                     reset_region = fixture.get_all_valid_reset_region(**sample_region_kwargs)
@@ -876,15 +877,15 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
     return placement_initializer
 
 
-def init_robot_base_pose(env):
+def init_robot_base_pose(orchestrator):
     """
     helper function to initialize robot base pose
     """
     # set robot position
-    if env.init_robot_base_ref is not None:
-        ref_fixture = env.get_fixture(env.init_robot_base_ref)
+    if orchestrator.task.init_robot_base_ref is not None:
+        ref_fixture = orchestrator.task.get_fixture(orchestrator.task.init_robot_base_ref)
     else:
-        fixtures = list(env.fixtures.values())
+        fixtures = list(orchestrator.scene.fixtures.values())
         valid_ref_fixture_classes = [
             "CoffeeMachine",
             "Toaster",
@@ -913,20 +914,20 @@ def init_robot_base_pose(env):
             "TableLamp",
         ]
         while True:
-            ref_fixture = env.rng.choice(fixtures)
+            ref_fixture = orchestrator.task.rng.choice(fixtures)
             fxtr_class = type(ref_fixture).__name__
             if fxtr_class not in valid_ref_fixture_classes:
                 continue
             break
 
     ref_object = None
-    for cfg in env.object_cfgs:
+    for cfg in orchestrator.task.object_cfgs:
         if cfg.get("init_robot_here", None) is True:
             ref_object = cfg.get("name")
             break
 
     robot_base_pos, robot_base_ori = compute_robot_base_placement_pose(
-        env,
+        orchestrator.task,
         ref_fixture=ref_fixture,
         ref_object=ref_object,
     )

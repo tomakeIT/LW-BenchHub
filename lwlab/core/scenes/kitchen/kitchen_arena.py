@@ -34,10 +34,13 @@ class KitchenArena:
         scene_cfg (RoboCasaSceneCfg): scene configuration
     """
 
-    def __init__(self, layout_id, style_id, exclude_layouts=[], scene_cfg=None, scene_type='robocasakitchen'):
+    def __init__(self, layout_id, style_id, exclude_layouts=[], enable_fixtures=[], movable_fixtures=[], scene_cfg=None, scene_type='robocasakitchen'):
         # download floorplan usd
         self.scene_cfg = scene_cfg
-        self.load_floorplan(layout_id, style_id, exclude_layouts=exclude_layouts, scene_type=scene_type, version=self.scene_cfg.floorplan_version)
+        self.floorplan_version = scene_cfg.floorplan_version
+        self.enable_fixtures = enable_fixtures
+        self.movable_fixtures = movable_fixtures
+        self.load_floorplan(layout_id, style_id, exclude_layouts=exclude_layouts)
         self.stage = usd.get_stage(self.usd_path)
 
         # enable fixtures in usd
@@ -48,18 +51,18 @@ class KitchenArena:
             self.stage.GetRootLayer().Export(new_path)
             self.usd_path = new_path
         # load fixtures
-        self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.num_envs, scene_cfg.seed, scene_cfg.device)
+        self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.context.num_envs, scene_cfg.context.seed, scene_cfg.context.device)
 
     def _is_updated_usd(self):
         is_updated_usd = False
-        if self.scene_cfg.enable_fixtures is not None:
+        if self.enable_fixtures is not None:
             is_updated_usd = True
-            for fixture in self.scene_cfg.enable_fixtures:
+            for fixture in self.enable_fixtures:
                 usd.activate_prim(self.stage, fixture)
-        if self.scene_cfg.removable_fixtures is not None:
+        if self.movable_fixtures is not None:
             is_updated_usd = True
             root_prim = self.stage.GetPseudoRoot()
-            for fixture in self.scene_cfg.removable_fixtures:
+            for fixture in self.movable_fixtures:
                 prims = usd.get_prim_by_prefix(root_prim, fixture)
                 for prim in prims:
                     fixed_joints = usd.get_prim_by_type(prim, include_types=["PhysicsFixedJoint"])
@@ -87,7 +90,7 @@ class KitchenArena:
 
         return fixture_cfgs
 
-    def load_floorplan(self, layout_id, style_id, exclude_layouts=[], scene='robocasakitchen', version=None):
+    def load_floorplan(self, layout_id, style_id, exclude_layouts=[]):
         start_time = time.time()
         print(f"load floorplan usd", end="...")
         if layout_id is None:

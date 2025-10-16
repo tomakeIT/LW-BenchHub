@@ -431,7 +431,7 @@ class Fixture:
             env=env, min=min, max=max, joint_names=self.door_joint_names, env_ids=env_ids
         )
 
-    def get_reset_regions(self, env_cfg=None, reset_region_names=None, z_range=(0.45, 1.50)):
+    def get_reset_regions(self, reset_region_names=None, z_range=(0.45, 1.50)):
         """
         Get reset regions from USD file using existing USDObject pattern
         """

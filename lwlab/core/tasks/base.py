@@ -51,6 +51,7 @@ import lwlab.utils.fixture_utils as FixtureUtils
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 from isaac_arena.assets.object_reference import ObjectReference
 from isaac_arena.assets.asset import Asset
+from isaac_arena.utils.pose import Pose
 
 
 @configclass
@@ -201,6 +202,8 @@ class LwLabTaskBase(TaskBase):
         if self.context.resample_robot_placement_on_reset is not None:
             self.resample_robot_placement_on_reset = self.context.resample_robot_placement_on_reset
         self.init_robot_base_ref = None
+        self.enable_fixtures = []
+        self.movable_fixtures = []
         self.events_cfg = EventCfg()
         self.termination_cfg = TerminationsCfg()
         self.assets = {}
@@ -464,7 +467,6 @@ class LwLabTaskBase(TaskBase):
         self.contact_sensors[name] = cfg
 
     def get_scene_cfg(self):
-        super().get_scene_cfg()
         fields = []
         for asset in self.assets.values():
             for asset_cfg_name, asset_cfg in asset.get_cfgs().items():
@@ -662,11 +664,11 @@ class LwLabTaskBase(TaskBase):
                 fixtr.setup_cfg(self)
 
     def _apply_object_placements(self, object_placements):
-        for obj_pos, obj_quat, obj in object_placements.items():
+        for obj_pos, obj_quat, obj in object_placements.values():
             if obj.task_name in self.assets:
                 obj_quat_wxyz = Tn.convert_quat(obj_quat, to="wxyz")
-                self.assets[obj.task_name].init_state.pos = obj_pos
-                self.assets[obj.task_name].init_state.rot = obj_quat_wxyz
+                obj_pos = Pose(position_xyz=obj_pos, rotation_wxyz=obj_quat_wxyz)
+                self.assets[obj.task_name].set_initial_pose(obj_pos)
 
     def setup_env_config(self, orchestrator):
         self.scene_assets = orchestrator.scene.assets

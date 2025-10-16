@@ -182,7 +182,7 @@ class Oven(Fixture):
     def get_reset_region_names(self):
         return ("rack0", "rack1")
 
-    def get_reset_regions(self, env=None, rack_level=0, z_range=None):
+    def get_reset_regions(self, rack_level=0, z_range=None):
         rack_regions = []
 
         for key, reg in self._regions.items():
@@ -208,7 +208,7 @@ class Oven(Fixture):
         if region:
             level = region[0]
             self._joint_names["rack"] = f"rack{level}_joint"
-            self._rack[f"rack{level}"] = torch.zeros(self.num_envs, device=env.device)
+            self._rack[f"rack{level}"] = torch.zeros(self.num_envs, device=self.device)
         else:
             raise ValueError(f"No rack reset regions found for rack_level {rack_level}")
 

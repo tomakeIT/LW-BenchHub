@@ -48,7 +48,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         self.fixture_refs = self.task.fixture_refs
 
         # usd simplify
-        if self.context.get("usd_simplify", False):
+        if self.context.usd_simplify:
             from lwlab.utils.usd_utils import OpenUsd as usd
             new_stage = usd.usd_simplify(self.scene.lwlab_arena.stage, self.fixture_refs)
             self.scene.scene_type
@@ -107,7 +107,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         """
         Update the state.
         """
-        termination_cfg = self.scene.get_termination_cfg()
+        termination_cfg = self.task.get_termination_cfg()
         from isaaclab.managers import TerminationTermCfg as DoneTerm
         termination_cfg.success = DoneTerm(func=self.check_success_caller)
 
@@ -115,7 +115,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         """
         setup the init_scene event.
         """
-        events_cfg = self.scene.get_events_cfg()
+        events_cfg = self.task.get_events_cfg()
         from isaaclab.managers import EventTermCfg as EventTerm
         events_cfg.init_scene = EventTerm(func=self.init_scene, mode="startup")
 

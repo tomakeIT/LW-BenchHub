@@ -183,6 +183,7 @@ def parse_env_cfg(
     # import_all_inits(os.path.join(ISAAC_ROBOCASA_ROOT, './tasks/_APIs'))
     # Import all configs in this package
     from lwlab.core.context import get_context
+    from lwlab.core.orchestrate.orchestrate import LwLabBaseOrchestrator
     context = get_context()
     context.scene_name = scene_name
     context.robot_name = robot_name
@@ -238,6 +239,7 @@ def parse_env_cfg(
         embodiment=robot(),
         scene=scene(),
         task=task(),
+        orchestrator=LwLabBaseOrchestrator(),
         teleop_device=teleop_device,
     )
 

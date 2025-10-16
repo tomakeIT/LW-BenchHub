@@ -123,6 +123,8 @@ class LwLabScene(Scene):
             layout_id=self.layout_id,
             style_id=self.style_id,
             exclude_layouts=orchestrator.task.exclude_layouts,
+            enable_fixtures=orchestrator.task.enable_fixtures,
+            movable_fixtures=orchestrator.task.movable_fixtures,
             scene_cfg=self,
             scene_type=self.scene_type
         )
@@ -134,7 +136,7 @@ class LwLabScene(Scene):
         self.floorplan_version = self.lwlab_arena.version_id
         self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
 
-        if self.lwlab_arena.layout_id in orchestrator.task.EXCLUDE_LAYOUTS:
+        if self.lwlab_arena.layout_id in orchestrator.task.exclude_layouts:
             raise ValueError(f"Layout {self.lwlab_arena.layout_id} is excluded in task {self.task_name}")
 
         background = Background(

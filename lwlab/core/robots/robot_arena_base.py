@@ -209,12 +209,12 @@ class LwLabEmbodimentBase(EmbodimentBase):
     def setup_env_config(self, orchestrator):
         self.place_robot(orchestrator)
 
-    def palce_robot(self, orchestrator):
+    def place_robot(self, orchestrator):
         robot_base_pos_anchor, robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
-        self.scene_config.init_state.pos = robot_base_pos_anchor
-        self.scene_config.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(robot_base_ori_anchor)), to="wxyz")
+        self.scene_config.robot.init_state.pos = robot_base_pos_anchor
+        self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(robot_base_ori_anchor)), to="wxyz")
 
-    def get_robot_anchor(orchestrator):
+    def get_robot_anchor(self, orchestrator):
         (
             robot_base_pos_anchor,
             robot_base_ori_anchor,
@@ -229,7 +229,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
 
         # Intercept the unsafe anchor and make it safe
         safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
-            cfg=orchestrator.robot,
+            cfg=orchestrator.embodiment,
             unsafe_anchor_pos=robot_base_pos_anchor,
             unsafe_anchor_ori=robot_base_ori_anchor
         )

@@ -27,6 +27,8 @@ class Context:
     replay_cfgs: dict | None = None
     resample_objects_placement_on_reset: bool | None = None
     resample_robot_placement_on_reset: bool | None = None
+    num_envs: int | None = 1
+    device: str | None = "cpu"
 
 
 def get_context():
