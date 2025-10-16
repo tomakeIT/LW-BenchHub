@@ -58,12 +58,13 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
         self.camera_config = PandaOmronCameraCfg()
         self.offset_config = OFFSET_CONFIG
 
-    def get_simulation_parameters(self, env_cfg: ManagerBasedEnvCfg) -> Any:
+    def modify_env_cfg(self, env_cfg: ManagerBasedEnvCfg) -> Any:
         env_cfg.viewport_cfg = {
             "offset": [-1.0, 0.0, 2.0],
             "lookat": [1.0, 0.0, -0.7]
         }
         env_cfg.robot_vis_helper_cfg = VIS_HELPER_CFG
+        return env_cfg
 
     def _update_scene_cfg_with_robot_initial_pose(self, scene_config: Any, pose: Pose) -> Any:
         # We override the default initial pose setting function in order to also set
