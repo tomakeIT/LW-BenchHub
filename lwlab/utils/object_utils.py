@@ -3,11 +3,13 @@ import numpy as np
 import torch
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import os
-from typing import Dict, List, Any, Tuple
+from typing import Dict, List, Any, Tuple, TYPE_CHECKING
 from isaaclab.utils.math import matrix_from_quat, euler_xyz_from_quat
 from isaaclab.envs import ManagerBasedEnv
-from lwlab.core.models.fixtures import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
+
+if TYPE_CHECKING:
+    from lwlab.core.models.fixtures import Fixture
 
 
 def array_to_string(array):
@@ -97,7 +99,7 @@ def set_geom_dimensions(sizes: Dict[str, List[float]], positions: Dict[str, List
 
         geoms (dict): dictionary of geoms for each side
 
-        rotated (bool): whether the fixture is rotated. Fixture may be rotated to make texture appear uniform
+        rotated (bool): whether the fixture is rotated. "Fixture" may be rotated to make texture appear uniform
                         due to mujoco texture conventions
     """
     if rotated:
@@ -117,7 +119,7 @@ def set_geom_dimensions(sizes: Dict[str, List[float]], positions: Dict[str, List
             geom.set("size", array_to_string(sizes[side]))
 
 
-def get_rel_transform(fixture_A: Fixture, fixture_B: Fixture) -> Tuple[np.ndarray, np.ndarray]:
+def get_rel_transform(fixture_A: "Fixture", fixture_B: "Fixture") -> Tuple[np.ndarray, np.ndarray]:
     """
     Gets fixture_B's position and rotation relative to fixture_A's frame
     """
@@ -170,7 +172,7 @@ def compute_rel_transform(A_pos: np.ndarray, A_mat: np.ndarray, B_pos: np.ndarra
     return T_AB[:3, 3], T_AB[:3, :3]
 
 
-def get_fixture_to_point_rel_offset(fixture: Fixture, point: np.ndarray, rot: float = None) -> np.ndarray:
+def get_fixture_to_point_rel_offset(fixture: "Fixture", point: np.ndarray, rot: float = None) -> np.ndarray:
     """
     get offset relative to fixture's frame, given a global point
     """
@@ -182,7 +184,7 @@ def get_fixture_to_point_rel_offset(fixture: Fixture, point: np.ndarray, rot: fl
     return rel_offset
 
 
-def get_pos_after_rel_offset(fixture: Fixture, offset: np.ndarray) -> np.ndarray:
+def get_pos_after_rel_offset(fixture: "Fixture", offset: np.ndarray) -> np.ndarray:
     """
     Get the global position after applying an offset relative to the center of the fixture.
     Supports offset of shape (3,) or (N, 3).
@@ -212,14 +214,14 @@ def project_point_to_line(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.nda
     return result
 
 
-def point_in_fixture(point: np.ndarray, fixture: Fixture, only_2d: bool = False) -> bool:
+def point_in_fixture(point: np.ndarray, fixture: "Fixture", only_2d: bool = False) -> bool:
     """
     check if point is inside of the exterior bounding boxes of the fixture
 
     Args:
         point (np.array): point to check
 
-        fixture (Fixture): fixture object
+        fixture ("Fixture"): fixture object
 
         only_2d (bool): whether to check only in 2D
     """
@@ -242,7 +244,7 @@ from lwlab.utils.place_utils.usd_object import USDObject
 
 
 def obj_in_region(
-    obj: USDObject | Fixture | Any,
+    obj: USDObject | "Fixture" | Any,
     obj_pos: np.ndarray,
     obj_quat: np.ndarray,
     p0: np.ndarray,
@@ -254,6 +256,7 @@ def obj_in_region(
     check if object is in the region defined by the points.
     Uses either the objects bounding box or the object's horizontal radius
     """
+    from lwlab.core.models.fixtures import Fixture
     if isinstance(obj, USDObject) or isinstance(obj, Fixture):
         obj_points = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
     else:
@@ -286,7 +289,7 @@ def obj_in_region(
     return True
 
 
-def fixture_pairwise_dist(f1: Fixture, f2: Fixture) -> float:
+def fixture_pairwise_dist(f1: "Fixture", f2: "Fixture") -> float:
     """
     Gets the distance between two fixtures by finding the minimum distance between their exterior bounding box points
     """
@@ -298,10 +301,10 @@ def fixture_pairwise_dist(f1: Fixture, f2: Fixture) -> float:
 
 
 def objs_intersect(
-    obj: USDObject | Fixture | Any,
+    obj: USDObject | "Fixture" | Any,
     obj_pos: np.ndarray,
     obj_quat: np.ndarray,
-    other_obj: USDObject | Fixture | Any,
+    other_obj: USDObject | "Fixture" | Any,
     other_obj_pos: np.ndarray,
     other_obj_quat: np.ndarray,
 ) -> bool:
@@ -822,7 +825,7 @@ def check_place_obj1_side_by_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, ch
         return torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
 
 
-def check_obj_location_on_stove(env: ManagerBasedEnv, stove: Fixture, obj_name: str, threshold: float = 0.08, need_knob_on: bool = True) -> List[Tuple[str, bool]]:
+def check_obj_location_on_stove(env: ManagerBasedEnv, stove: "Fixture", obj_name: str, threshold: float = 0.08, need_knob_on: bool = True) -> List[Tuple[str, bool]]:
     """
     Check if the object is on the stove and close to a burner and the knob is on (optional).
     Returns the location of the burner if the object is on the stove, close to a burner, and the burner is on (optional).
@@ -886,7 +889,7 @@ def put_obj_to_coffee_machine(env: ManagerBasedEnv, obj_name: str = "obj", judge
     return torch.logical_and(close_to_obj, left_hand_action_open) & obj_in_coffee_machine & higher_than_default
 
 
-def obj_fixture_bbox_min_dist(env: ManagerBasedEnv, obj_name: str, fixture: Fixture) -> torch.Tensor:
+def obj_fixture_bbox_min_dist(env: ManagerBasedEnv, obj_name: str, fixture: "Fixture") -> torch.Tensor:
     """
     Gets the minimum distance between a fixture and an object by computing the minimal axis-aligned bounding separation.
     """
@@ -924,7 +927,7 @@ def obj_fixture_bbox_min_dist(env: ManagerBasedEnv, obj_name: str, fixture: Fixt
     return torch.tensor(all_sep_distances, dtype=torch.float32, device=env.device)
 
 
-def check_contact(env: ManagerBasedEnv, geoms_1: str | USDObject | Fixture, geoms_2: str | USDObject | Fixture) -> torch.Tensor:
+def check_contact(env: ManagerBasedEnv, geoms_1: str | USDObject | "Fixture", geoms_2: str | USDObject | "Fixture") -> torch.Tensor:
     """
     check if the two geoms are in contact
     """
@@ -965,7 +968,7 @@ def check_contact(env: ManagerBasedEnv, geoms_1: str | USDObject | Fixture, geom
     return torch.tensor([False], device=env.device).repeat(env.num_envs)
 
 
-def calculate_contact_force(env: ManagerBasedEnv, geom: str | USDObject | Fixture) -> torch.Tensor:
+def calculate_contact_force(env: ManagerBasedEnv, geom: str | USDObject | "Fixture") -> torch.Tensor:
     """
     calculate the contact force on the geom
     """
