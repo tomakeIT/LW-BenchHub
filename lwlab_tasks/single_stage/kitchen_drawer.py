@@ -96,18 +96,18 @@ class ManipulateDrawer(LwLabTaskBase):
             self.init_robot_base_ori_anchor = robot_base_ori
         return True
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Reset the environment internal state for the drawer tasks.
         This includes setting the drawer state based on the behavior
         """
         if self.behavior == "open":
-            self.drawer.close_door(env=self.env, env_ids=env_ids)
+            self.drawer.close_door(env=env, env_ids=env_ids)
         elif self.behavior == "close":
-            self.drawer.open_door(env=self.env, env_ids=env_ids)
+            self.drawer.open_door(env=env, env_ids=env_ids)
         # set the door state then place the objects otherwise objects initialized in opened drawer will fall down before the drawer is opened
-        super()._setup_scene(env_ids)
-        self.drawer.update_state(self.env)
+        super()._setup_scene(env, env_ids)
+        self.drawer.update_state(env)
 
     def _setup_kitchen_references(self):
         """
@@ -328,14 +328,14 @@ class SlideDishwasherRack(LwLabTaskBase):
         ep_meta["should_pull"] = self.should_pull
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.dishwasher.open_door(self.env)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.dishwasher.open_door(env=env, env_ids=env_ids)
 
         if not self.should_pull:
-            self.dishwasher.slide_rack(self.env, value=0.7, env_ids=env_ids)
+            self.dishwasher.slide_rack(env=env, value=0.7, env_ids=env_ids)
         else:
-            self.dishwasher.slide_rack(self.env, value=0.2, env_ids=env_ids)
+            self.dishwasher.slide_rack(env=env, value=0.2, env_ids=env_ids)
 
     def _check_success(self, env):
         current_pos = self.dishwasher.get_state(env)["rack"]

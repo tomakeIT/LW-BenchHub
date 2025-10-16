@@ -59,12 +59,12 @@ class PnPCounterToCabinet(PnP):  # DONE
         ] = f"Pick the {obj_lang} from the counter and place it in the cabinet."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
-        self.cab.open_door(env=self.env, env_ids=env_ids)
+        super()._setup_scene(env, env_ids)
+        self.cab.open_door(env=env, env_ids=env_ids)
 
     def _get_obj_cfgs(self):
         """
@@ -176,12 +176,12 @@ class PnPCabinetToCounter(PnP):  # DONE
         ] = f"Pick the {obj_lang} from the cabinet and place it on the counter."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
-        self.cab.open_door(env=self.env, env_ids=env_ids)
+        super()._setup_scene(env, env_ids)
+        self.cab.open_door(env=env, env_ids=env_ids)
 
     def _get_obj_cfgs(self):
         """
@@ -502,7 +502,7 @@ class PnPCounterToMicrowave(PnP):  # DONE
         )
         self.init_robot_base_ref = self.microwave
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
@@ -627,12 +627,12 @@ class PnPMicrowaveToCounter(PnP):  # DONE
         )
         self.init_robot_base_ref = self.microwave
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
-        self.microwave.open_door(env=self.env, env_ids=env_ids)
+        super()._setup_scene(env, env_ids)
+        self.microwave.open_door(env=env, env_ids=env_ids)
 
     def get_ep_meta(self):
         """
@@ -749,10 +749,10 @@ class PnPCounterToOven(PnP):  # DONE
         ep_meta["rack_level"] = self.rack_level
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.oven.open_door(self.env)
-        self.oven.slide_rack(self.env, rack_level=self.rack_level, env_ids=env_ids)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.oven.open_door(env=env, env_ids=env_ids)
+        self.oven.slide_rack(env=env, rack_level=self.rack_level, env_ids=env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -834,10 +834,10 @@ class PnPOvenToCounter(PnP):  # DONE
         ep_meta["rack_level"] = self.rack_level
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.oven.open_door(self.env)
-        self.oven.slide_rack(self.env, rack_level=self.rack_level, env_ids=env_ids)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.oven.open_door(env=env, env_ids=env_ids)
+        self.oven.slide_rack(env=env, rack_level=self.rack_level, env_ids=env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -1093,9 +1093,6 @@ class PnPToasterToCounter(PnP):  # DONE
         ep_meta["lang"] = "Place the toasted item on a plate."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-
     def _get_obj_cfgs(self):
         """
         Get the object configurations for the toaster to plate task.
@@ -1181,11 +1178,11 @@ class PnPCounterToToasterOven(PnP):  # DONE
         ep_meta["rack_level"] = self.rack_level
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
         # TODO: this is being called after get_ep_meta, which is not correct
         self.chosen_toaster_receptacle = self.toaster_oven.slide_rack(
-            self.env, rack_level=self.rack_level, env_ids=env_ids
+            env=env, rack_level=self.rack_level, env_ids=env_ids
         )
 
     def _get_obj_cfgs(self):
@@ -1254,10 +1251,10 @@ class PnPToasterOvenToCounter(PnP):  # DONE
         ep_meta["rack_level"] = self.rack_level
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
         self.chosen_toaster_receptacle = self.toaster_oven.slide_rack(
-            self.env, rack_level=self.rack_level, env_ids=env_ids
+            env=env, rack_level=self.rack_level, env_ids=env_ids
         )
 
     def _get_obj_cfgs(self):
@@ -1327,9 +1324,9 @@ class PnPCounterToStandMixer(PnP):  # DONE
         ep_meta["lang"] = f"Place the {obj_lang} in the stand mixer bowl."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.stand_mixer.set_head_pos(self.env)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.stand_mixer.set_head_pos(env)
 
     def _get_obj_cfgs(self):
         cfgs = []

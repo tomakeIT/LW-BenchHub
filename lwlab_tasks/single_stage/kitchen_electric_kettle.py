@@ -38,10 +38,10 @@ class CloseElectricKettleLid(LwLabTaskBase):
         ep_meta["lang"] = "Close the lid of the electric kettle."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.electric_kettle.init_state(self.env)
-        self.electric_kettle.set_lid(self.env, lid_val=1.0)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.electric_kettle.init_state(env)
+        self.electric_kettle.set_lid(env, lid_val=1.0)
 
     def _check_success(self, env):
         return self.electric_kettle.get_state(env)["lid"] <= 0.01
@@ -72,9 +72,9 @@ class OpenElectricKettleLid(LwLabTaskBase):
         ep_meta["lang"] = "Press the button to open the lid of the electric kettle."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.electric_kettle.init_state(self.env)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.electric_kettle.init_state(env)
 
     def _check_success(self, env):
         return self.electric_kettle.get_state(env)["lid"] >= 0.95

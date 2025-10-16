@@ -385,9 +385,6 @@ class OpenToasterOvenDoor(LwLabTaskBase):
         ep_meta["lang"] = "Open the toaster oven door."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-
     def _check_success(self, env):
         return self.toaster_oven.is_open(env=env)
 
@@ -415,8 +412,8 @@ class CloseToasterOvenDoor(LwLabTaskBase):
         ep_meta["lang"] = "Close the toaster oven door."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
         self.toaster_oven.open_door(self.env)
 
     def _check_success(self, env):
