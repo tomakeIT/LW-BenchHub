@@ -297,7 +297,7 @@ def main():
     import h5py
 
     # simulate environment -- run everything in inference mode
-    num_cameras = sum(env.cfg.isaac_arena_env.task.task_type in c["tags"] for c in env.cfg.observation_cameras.values())
+    num_cameras = sum(env.cfg.isaac_arena_env.task.task_type in c["tags"] for c in env.cfg.isaac_arena_env.embodiment.observation_cameras.values())
     if num_cameras > 4:
         # two rows layout: height is twice the original, width is the maximum width of each row
         cameras_per_row = (num_cameras + 1) // 2
@@ -525,7 +525,7 @@ def main():
                     gt_actions = copy.deepcopy(actions)
                     gt_joint_target_list.append(gt_actions.reshape(env.cfg.decimation, -1)[-1:, ...].cpu().numpy())
                 if app_launcher._enable_cameras and video_processor:
-                    camera_names = [n for n, c in env.cfg.observation_cameras.items() if env.cfg.isaac_arena_env.task.task_type in c["tags"]]
+                    camera_names = [n for n, c in env.cfg.isaac_arena_env.embodiment.observation_cameras.items() if env.cfg.isaac_arena_env.task.task_type in c["tags"]]
                     # Process images asynchronously
                     video_processor.add_frame(obs, camera_names)
 

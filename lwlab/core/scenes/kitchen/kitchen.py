@@ -171,10 +171,6 @@ class LwLabScene(Scene):
         ep_meta["floorplan_version"] = self.floorplan_version
         return ep_meta
 
-    def update_sensors(self, env, dt: float) -> None:
-        for sensor in env.scene.sensors.values():
-            sensor.update(dt, force_recompute=not env.scene.cfg.lazy_sensor_update)
-
 
 class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
     """Configuration for the robocasa kitchen environment."""

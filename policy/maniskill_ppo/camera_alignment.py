@@ -216,9 +216,9 @@ def main():
     base_pos_offset = None
     base_rot_offset = None
 
-    if hasattr(env.env.cfg.observation_cameras['global_camera']['camera_cfg'].offset, "pos"):
-        base_pos_offset = np.array(env.env.cfg.observation_cameras['global_camera']['camera_cfg'].offset.pos, dtype=np.float32)
-        base_rot_offset = np.array(env.env.cfg.observation_cameras['global_camera']['camera_cfg'].offset.rot, dtype=np.float32)
+    if hasattr(env.env.isaac_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset, "pos"):
+        base_pos_offset = np.array(env.env.isaac_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset.pos, dtype=np.float32)
+        base_rot_offset = np.array(env.env.isaac_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset.rot, dtype=np.float32)
 
     camera_offset = np.zeros(3, dtype=np.float32)
     active_keys = set()

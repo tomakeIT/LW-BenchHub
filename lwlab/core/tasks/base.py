@@ -758,6 +758,7 @@ class BaseTaskEnvCfg(LwBaseCfg):
         self.contact_queues = [ContactQueue() for _ in range(self.num_envs)]
 
         # render camera settings
+        # TODO: xiaowei.song
         if hasattr(self, "enable_cameras") and self.enable_cameras:
             for name, camera_infos in self.observation_cameras.items():
                 if self.task_type in camera_infos["tags"]:
