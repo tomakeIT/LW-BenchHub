@@ -46,6 +46,8 @@ app_launcher_args = vars(args_cli)
 app_launcher = AppLauncher(app_launcher_args)
 simulation_app = app_launcher.app
 
+from lwlab.utils.isaaclab_utils import update_sensors
+
 
 def make_env_cfg():
     from isaaclab_tasks.utils import parse_env_cfg
@@ -111,7 +113,7 @@ def main():
     # warmup rendering
     if env.common_step_counter <= 1:
         for _ in range(env.cfg.warmup_steps):
-            env.cfg.update_sensors(env, env.physics_dt)
+            update_sensors(env, env.physics_dt)
 
     env = RemoteEnvWrapper(env)
     env.serve()

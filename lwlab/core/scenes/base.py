@@ -99,7 +99,3 @@ class BaseSceneEnvCfg(LwBaseCfg):
         ep_meta = super().get_ep_meta()
         ep_meta["usd_path"] = self.usd_path
         return ep_meta
-
-    def update_sensors(self, env, dt: float) -> None:
-        for sensor in env.scene.sensors.values():
-            sensor.update(dt, force_recompute=not env.scene.cfg.lazy_sensor_update)

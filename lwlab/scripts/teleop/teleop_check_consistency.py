@@ -700,7 +700,7 @@ def main():
                 # warmup rendering
                 if not args_cli.headless and env.common_step_counter <= 1:
                     for _ in range(env.cfg.warmup_steps):
-                        env.cfg.update_sensors(env, env.physics_dt)
+                        update_sensors(env, env.physics_dt)
 
                 if args_cli.enable_debug_log:
                     try:
@@ -858,6 +858,7 @@ def main():
     from lwlab.utils.video_recorder import VideoRecorder, get_camera_images
     from lwlab.utils.teleop_utils import save_checkpoint, load_checkpoint, quick_rewind
     from lwlab.utils.place_utils.env_utils import set_seed
+    from lwlab.utils.isaaclab_utils import update_sensors
     import carb
 
     from omni.log import get_log

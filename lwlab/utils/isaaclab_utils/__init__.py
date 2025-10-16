@@ -11,6 +11,9 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
+import typing
+if typing.TYPE_CHECKING:
+    from isaaclab.envs import ManagerBasedEnv
 
 
 def get_robot_joint_target_from_scene(scene):  # : InteractiveScene):
@@ -20,3 +23,8 @@ def get_robot_joint_target_from_scene(scene):  # : InteractiveScene):
         "joint_vel_target": scene.articulations["robot"].data.joint_vel_target.clone(),
         "joint_effort_target": scene.articulations["robot"].data.joint_effort_target.clone()
     }
+
+
+def update_sensors(env: "ManagerBasedEnv", dt: float) -> None:
+    for sensor in env.scene.sensors.values():
+        sensor.update(dt, force_recompute=not env.scene.cfg.lazy_sensor_update)
