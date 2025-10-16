@@ -708,8 +708,7 @@ def main():
                         env.step(actions)
                         if initial_state is None:
                             initial_state = copy.deepcopy(env.recorder_manager.get_episode(0).data["initial_state"])
-                        if hasattr(env_cfg, 'get_warning_text'):
-                            update_checkers_status(env, env_cfg.get_warning_text())
+                        update_checkers_status(env, env_cfg.isaac_arena_env.task.get_warning_text())
                     except Exception as e:
                         print(f"Error during env step: {traceback.format_exc()}")
                         handle_exception_and_log(e, log_path)
@@ -740,8 +739,7 @@ def main():
                     step_time = time.time() - step_start
                     frame_analyzer.record_stage('env_step', step_time)
 
-                    if hasattr(env_cfg, 'get_warning_text'):
-                        update_checkers_status(env, env_cfg.get_warning_text())
+                    update_checkers_status(env, env_cfg.isaac_arena_env.task.get_warning_text())
 
                 # Recorded
                 if env_cfg.enable_cameras and start_record_state and video_recorder is not None:

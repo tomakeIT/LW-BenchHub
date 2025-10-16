@@ -893,8 +893,7 @@ def main():
                 step_time = time.time() - step_start
                 frame_analyzer.record_stage('env_step', step_time)
 
-                if hasattr(env_cfg, 'get_warning_text'):
-                    update_checkers_status(env, env_cfg.get_warning_text())
+                update_checkers_status(env, env_cfg.isaac_arena_env.task.get_warning_text())
 
                 # Recorded
                 if args_cli.enable_cameras and start_record_state and video_recorder is not None:
