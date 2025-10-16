@@ -58,6 +58,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
             new_stage.GetRootLayer().Export(self.scene.usd_path)
             # modify background
             self.scene.assets[self.scene.scene_type].usd_path = self.scene.usd_path
+        del self.scene.lwlab_arena
 
         # setup scene done terms
         self.setup_scene_done_terms()

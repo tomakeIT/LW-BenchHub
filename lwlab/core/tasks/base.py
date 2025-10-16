@@ -271,7 +271,7 @@ class LwLabTaskBase(TaskBase):
         return checker_datas
 
     def get_metrics(self):
-        return []
+        return None
 
     def get_warning_text(self):
         warning_text = ""
