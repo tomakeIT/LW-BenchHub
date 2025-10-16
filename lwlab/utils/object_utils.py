@@ -355,14 +355,14 @@ def check_obj_in_receptacle(env, obj_name, receptacle_name, th=None):
     obj_contact_path = env.scene.sensors[f"{obj_name}_contact"].contact_physx_view.sensor_paths
     recep_contact_path = env.scene.sensors[f"{receptacle_name}_contact"].contact_physx_view.sensor_paths
     if env.common_step_counter > 1:
-        contact_views = [env.cfg.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
+        contact_views = [env.cfg.isaac_arena_env.task.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
         is_contact = torch.tensor(
             [max(abs(view.get_contact_data(env.physics_dt)[0])) > 0 for view in contact_views],
             device=env.device,
         )  # (env_num, )
     else:
         for env_id in range(env.scene.num_envs):
-            env.cfg.contact_queues[env_id].add(
+            env.cfg.isaac_arena_env.task.contact_queues[env_id].add(
                 env.sim.physics_sim_view.create_rigid_contact_view(
                     obj_contact_path[env_id],
                     [recep_contact_path[env_id]],
@@ -948,7 +948,7 @@ def check_contact(env, geoms_1, geoms_2) -> torch.Tensor:
                 filter_prim_paths_expr = [re.sub(r'env_\d+', f'env_{env_id}', geoms_2_sensor_path)]
             else:
                 filter_prim_paths_expr = geoms_2_sensor_path[env_id]
-            env.cfg.contact_queues[env_id].add(
+            env.cfg.isaac_arena_env.task.contact_queues[env_id].add(
                 env.sim.physics_sim_view.create_rigid_contact_view(
                     geoms_1_contact_paths[env_id],
                     filter_patterns=filter_prim_paths_expr,
@@ -956,7 +956,7 @@ def check_contact(env, geoms_1, geoms_2) -> torch.Tensor:
                 )
             )
     elif env.common_step_counter:
-        contact_views = [env.cfg.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
+        contact_views = [env.cfg.isaac_arena_env.task.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
         return torch.tensor(
             [max(abs(view.get_contact_data(env.physics_dt)[0])) > 0 for view in contact_views],
             device=env.device,

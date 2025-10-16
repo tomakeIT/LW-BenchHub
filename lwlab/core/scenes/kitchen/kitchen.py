@@ -888,7 +888,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     filter_prim_paths_expr = [re.sub(r'env_\d+', f'env_{env_id}', geoms_2_sensor_path)]
                 else:
                     filter_prim_paths_expr = geoms_2_sensor_path[env_id]
-                self.env.cfg.contact_queues[env_id].add(
+                self.env.cfg.isaac_arena_env.task.contact_queues[env_id].add(
                     self.env.sim.physics_sim_view.create_rigid_contact_view(
                         geoms_1_contact_paths[env_id],
                         filter_patterns=filter_prim_paths_expr,
@@ -896,7 +896,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
                     )
                 )
         elif self.env.common_step_counter:
-            contact_views = [self.env.cfg.contact_queues[env_id].pop() for env_id in range(self.env.num_envs)]
+            contact_views = [self.env.cfg.isaac_arena_env.task.contact_queues[env_id].pop() for env_id in range(self.env.num_envs)]
             return torch.tensor(
                 [max(abs(view.get_contact_data(self.env.physics_dt)[0])) > 0 for view in contact_views],
                 device=self.env.device,
