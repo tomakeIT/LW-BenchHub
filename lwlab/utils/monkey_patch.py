@@ -24,7 +24,7 @@ def patch_reset():
     from isaacsim.core.simulation_manager import SimulationManager
 
     def reset(
-        self, seed: int | None = None, env_ids=None, options=None
+        self: ManagerBasedRLEnv, seed: int | None = None, env_ids=None, options=None
     ):
         """Resets the specified environments and returns observations.
 
@@ -72,9 +72,10 @@ def patch_reset():
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
                 self.sim.render()
-        if hasattr(self.cfg, "foreground_semantic_id_mapping"):
+        if hasattr(self.cfg.isaac_arena_env.embodiment, "foreground_semantic_id_mapping"):
+            self.cfg.isaac_arena_env.embodiment.foreground_semantic_id_mapping
             # self.cfg.setup_camera_and_foreground(self.scene)
-            self.cfg.record_semantic_id_mapping(self.scene)
+            self.cfg.isaac_arena_env.embodiment.record_semantic_id_mapping(self.scene)
         # return observations
         return self.obs_buf, self.extras
     ManagerBasedRLEnv.reset = reset

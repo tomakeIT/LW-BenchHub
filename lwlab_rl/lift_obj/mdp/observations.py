@@ -133,7 +133,7 @@ def overlay_image(
         image = back_alpha * back_image * back_mask + fore_alpha * fore_image * fore_mask
         return torch.clamp(image, 0.0, 255.0).to(torch.uint8)
 
-    semantic_id = env.cfg.foreground_semantic_id_mapping.get(sensor_cfg.name, None)
+    semantic_id = env.cfg.isaac_arena_env.embodiment.foreground_semantic_id_mapping.get(sensor_cfg.name, None)
     if semantic_id is not None:
         camera_output = env.scene.sensors[sensor_cfg.name].data.output
         if env.cfg.rgb_overlay_mode == 'background':
