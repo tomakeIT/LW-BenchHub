@@ -509,34 +509,34 @@ class Fixture:
         return h
 
     @property
-    def rot(self):
+    def rot(self) -> float:
         return self._rot[2] if hasattr(self, "_rot") else 0
 
     @property
-    def euler(self):
+    def euler(self) -> float:
         return self._rot[2] if hasattr(self, "_rot") else 0
 
     @cached_property
-    def door_joint_names(self):
+    def door_joint_names(self) -> List[str]:
         return [j_name for j_name in self._joint_infos if "door" in j_name]
 
     @cached_property
-    def nat_lang(self):
+    def nat_lang(self) -> str:
         return self.name
 
     @property
-    def pos(self):
+    def pos(self) -> np.ndarray:
         return self._pos if hasattr(self, "_pos") else np.array([0, 0, 0])
 
     @property
-    def scale(self):
+    def scale(self) -> np.ndarray:
         return self._scale if hasattr(self, "_scale") else np.array([1, 1, 1])
 
     @property
-    def quat(self):
+    def quat(self) -> np.ndarray:
         return self._quat
 
-    def get_ext_sites(self, all_points=False, relative=True):
+    def get_ext_sites(self, all_points: bool = False, relative: bool = True) -> List[np.ndarray]:
         """
         Get the exterior bounding box points of the object
 

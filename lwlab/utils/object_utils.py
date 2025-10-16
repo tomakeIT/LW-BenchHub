@@ -3,7 +3,10 @@ import numpy as np
 import torch
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 import os
+from typing import Dict, List, Any, Tuple
 from isaaclab.utils.math import matrix_from_quat, euler_xyz_from_quat
+from isaaclab.envs import ManagerBasedEnv
+from lwlab.core.models.fixtures import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
 
 
@@ -23,7 +26,7 @@ def array_to_string(array):
     return " ".join(["{}".format(x) for x in array])
 
 
-def obj_inside_of(env, obj_name, fixture_id, partial_check=False):
+def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_check: bool = False) -> torch.Tensor:
     """
     whether an object (another mujoco object) is inside of fixture. applies for most fixtures
     """
@@ -34,7 +37,7 @@ def obj_inside_of(env, obj_name, fixture_id, partial_check=False):
     # step 1: calculate fxiture points
     fixtr_int_regions = fixture.get_int_sites(relative=False)
     check = []
-    for i in range(env.cfg.scene.num_envs):
+    for i in range(env.num_envs):
         for reset_region in fixtr_int_regions.values():
             inside_of = True
             fixtr_p0, fixtr_px, fixtr_py, fixtr_pz = [r + env.scene.env_origins[i].cpu().numpy() for r in reset_region]
@@ -83,7 +86,7 @@ def obj_inside_of(env, obj_name, fixture_id, partial_check=False):
 
 
 # used for cabinets, cabinet panels, counters, etc.
-def set_geom_dimensions(sizes, positions, geoms, rotated=False):
+def set_geom_dimensions(sizes: Dict[str, List[float]], positions: Dict[str, List[float]], geoms: Dict[str, List[Any]], rotated: bool = False):
     """
     set the dimensions of geoms in a fixture
 
@@ -114,7 +117,7 @@ def set_geom_dimensions(sizes, positions, geoms, rotated=False):
             geom.set("size", array_to_string(sizes[side]))
 
 
-def get_rel_transform(fixture_A, fixture_B):
+def get_rel_transform(fixture_A: Fixture, fixture_B: Fixture) -> Tuple[np.ndarray, np.ndarray]:
     """
     Gets fixture_B's position and rotation relative to fixture_A's frame
     """
@@ -135,7 +138,7 @@ def get_rel_transform(fixture_A, fixture_B):
     return T_AB[:3, 3], T_AB[:3, :3]
 
 
-def transform_global_to_local(global_x, global_y, rot):
+def transform_global_to_local(global_x: float, global_y: float, rot: float) -> Tuple[float, float]:
     """
     Transforms a global movement vector from a global frame (with rotation `rot`)
     into local coordinates (assumed to be rotation 0).
@@ -155,7 +158,7 @@ def transform_global_to_local(global_x, global_y, rot):
     return local_x, local_y
 
 
-def compute_rel_transform(A_pos, A_mat, B_pos, B_mat):
+def compute_rel_transform(A_pos: np.ndarray, A_mat: np.ndarray, B_pos: np.ndarray, B_mat: np.ndarray) -> Tuple[np.ndarray, np.ndarray]:
     """
     Gets B's position and rotation relative to A's frame
     """
@@ -167,7 +170,7 @@ def compute_rel_transform(A_pos, A_mat, B_pos, B_mat):
     return T_AB[:3, 3], T_AB[:3, :3]
 
 
-def get_fixture_to_point_rel_offset(fixture, point, rot=None):
+def get_fixture_to_point_rel_offset(fixture: Fixture, point: np.ndarray, rot: float = None) -> np.ndarray:
     """
     get offset relative to fixture's frame, given a global point
     """
@@ -179,7 +182,7 @@ def get_fixture_to_point_rel_offset(fixture, point, rot=None):
     return rel_offset
 
 
-def get_pos_after_rel_offset(fixture, offset):
+def get_pos_after_rel_offset(fixture: Fixture, offset: np.ndarray) -> np.ndarray:
     """
     Get the global position after applying an offset relative to the center of the fixture.
     Supports offset of shape (3,) or (N, 3).
@@ -198,7 +201,7 @@ def get_pos_after_rel_offset(fixture, offset):
         raise ValueError("offset must have shape (3,) or (N, 3)")
 
 
-def project_point_to_line(P, A, B):
+def project_point_to_line(P: np.ndarray, A: np.ndarray, B: np.ndarray) -> np.ndarray:
     """
     logic copied from here: https://stackoverflow.com/a/61342198
     """
@@ -209,7 +212,7 @@ def project_point_to_line(P, A, B):
     return result
 
 
-def point_in_fixture(point, fixture, only_2d=False):
+def point_in_fixture(point: np.ndarray, fixture: Fixture, only_2d: bool = False) -> bool:
     """
     check if point is inside of the exterior bounding boxes of the fixture
 
@@ -239,20 +242,18 @@ from lwlab.utils.place_utils.usd_object import USDObject
 
 
 def obj_in_region(
-    obj,
-    obj_pos,
-    obj_quat,
-    p0,
-    px,
-    py,
-    pz=None,
-):
+    obj: USDObject | Fixture | Any,
+    obj_pos: np.ndarray,
+    obj_quat: np.ndarray,
+    p0: np.ndarray,
+    px: np.ndarray,
+    py: np.ndarray,
+    pz: np.ndarray = None,
+) -> bool:
     """
     check if object is in the region defined by the points.
     Uses either the objects bounding box or the object's horizontal radius
     """
-    from lwlab.core.models.fixtures import Fixture
-
     if isinstance(obj, USDObject) or isinstance(obj, Fixture):
         obj_points = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
     else:
@@ -285,7 +286,7 @@ def obj_in_region(
     return True
 
 
-def fixture_pairwise_dist(f1, f2):
+def fixture_pairwise_dist(f1: Fixture, f2: Fixture) -> float:
     """
     Gets the distance between two fixtures by finding the minimum distance between their exterior bounding box points
     """
@@ -297,13 +298,13 @@ def fixture_pairwise_dist(f1, f2):
 
 
 def objs_intersect(
-    obj,
-    obj_pos,
-    obj_quat,
-    other_obj,
-    other_obj_pos,
-    other_obj_quat,
-):
+    obj: USDObject | Fixture | Any,
+    obj_pos: np.ndarray,
+    obj_quat: np.ndarray,
+    other_obj: USDObject | Fixture | Any,
+    other_obj_pos: np.ndarray,
+    other_obj_quat: np.ndarray,
+) -> bool:
     """
     check if two objects intersect using Separating Axis Theorem (SAT)
     """
@@ -339,14 +340,14 @@ def objs_intersect(
     return intersect
 
 
-def normalize_joint_value(raw, joint_min, joint_max):
+def normalize_joint_value(raw: float, joint_min: float, joint_max: float) -> float:
     """
     normalize raw value to be between 0 and 1
     """
     return (raw - joint_min) / (joint_max - joint_min)
 
 
-def check_obj_in_receptacle(env, obj_name, receptacle_name, th=None):
+def check_obj_in_receptacle(env: ManagerBasedEnv, obj_name: str, receptacle_name: str, th: float = None) -> torch.Tensor:
     """
     check if object is in receptacle object based on threshold
     """
@@ -379,7 +380,7 @@ def check_obj_in_receptacle(env, obj_name, receptacle_name, th=None):
     return is_contact & is_closed
 
 
-def check_obj_in_receptacle_no_contact(env, obj_name, receptacle_name, th=None):
+def check_obj_in_receptacle_no_contact(env: ManagerBasedEnv, obj_name: str, receptacle_name: str, th: float = None) -> torch.Tensor:
     """
     check if object is in receptacle object based on threshold
     """
@@ -393,7 +394,7 @@ def check_obj_in_receptacle_no_contact(env, obj_name, receptacle_name, th=None):
     return is_closed
 
 
-def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
+def check_obj_fixture_contact(env: ManagerBasedEnv, obj_name: str, fixture_name: str) -> torch.Tensor:
     """
     check if object is in contact with fixture
     """
@@ -402,7 +403,7 @@ def check_obj_fixture_contact(env, obj_name, fixture_name) -> torch.Tensor:
     return check_contact(env, obj, fixture)
 
 
-def check_obj_any_counter_contact(env, kit_env, obj_name):  # use example: check_obj_any_counter_contact(self.env,self,obj_name)
+def check_obj_any_counter_contact(env: ManagerBasedEnv, kit_env, obj_name: str) -> torch.Tensor:
     """
     check if the object is in contact with any counter fixture in the environment.
     """
@@ -414,7 +415,7 @@ def check_obj_any_counter_contact(env, kit_env, obj_name):  # use example: check
     return torch.tensor([False], device=env.device, dtype=torch.bool).repeat(env.num_envs)
 
 
-def check_fixture_in_receptacle(env, fixture_name, fixture_object, receptacle_name, th=None):
+def check_fixture_in_receptacle(env: ManagerBasedEnv, fixture_name: str, fixture_object: str, receptacle_name: str, th: float = None) -> torch.Tensor:
     """
     check if fixture is in receptacle object based on threshold
     """
@@ -430,7 +431,7 @@ def check_fixture_in_receptacle(env, fixture_name, fixture_object, receptacle_na
     return is_contact & is_closed
 
 
-def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None) -> torch.Tensor:
+def gripper_obj_far(env: ManagerBasedEnv, obj_name: str = "obj", th: float = 0.25, eef_name: str = None) -> torch.Tensor:
     """
     check if gripper is far from object based on distance defined by threshold
     """
@@ -451,7 +452,7 @@ def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None) -> torch.Tensor
     return torch.all(gripper_obj_far, dim=-1)  # (num_envs, )
 
 
-def gripper_fixture_far(env, fixture_object, th=0.2) -> torch.Tensor:
+def gripper_fixture_far(env: ManagerBasedEnv, fixture_object: str, th: float = 0.2) -> torch.Tensor:
     """
     check if gripper is far from fixture based on distance defined by threshold
 
@@ -479,7 +480,7 @@ def gripper_fixture_far(env, fixture_object, th=0.2) -> torch.Tensor:
     return torch.all(gripper_fixture_far, dim=-1)  # (num_envs,)
 
 
-def obj_cos(env, obj_name="obj", ref=(0, 0, 1)):
+def obj_cos(env: ManagerBasedEnv, obj_name: str = "obj", ref: Tuple[float, float, float] = (0, 0, 1)) -> float:
     def cos(u, v):
         return np.dot(u, v) / max(np.linalg.norm(u) * np.linalg.norm(v), 1e-10)
 
@@ -489,7 +490,7 @@ def obj_cos(env, obj_name="obj", ref=(0, 0, 1)):
     return cos(obj_mat[:, 2], np.array(ref))
 
 
-def get_obj_lang(env, obj_name="obj", get_preposition=False):
+def get_obj_lang(env: ManagerBasedEnv, obj_name: str = "obj", get_preposition: bool = False) -> Tuple[str, str]:
     """
     gets a formatted language string for the object (replaces underscores with spaces)
 
@@ -565,7 +566,7 @@ def construct_full_env_path(env_regex_ns_template: str, env_index: int, fixture_
     return os.path.join(f"{env_regex_ns_template.rstrip('.*')}{env_index}", "Scene", fixture_name)
 
 
-def check_object_stable(env, obj: str, threshold=0.5):
+def check_object_stable(env: ManagerBasedEnv, obj: str, threshold: float = 0.5) -> torch.Tensor:
     '''
     check if the object is stable
     '''
@@ -574,7 +575,7 @@ def check_object_stable(env, obj: str, threshold=0.5):
     return obj_vel_norm < threshold
 
 
-def project_point_to_segment(point, seg_start, seg_end):
+def project_point_to_segment(point: np.ndarray, seg_start: np.ndarray, seg_end: np.ndarray) -> Tuple[np.ndarray, float]:
     """
     Projects a point onto a line segment, and clamps it to the segment bounds.
 
@@ -612,7 +613,7 @@ def project_point_to_segment(point, seg_start, seg_end):
     return closest_point, dist
 
 
-def check_place_obj1_on_obj2(env, obj1, obj2, th_z_axis_cos=0.8, th_xy_dist=0.25, th_xyz_vel=0.5, gipper_th=0.25):
+def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_axis_cos: float = 0.8, th_xy_dist: float = 0.25, th_xyz_vel: float = 0.5, gipper_th: float = 0.25) -> dict:
     """
     check if obj1 is placed on obj2
     obj1 and obj2 must be a fixture moveable or a object
@@ -684,16 +685,16 @@ def check_place_obj1_on_obj2(env, obj1, obj2, th_z_axis_cos=0.8, th_xy_dist=0.25
     return gripper_far & obj1_is_standing & obj1_in_obj2 & obj1_stable
 
 
-def get_object_pos(env, name):
+def get_object_pos(env: ManagerBasedEnv, name: str) -> torch.Tensor:
     return env.scene.rigid_objects[name].data.body_com_pos_w[0, 0, :]
 
 
-def check_near(pos1, pos2, th=0.2):
+def check_near(pos1: torch.Tensor, pos2: torch.Tensor, th: float = 0.2) -> bool:
     dis = torch.sqrt(torch.sum((pos1 - pos2) ** 2))
     return dis < th
 
 
-def check_place_obj1_side_by_obj2(env, obj1: str, obj2: str, check_states: dict, gipper_th=0.25):
+def check_place_obj1_side_by_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, check_states: dict, gipper_th: float = 0.25) -> torch.Tensor:
     """
     check if obj1 is placed side by side with obj2
 
@@ -821,7 +822,7 @@ def check_place_obj1_side_by_obj2(env, obj1: str, obj2: str, check_states: dict,
         return torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
 
 
-def check_obj_location_on_stove(env, stove, obj_name, threshold=0.08, need_knob_on=True):
+def check_obj_location_on_stove(env: ManagerBasedEnv, stove: Fixture, obj_name: str, threshold: float = 0.08, need_knob_on: bool = True) -> List[Tuple[str, bool]]:
     """
     Check if the object is on the stove and close to a burner and the knob is on (optional).
     Returns the location of the burner if the object is on the stove, close to a burner, and the burner is on (optional).
@@ -857,20 +858,20 @@ def check_obj_location_on_stove(env, stove, obj_name, threshold=0.08, need_knob_
     return locations
 
 
-def is_obj_z_up(env, obj_name="obj", th=5.0):
+def is_obj_z_up(env: ManagerBasedEnv, obj_name: str = "obj", th: float = 5.0) -> torch.Tensor:
     obj_quat = env.scene[obj_name].data.root_quat_w
     r, p, y = euler_xyz_from_quat(obj_quat)
     th = th * torch.pi / 180.0
     return torch.logical_and(torch.abs(r) < th, torch.abs(p) < th)
 
 
-def grasp_obj(env, obj_name='obj'):
+def grasp_obj(env: ManagerBasedEnv, obj_name: str = "obj") -> torch.Tensor:
     close_to_obj = torch.logical_not(gripper_obj_far(env, obj_name, th=0.15, eef_name="tool_left_arm"))
     left_hand_action_closed = env.action_manager.action[:, -2] > 0.5
     return torch.logical_and(close_to_obj, left_hand_action_closed)
 
 
-def put_obj_to_coffee_machine(env, obj_name="obj", judge_obj_in_coffee_machine=None):
+def put_obj_to_coffee_machine(env: ManagerBasedEnv, obj_name: str = "obj", judge_obj_in_coffee_machine: callable = None) -> torch.Tensor:
     obj_height = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0, 2]
     default_obj_height = env.scene.rigid_objects[obj_name].data.default_root_state[:, 2]
     higher_than_default = obj_height > default_obj_height
@@ -885,7 +886,7 @@ def put_obj_to_coffee_machine(env, obj_name="obj", judge_obj_in_coffee_machine=N
     return torch.logical_and(close_to_obj, left_hand_action_open) & obj_in_coffee_machine & higher_than_default
 
 
-def obj_fixture_bbox_min_dist(env, obj_name, fixture):
+def obj_fixture_bbox_min_dist(env: ManagerBasedEnv, obj_name: str, fixture: Fixture) -> torch.Tensor:
     """
     Gets the minimum distance between a fixture and an object by computing the minimal axis-aligned bounding separation.
     """
@@ -923,7 +924,7 @@ def obj_fixture_bbox_min_dist(env, obj_name, fixture):
     return torch.tensor(all_sep_distances, dtype=torch.float32, device=env.device)
 
 
-def check_contact(env, geoms_1, geoms_2) -> torch.Tensor:
+def check_contact(env: ManagerBasedEnv, geoms_1: str | USDObject | Fixture, geoms_2: str | USDObject | Fixture) -> torch.Tensor:
     """
     check if the two geoms are in contact
     """
@@ -964,7 +965,7 @@ def check_contact(env, geoms_1, geoms_2) -> torch.Tensor:
     return torch.tensor([False], device=env.device).repeat(env.num_envs)
 
 
-def calculate_contact_force(env, geom) -> torch.Tensor:
+def calculate_contact_force(env: ManagerBasedEnv, geom: str | USDObject | Fixture) -> torch.Tensor:
     """
     calculate the contact force on the geom
     """
