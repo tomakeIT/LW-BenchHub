@@ -250,7 +250,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         env_cfg.sim.physx.bounce_threshold_velocity = 0.2
         env_cfg.sim.physx.bounce_threshold_velocity = 0.01
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
-
+        self._set_camera_based_on_task_type(env_cfg)
         return env_cfg
 
     def get_termination_cfg(self):
@@ -779,6 +779,27 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def get_prompt(self):
         return self.get_ep_meta()["lang"]
+
+    def _set_camera_based_on_task_type(self, env_cfg):
+        if not self.context.enable_cameras:
+            return
+        if self.task_type != "teleop" or self.context.execute_mode == ExecuteMode.TELEOP:
+            return
+        for name, camera_infos in self.observation_cameras.items():
+            if self.task_type not in camera_infos["tags"]:
+                continue
+            setattr(
+                env_cfg.observations.policy,
+                name,
+                ObsTerm(
+                    func=mdp.image,
+                    params={
+                        "sensor_cfg": SceneEntityCfg(name),
+                        "data_type": "rgb",
+                        "normalize": False,
+                    }
+                )
+            )
 
 
 class BaseTaskEnvCfg(LwBaseCfg):
