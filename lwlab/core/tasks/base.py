@@ -121,7 +121,7 @@ class EventCfg:
     #     },
     # )
 
-    # reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
     reset_robot_joints = EventTerm(
         func=mdp.reset_joints_by_offset,

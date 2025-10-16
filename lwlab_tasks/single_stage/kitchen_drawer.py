@@ -38,8 +38,8 @@ class ManipulateDrawer(LwLabTaskBase):
     drawer_id: FixtureType = FixtureType.TOP_DRAWER
     behavior: str = "open"
 
-    def _load_model(self, *args, **kwargs):
-        super()._load_model(*args, **kwargs)
+    def _setup_scene(self, env_ids=None):
+        super()._setup_scene(env_ids)
         self._place_robot()
 
     def _place_robot(self):
