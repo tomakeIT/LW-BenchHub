@@ -446,7 +446,7 @@ class LeRobotLiftObjDigitalTwinCfg(LeRobotStateLiftObjRLEnvCfg):
                     camera_cfg.data_types.append('semantic_segmentation')
                 camera_cfg.colorize_semantic_segmentation = False
                 overlayed_image = self.read_overlay_image(path, target_size=(camera_cfg.width, camera_cfg.height)).to(self.sim.device)
-                self.rgb_overlay_images[camera_name] = overlayed_image.repeat(self.num_envs, 1, 1, 1)
+                self.rgb_overlay_images[camera_name] = overlayed_image.repeat(self.context.num_envs, 1, 1, 1)
                 # preprocess observation cfg
                 # observation_cfg = getattr(cfg.observations.policy, camera_name)
                 # observation_cfg.func = overlay_image

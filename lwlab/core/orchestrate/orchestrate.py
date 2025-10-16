@@ -12,6 +12,7 @@ from lwlab.utils.place_utils.env_utils import set_robot_to_position, sample_robo
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 import lwlab.utils.math_utils.transform_utils.torch_impl as Tt
 from lwlab.core.models.fixtures.fixture import FixtureType
+from lwlab.core.context import get_context
 from lwlab.utils.fixture_utils import fixture_is_type
 
 
@@ -19,6 +20,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
 
     def __init__(self):
         # self.fixture_controllers = dict()
+        self.context = get_context()
         self.scene = None
         self.embodiment = None
         self.task = None
@@ -183,7 +185,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
                 updated_placement[0] = np.array(updated_placement[0]) + ref_fixture._regions["int"]["per_env_offset"] @ ref_rot_mat.T
                 updated_obj_names.append(obj_name)
             else:
-                updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.num_envs, axis=0)
+                updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.context.num_envs, axis=0)
             object_placements[obj_name] = updated_placement
         return object_placements, updated_obj_names
 

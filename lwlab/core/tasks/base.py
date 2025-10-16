@@ -455,7 +455,7 @@ class LwLabTaskBase(TaskBase):
                 updated_placement[0] = np.array(updated_placement[0]) + ref_fixture._regions["int"]["per_env_offset"] @ ref_rot_mat.T
                 updated_obj_names.append(obj_name)
             else:
-                updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.num_envs, axis=0)
+                updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.context.num_envs, axis=0)
             object_placements[obj_name] = updated_placement
         return object_placements, updated_obj_names
 
