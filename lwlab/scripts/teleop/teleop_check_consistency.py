@@ -503,7 +503,10 @@ def main():
                 scene_name = "robocasakitchen"
             scene_name = f"{scene_name}-{env.cfg.layout_id}-{env.cfg.style_id}"
             object_cfgs = copy.deepcopy(env.cfg.object_cfgs)
-            cache_usd_version = copy.deepcopy(env.cfg.cache_usd_version)
+            cache_usd_version = {
+                "floorplan_version": env.cfg.isaac_arena_env.scene.floorplan_version,
+                "objects_version": env.cfg.isaac_arena_env.task.objects_version
+            }
             cache_usd_version["keep_placement"] = True
             from lwlab.utils.robocasa_utils import convert_fixture_to_name
             for obj in object_cfgs:
