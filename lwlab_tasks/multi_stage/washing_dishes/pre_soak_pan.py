@@ -1,11 +1,10 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class PreSoakPan(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
+class PreSoakPan(LwLabTaskBase):
     """
     Pre Soak Pan: composite task for Washing Dishes activity.
 
@@ -32,9 +31,9 @@ class PreSoakPan(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
         ] = "Pick the pan and sponge and place them into the sink. Then turn on the water."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.sink.set_handle_state(mode="off", env=self.env)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.sink.set_handle_state(mode="off", env=env)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -76,15 +75,15 @@ class PreSoakPan(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
 
         return cfgs
 
-    def _check_pan_in_sink(self):
-        return OU.obj_inside_of(self.env, "obj1", self.sink)
+    def _check_pan_in_sink(self, env):
+        return OU.obj_inside_of(env, "obj1", self.sink)
 
-    def _check_sponge_in_sink(self):
-        return OU.obj_inside_of(self.env, "obj2", self.sink)
+    def _check_sponge_in_sink(self, env):
+        return OU.obj_inside_of(env, "obj2", self.sink)
 
-    def _check_success(self):
-        handle_state = self.sink.get_handle_state(env=self.env)
+    def _check_success(self, env):
+        handle_state = self.sink.get_handle_state(env=env)
         water_on = handle_state["water_on"]
-        pan_in_sink = OU.obj_inside_of(self.env, "obj1", self.sink, partial_check=False)
-        sponge_in_sink = OU.obj_inside_of(self.env, "obj2", self.sink, partial_check=False)
-        return water_on & pan_in_sink & sponge_in_sink & OU.gripper_obj_far(self.env, "obj1") & OU.gripper_obj_far(self.env, "obj2")
+        pan_in_sink = OU.obj_inside_of(env, "obj1", self.sink, partial_check=False)
+        sponge_in_sink = OU.obj_inside_of(env, "obj2", self.sink, partial_check=False)
+        return water_on & pan_in_sink & sponge_in_sink & OU.gripper_obj_far(env, "obj1") & OU.gripper_obj_far(env, "obj2")

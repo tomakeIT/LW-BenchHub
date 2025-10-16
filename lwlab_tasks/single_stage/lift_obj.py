@@ -7,8 +7,7 @@ import torch
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
 from lwlab.core.models.fixtures import FixtureType
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
-from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.utils.env import ExecuteMode
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
@@ -74,7 +73,7 @@ class LeRobotVisualObservationsCfg:
 
 
 @configclass
-class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
+class LiftObj(LwLabTaskBase):
     """
     Class encapsulating the atomic pick and place tasks.
 
@@ -148,7 +147,7 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
         dot_prod = torch.clip(torch.einsum("ij,ij->i", x1, x2), -1, 1)
         return torch.arccos(dot_prod)
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the cube is lifted.
 
@@ -156,15 +155,15 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
             bool: True if the task is successful, False otherwise
         """
         if self.context.execute_mode == ExecuteMode.TRAIN:
-            return torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
-        gripper_contact_force = self.env.scene.sensors["gripper_object_contact"]._data.force_matrix_w[:, 0, 0, :]
-        jaw_contact_force = self.env.scene.sensors["jaw_object_contact"]._data.force_matrix_w[:, 0, 0, :]
+            return torch.tensor([False], device=env.device).repeat(env.num_envs)
+        gripper_contact_force = env.scene.sensors["gripper_object_contact"]._data.force_matrix_w[:, 0, 0, :]
+        jaw_contact_force = env.scene.sensors["jaw_object_contact"]._data.force_matrix_w[:, 0, 0, :]
 
         gripper_object_force = torch.linalg.norm(gripper_contact_force, dim=1)
         jaw_object_force = torch.linalg.norm(jaw_contact_force, dim=1)
 
-        gripper_pose_w = self.env.scene._articulations['robot'].data.body_pose_w[..., -2, :]
-        jaw_pose_w = self.env.scene._articulations['robot'].data.body_pose_w[..., -1, :]
+        gripper_pose_w = env.scene._articulations['robot'].data.body_pose_w[..., -2, :]
+        jaw_pose_w = env.scene._articulations['robot'].data.body_pose_w[..., -1, :]
         gripper_quat_w = gripper_pose_w[:, 3:7]  # [num_envs, 4]
         jaw_quat_w = jaw_pose_w[:, 3:7]          # [num_envs, 4]
 
@@ -186,7 +185,7 @@ class LiftObj(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
             jaw_object_force >= min_force, torch.rad2deg(rangle) <= max_angle
         )
         is_grasping = torch.logical_and(lflag, rflag)
-        object_height = self.env.scene['object'].data.root_pos_w[:, 2]
+        object_height = env.scene['object'].data.root_pos_w[:, 2]
         is_height_sufficient = (object_height >= 0.965)
 
         success = is_grasping & is_height_sufficient

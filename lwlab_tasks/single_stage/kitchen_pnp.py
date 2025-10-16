@@ -1,13 +1,12 @@
 import torch
 import numpy as np
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from dataclasses import MISSING
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class PnP(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
+class PnP(LwLabTaskBase):
     """
     Class encapsulating the atomic pick and place tasks.
 
@@ -124,7 +123,7 @@ class PnPCounterToCabinet(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the counter to cabinet pick and place task is successful.
         Checks if the object is inside the cabinet and the gripper is far from the object.
@@ -132,8 +131,8 @@ class PnPCounterToCabinet(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_inside_cab = OU.obj_inside_of(self.env, "obj", self.cab)
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_inside_cab = OU.obj_inside_of(env, "obj", self.cab)
+        gripper_obj_far = OU.gripper_obj_far(env)
         return obj_inside_cab & gripper_obj_far
 
 
@@ -236,7 +235,7 @@ class PnPCabinetToCounter(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the cabinet to counter pick and place task is successful.
         Checks if the object is on the counter and the gripper is far from the object.
@@ -244,8 +243,8 @@ class PnPCabinetToCounter(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        gripper_obj_far = OU.gripper_obj_far(self.env)
-        obj_on_counter = OU.check_obj_fixture_contact(self.env, "obj", self.counter)
+        gripper_obj_far = OU.gripper_obj_far(env)
+        obj_on_counter = OU.check_obj_fixture_contact(env, "obj", self.counter)
         return obj_on_counter & gripper_obj_far
 
 
@@ -721,7 +720,7 @@ class PnPCounterToOven(PnP):  # DONE
     Class encapsulating the counter to oven pick and place atomic task
     """
 
-    EXCLUDE_LAYOUTS = RobocasaKitchenEnvCfg.OVEN_EXCLUDED_LAYOUTS  # TODO
+    EXCLUDE_LAYOUTS = LwLabTaskBase.OVEN_EXCLUDED_LAYOUTS  # TODO
     task_name: str = "PnPCounterToOven"
 
     def _setup_kitchen_references(self):
@@ -791,12 +790,12 @@ class PnPCounterToOven(PnP):  # DONE
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         obj_container_contact = OU.check_obj_in_receptacle(self.env, "obj", "oven_tray")
         on_rack = self.oven.check_rack_contact(  # TODO: implement this
             self, "oven_tray", rack_level=self.rack_level
         )
-        gripper_far = OU.gripper_obj_far(self.env, "obj")
+        gripper_far = OU.gripper_obj_far(env, "obj")
         return on_rack & obj_container_contact & gripper_far
 
 
@@ -805,7 +804,7 @@ class PnPOvenToCounter(PnP):  # DONE
     Class encapsulating the oven to counter pick and place atomic task
     """
 
-    EXCLUDE_LAYOUTS = RobocasaKitchenEnvCfg.OVEN_EXCLUDED_LAYOUTS
+    EXCLUDE_LAYOUTS = LwLabTaskBase.OVEN_EXCLUDED_LAYOUTS
     task_name: str = "PnPOvenToCounter"
 
     def _setup_kitchen_references(self):
@@ -878,10 +877,10 @@ class PnPOvenToCounter(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         obj_in_recep = OU.check_obj_in_receptacle(self.env, "obj", "container")
         recep_on_counter = self.check_contact(self.objects["container"], self.counter)
-        return obj_in_recep & recep_on_counter & OU.gripper_obj_far(self.env, "obj")
+        return obj_in_recep & recep_on_counter & OU.gripper_obj_far(env, "obj")
 
 
 class PnPCounterToStove(PnP):  # DONE
@@ -961,7 +960,7 @@ class PnPCounterToStove(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the counter to stove pick and place task is successful.
         Checks if the object is on the pan and the gripper far from the object.
@@ -969,8 +968,8 @@ class PnPCounterToStove(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_in_container = OU.check_obj_in_receptacle(self.env, "obj", "container", th=0.07)
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_in_container = OU.check_obj_in_receptacle(env, "obj", "container", th=0.07)
+        gripper_obj_far = OU.gripper_obj_far(env)
 
         return obj_in_container & gripper_obj_far
 
@@ -1053,7 +1052,7 @@ class PnPStoveToCounter(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the stove to counter pick and place task is successful.
         Checks if the object is inside the container on the counter and the gripper far from the object.
@@ -1139,8 +1138,8 @@ class PnPToasterToCounter(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_on_plate = OU.check_obj_in_receptacle(self.env, "obj", "plate")
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_on_plate = OU.check_obj_in_receptacle(env, "obj", "plate")
+        gripper_obj_far = OU.gripper_obj_far(env)
         return obj_on_plate & gripper_obj_far
 
 
@@ -1210,11 +1209,11 @@ class PnPCounterToToasterOven(PnP):  # DONE
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         on_rack = self.toaster_oven.check_rack_contact(
             self, "obj", rack_level=self.rack_level
         )
-        gripper_far = OU.gripper_obj_far(self.env, "obj")
+        gripper_far = OU.gripper_obj_far(env, "obj")
         return on_rack & gripper_far
 
 
@@ -1299,7 +1298,7 @@ class PnPToasterOvenToCounter(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         obj_in_recep = OU.check_obj_in_receptacle(self.env, "obj", "container")
         recep_on_counter = self.check_contact(self.objects["container"], self.counter)
         return obj_in_recep & recep_on_counter & OU.gripper_obj_far(self.env, "obj")
@@ -1353,11 +1352,11 @@ class PnPCounterToStandMixer(PnP):  # DONE
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the food item is inside the stand mixer bowl.
 
         Returns:
             bool: True if the food item is inside the bowl, False otherwise.
         """
-        return self.stand_mixer.check_item_in_bowl(self, "obj") & OU.gripper_obj_far(self.env, "obj")
+        return self.stand_mixer.check_item_in_bowl(env, "obj") & OU.gripper_obj_far(env, "obj")

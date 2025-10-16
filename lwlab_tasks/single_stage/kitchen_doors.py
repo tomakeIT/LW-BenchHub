@@ -18,8 +18,7 @@ from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from lwlab.core.models.fixtures import fixture_is_type
 
-from lwlab.core.tasks.base import BaseTaskEnvCfg, LwLabTaskBase
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures import HingeCabinet, FridgeFrenchDoor, FridgeBottomFreezer, Drawer, Microwave, Counter, Stove, Stovetop, HousingCabinet, SingleCabinet, Fridge, Wall, Floor, Dishwasher
 
@@ -337,13 +336,13 @@ class CloseDropDownDoor(ManipulateLowerDoor):
 
 class OpenOven(OpenDropDownDoor):
     task_name: str = "OpenOven"
-    EXCLUDE_LAYOUTS = RobocasaKitchenEnvCfg.OVEN_EXCLUDED_LAYOUTS
+    EXCLUDE_LAYOUTS = LwLabTaskBase.OVEN_EXCLUDED_LAYOUTS
     fixture_id = FixtureType.OVEN
 
 
 class CloseOven(CloseDropDownDoor):
     task_name: str = "CloseOven"
-    EXCLUDE_LAYOUTS = RobocasaKitchenEnvCfg.OVEN_EXCLUDED_LAYOUTS
+    EXCLUDE_LAYOUTS = LwLabTaskBase.OVEN_EXCLUDED_LAYOUTS
     Y_OFS = -0.25
     fixture_id = FixtureType.OVEN
 
@@ -363,7 +362,7 @@ class CloseDishwasher(CloseDropDownDoor):
     fixture_id = FixtureType.DISHWASHER
 
 
-class OpenToasterOvenDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
+class OpenToasterOvenDoor(LwLabTaskBase):
     """
     Class encapsulating the atomic toaster oven door tasks.
 
@@ -389,11 +388,11 @@ class OpenToasterOvenDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
     def _setup_scene(self, env_ids=None):
         super()._setup_scene(env_ids)
 
-    def _check_success(self):
-        return self.toaster_oven.is_open(self.env)
+    def _check_success(self, env):
+        return self.toaster_oven.is_open(env=env)
 
 
-class CloseToasterOvenDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
+class CloseToasterOvenDoor(LwLabTaskBase):
     """
     Class encapsulating the atomic toaster oven door tasks.
 
@@ -420,5 +419,5 @@ class CloseToasterOvenDoor(BaseTaskEnvCfg, RobocasaKitchenEnvCfg):
         super()._setup_scene(env_ids)
         self.toaster_oven.open_door(self.env)
 
-    def _check_success(self):
-        return self.toaster_oven.is_closed(self.env)
+    def _check_success(self, env):
+        return self.toaster_oven.is_closed(env=env)

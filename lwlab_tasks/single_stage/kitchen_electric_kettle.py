@@ -14,11 +14,10 @@
 
 from lwlab.core.models.fixtures import FixtureType
 
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 
 
-class CloseElectricKettleLid(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+class CloseElectricKettleLid(LwLabTaskBase):
     """
     Class encapsulating the atomic close electric kettle lid task.
     """
@@ -44,11 +43,11 @@ class CloseElectricKettleLid(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
         self.electric_kettle.init_state(self.env)
         self.electric_kettle.set_lid(self.env, lid_val=1.0)
 
-    def _check_success(self):
-        return self.electric_kettle.get_state(self.env)["lid"] <= 0.01
+    def _check_success(self, env):
+        return self.electric_kettle.get_state(env)["lid"] <= 0.01
 
 
-class OpenElectricKettleLid(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+class OpenElectricKettleLid(LwLabTaskBase):
     """
     Class encapsulating the atomic open electric kettle lid task.
     """
@@ -77,5 +76,5 @@ class OpenElectricKettleLid(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
         super()._setup_scene(env_ids)
         self.electric_kettle.init_state(self.env)
 
-    def _check_success(self):
-        return self.electric_kettle.get_state(self.env)["lid"] >= 0.95
+    def _check_success(self, env):
+        return self.electric_kettle.get_state(env)["lid"] >= 0.95

@@ -18,13 +18,12 @@ import lwlab.utils.place_utils.env_utils as EnvUtils
 from lwlab.core.models.fixtures import FixtureType
 from lwlab.core.models.fixtures.others import Floor, Wall
 
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 import lwlab.utils.object_utils as OU
 from lwlab.core.models import fixtures
 
 
-class ManipulateDrawer(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+class ManipulateDrawer(LwLabTaskBase):
     """
     Class encapsulating the atomic manipulate drawer tasks.
 
@@ -177,16 +176,16 @@ class ManipulateDrawer(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
             ]
         )
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the drawer manipulation task is successful.
 
         Returns:
             bool: True if the task is successful, False otherwise.
         """
-        door_state = self.drawer.get_door_state(env=self.env)
+        door_state = self.drawer.get_door_state(env=env)
 
-        success = torch.tensor([True], device=self.env.scene.device).repeat(self.env.num_envs)
+        success = torch.tensor([True], device=env.device).repeat(env.num_envs)
         door_joint_pos = torch.stack(list(door_state.values()), dim=0)
         if self.behavior == "open":
             success = (door_joint_pos >= 0.99).all(dim=0)
@@ -304,7 +303,7 @@ class CloseDrawer(ManipulateDrawer):
         return cfgs
 
 
-class SlideDishwasherRack(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+class SlideDishwasherRack(LwLabTaskBase):
     """
     Class encapsulating sliding dishwasher rack in or out atomic task.
     """
@@ -338,8 +337,8 @@ class SlideDishwasherRack(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
         else:
             self.dishwasher.slide_rack(self.env, value=0.2, env_ids=env_ids)
 
-    def _check_success(self):
-        current_pos = self.dishwasher.get_state(self.env)["rack"]
+    def _check_success(self, env):
+        current_pos = self.dishwasher.get_state(env)["rack"]
 
         if self.should_pull:
             return current_pos >= 0.65

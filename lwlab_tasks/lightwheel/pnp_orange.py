@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
 from dataclasses import MISSING
 from lwlab.core.models.fixtures import FixtureType
@@ -46,7 +46,7 @@ class LeRobotVisualObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-class PnPOrange(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
+class PnPOrange(LwLabTaskBase):
     task_name: str = "PnPOrange"
     observations: LeRobotVisualObservationsCfg = LeRobotVisualObservationsCfg()
     resample_objects_placement_on_reset: bool = True
@@ -102,10 +102,10 @@ class PnPOrange(RobocasaKitchenEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         orange_in_bowl = OU.check_obj_in_receptacle(
-            self.env, "orange", "bowl"
+            env, "orange", "bowl"
         )
-        gripper_orange_far = OU.gripper_obj_far(self.env, obj_name="orange", eef_name="tool_gripper", th=0.10)
-        gripper_bowl_far = OU.gripper_obj_far(self.env, obj_name="bowl", eef_name="tool_gripper", th=0.10)
+        gripper_orange_far = OU.gripper_obj_far(env, obj_name="orange", eef_name="tool_gripper", th=0.10)
+        gripper_bowl_far = OU.gripper_obj_far(env, obj_name="bowl", eef_name="tool_gripper", th=0.10)
         return orange_in_bowl & gripper_orange_far & gripper_bowl_far
