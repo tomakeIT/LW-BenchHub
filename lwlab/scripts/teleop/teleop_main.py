@@ -461,8 +461,8 @@ def main():
     def save_metrics(env):
         """Save metrics data to JSON file"""
         metrics_data = {}
-        if hasattr(env.cfg, 'get_metrics'):
-            metrics_data = env.cfg.get_metrics()
+        if hasattr(env.cfg, 'get_checker_results'):
+            metrics_data = env.cfg.get_checker_results()
 
         # Save metrics to JSON file
         if metrics_data:

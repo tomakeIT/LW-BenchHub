@@ -210,7 +210,7 @@ class LwLabTaskBase(TaskBase):
         self.contact_sensors = {}
         self.init_checkers_cfg()
         self.checkers = get_checkers_from_cfg(self.checkers_cfg)
-        self.checkers_results = form_checker_result(self.checkers_cfg)
+        self.checker_results = form_checker_result(self.checkers_cfg)
         self.contact_queues = [ContactQueue() for _ in range(self.context.num_envs)]
 
         # Initialize retry counts
@@ -255,26 +255,29 @@ class LwLabTaskBase(TaskBase):
                 }
             }
 
-    def get_metrics(self):
+    def get_checker_results(self):
         """
-        Get all metrics data for JSON export. This function integrates various types of metrics
-        and can be extended to include additional metrics in the future.
+        Get all checker data for JSON export. This function integrates various types of checker results
+        and can be extended to include additional results in the future.
 
         Returns:
-            dict: Complete metrics data combining all available metrics
+            dict: Complete checker data combining all available checker results
         """
-        metrics_data = {}
+        checker_datas = {}
 
         for checker in self.checkers:
-            metrics_data[checker.type] = checker.get_metrics(self.checkers_results[checker.type])
+            checker_datas[checker.type] = checker.get_metrics(self.checker_results[checker.type])
 
-        return metrics_data
+        return checker_datas
+
+    def get_metrics(self):
+        return []
 
     def get_warning_text(self):
         warning_text = ""
         for checker in self.checkers:
-            if self.checkers_results[checker.type].get("warning_text"):
-                warning_text += self.checkers_results[checker.type].get("warning_text")
+            if self.checker_results[checker.type].get("warning_text"):
+                warning_text += self.checker_results[checker.type].get("warning_text")
                 warning_text += "\n"
         return warning_text
 
