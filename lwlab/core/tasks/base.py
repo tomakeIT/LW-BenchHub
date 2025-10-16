@@ -222,6 +222,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.init_checkers_cfg()
         self.checkers = get_checkers_from_cfg(self.checkers_cfg)
         self.checker_results = form_checker_result(self.checkers_cfg)
+        self.fix_object_pose_cfg = None
         self.contact_queues = [ContactQueue() for _ in range(self.context.num_envs)]
 
         # Initialize retry counts
@@ -726,7 +727,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                         name=fixtr.name,
                         object_type=ObjectType.ARTICULATION,
                         prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
-                        parent_asset=self.scene_assets[self.scene_type]
+                        parent_asset=self.scene_assets[self.scene_type],
                     )
                 )
         for fixtr in self.fixture_refs.values():
@@ -800,6 +801,9 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                     }
                 )
             )
+
+    def _setup_scene(self, env, env_ids=None):
+        pass
 
 
 class BaseTaskEnvCfg(LwBaseCfg):

@@ -63,17 +63,17 @@ class ManipulateDoor(LwLabTaskBase):
         ep_meta["lang"] = f"{self.behavior.capitalize()} the {self.fxtr.nat_lang} {door_name}"
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Reset the environment internal state for the door tasks.
         This includes setting the door state based on the behavior.
         """
         if self.behavior == "open":
-            self.fxtr.close_door(env=self.env, env_ids=env_ids)
+            self.fxtr.close_door(env=env, env_ids=env_ids)
         elif self.behavior == "close":
-            self.fxtr.open_door(env=self.env, env_ids=env_ids)
+            self.fxtr.open_door(env=env, env_ids=env_ids)
         # set the door state then place the objects otherwise objects initialized in opened drawer will fall down before the drawer is opened
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _check_success(self, env):
         """
@@ -139,8 +139,8 @@ class ManipulateLowerDoor(ManipulateDoor):
     behavior: str = "open"
     robot_spawn_deviation_pos_x = 0.05
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
         self._place_robot()
 
     def _place_robot(self):

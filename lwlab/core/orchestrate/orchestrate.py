@@ -63,12 +63,12 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
             self.scene.assets[self.scene.scene_type].usd_path = self.scene.usd_path
         del self.scene.lwlab_arena
 
-    def _reset_internal(self, env_ids, env):
+    def _reset_internal(self, env, env_ids):
         """
         Reset the event.
         """
-        self.scene._setup_scene(env_ids)
-        self.scene.reset_root_state(env=env, env_ids=env_ids)
+        self.task._setup_scene(env, env_ids)
+        self.reset_root_state(env=env, env_ids=env_ids)
 
     def update_state(self, env):
         for fixture_controller in self.fixture_refs.values():
@@ -155,8 +155,8 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
         else:
             robot_pos = sample_robot_base_helper(
                 env=env,
-                anchor_pos=self.init_robot_base_pos_anchor,
-                anchor_ori=self.init_robot_base_ori_anchor,
+                anchor_pos=self.embodiment.init_robot_base_pos_anchor,
+                anchor_ori=self.embodiment.init_robot_base_ori_anchor,
                 rot_dev=self.embodiment.robot_spawn_deviation_rot,
                 pos_dev_x=self.embodiment.robot_spawn_deviation_pos_x,
                 pos_dev_y=self.embodiment.robot_spawn_deviation_pos_y,
@@ -164,4 +164,4 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
                 execute_mode=self.context.execute_mode,
             )
             self.init_robot_base_pos = robot_pos
-            self.init_robot_base_ori = self.init_robot_base_ori_anchor
+            self.init_robot_base_ori = self.embodiment.init_robot_base_ori_anchor
