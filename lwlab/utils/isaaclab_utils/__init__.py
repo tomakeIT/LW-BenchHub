@@ -28,3 +28,8 @@ def get_robot_joint_target_from_scene(scene):  # : InteractiveScene):
 def update_sensors(env: "ManagerBasedEnv", dt: float) -> None:
     for sensor in env.scene.sensors.values():
         sensor.update(dt, force_recompute=not env.scene.cfg.lazy_sensor_update)
+
+
+class NoDeepcopyMixin:
+    def __deepcopy__(self, memo):
+        return self

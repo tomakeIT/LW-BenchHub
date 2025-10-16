@@ -30,6 +30,7 @@ from isaac_arena.tasks.task_base import TaskBase
 from lwlab.core.context import get_context
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
+from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 from lwlab.core.cfg import LwBaseCfg
 from lwlab.utils.place_utils.contact_queue import ContactQueue
 from lwlab.core.checks.checker_factory import get_checkers_from_cfg, form_checker_result
@@ -178,7 +179,7 @@ class TerminationsCfg:
     success: DoneTerm = MISSING
 
 
-class LwLabTaskBase(TaskBase):
+class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     task_name: str
     task_type: str = "teleop"
     resample_objects_placement_on_reset: bool = True

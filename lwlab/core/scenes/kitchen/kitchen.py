@@ -36,6 +36,7 @@ from lwlab.core.context import get_context
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 from lwlab.utils.env import ExecuteMode
+from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lightwheel_sdk.loader import ENDPOINT
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
@@ -172,7 +173,7 @@ class LwLabScene(Scene):
         return ep_meta
 
 
-class RobocasaKitchenEnvCfg(BaseSceneEnvCfg):
+class RobocasaKitchenEnvCfg(BaseSceneEnvCfg, NoDeepcopyMixin):
     """Configuration for the robocasa kitchen environment."""
     fixtures: Dict[str, Fixture] = {}
     scene_name: str = MISSING

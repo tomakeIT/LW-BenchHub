@@ -21,6 +21,7 @@ from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import RecorderTerm, RecorderTermCfg, ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets.episode_data import EpisodeData
+from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
@@ -123,7 +124,7 @@ class RecorderManagerCfg(ActionStateRecorderManagerCfg):
     record_pre_step_joint_targets = PrePhysicsStepJointTargetsRecorderCfg()
 
 
-class BaseRobotCfg(LwBaseCfg):
+class BaseRobotCfg(LwBaseCfg, NoDeepcopyMixin):
     robot_name: str = MISSING
     actions: ActionsCfg = ActionsCfg()
     robot_cfg: ArticulationCfg = MISSING

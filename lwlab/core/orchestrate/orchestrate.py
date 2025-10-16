@@ -16,9 +16,10 @@ from lwlab.core.context import get_context
 from lwlab.utils.fixture_utils import fixture_is_type
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.managers import EventTermCfg as EventTerm
+from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 
 
-class LwLabBaseOrchestrator(OrchestratorBase):
+class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
 
     def __init__(self):
         # self.fixture_controllers = dict()
