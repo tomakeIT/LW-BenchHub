@@ -94,28 +94,28 @@ class StandMixer(Fixture):
             if jn in env.scene.articulations[self.name].data.joint_names:
                 setattr(self, attr, self.get_joint_state(env, [jn])[jn])
 
-    def check_item_in_bowl(self, cfg, obj_name: str, partial_check=False):
+    def check_item_in_bowl(self, env, obj_name: str, partial_check=False):
         """
         Check if an object is in the bowl of the stand mixer.
         """
-        obj = cfg.objects[obj_name]
+        obj = env.cfg.isaac_arena_env.task.objects[obj_name]
         sites = self.get_int_sites(relative=False)
-        all_in = np.array([True]).repeat(cfg.num_envs)
-        for env_id in range(cfg.num_envs):
+        all_in = np.array([True]).repeat(env.num_envs)
+        for env_id in range(env.num_envs):
             if partial_check:
-                pts = torch.norm(cfg.env.scene.rigid_objects[obj.task_name].data.body_com_pos_w, dim=1)[env_id].cpu().numpy()  # (3, )
+                pts = torch.norm(env.scene.rigid_objects[obj.task_name].data.body_com_pos_w, dim=1)[env_id].cpu().numpy()  # (3, )
                 tol = 0.0
             else:
-                pos = cfg.env.scene.rigid_objects[obj.task_name].data.body_com_pos_w[env_id, 0, :]  # (3, )
-                pos = (pos + cfg.env.scene.env_origins[env_id]).cpu().numpy()
-                quat = cfg.env.scene.rigid_objects[obj.task_name].data.body_com_quat_w[env_id, 0, :]  # (4, )
+                pos = env.scene.rigid_objects[obj.task_name].data.body_com_pos_w[env_id, 0, :]  # (3, )
+                pos = (pos + env.scene.env_origins[env_id]).cpu().numpy()
+                quat = env.scene.rigid_objects[obj.task_name].data.body_com_quat_w[env_id, 0, :]  # (4, )
                 quat = T.convert_quat(quat, to="xyzw").cpu().numpy()
                 pts = obj.get_bbox_points(trans=pos, rot=quat)
                 pts = np.stack(pts, axis=0)
                 tol = 1e-2
             for (_, int_sites) in sites.items():
                 for site in int_sites:
-                    site += cfg.env.scene.env_origins[env_id].cpu().numpy()
+                    site += env.scene.env_origins[env_id].cpu().numpy()
                 p0, px, py, pz = int_sites
                 u, v, w = px[env_id] - p0[env_id], py[env_id] - p0[env_id], pz[env_id] - p0[env_id]
                 mid = p0 + 0.5 * (pz - p0)
@@ -129,7 +129,7 @@ class StandMixer(Fixture):
                     if not (u_in_bounds and v_in_bounds and w_in_bounds):
                         all_in[env_id] = False
                         break
-        return torch.from_numpy(all_in).to(cfg.device)
+        return torch.from_numpy(all_in).to(env.device)
 
     def get_state(self, env: ManagerBasedRLEnv):
         """
