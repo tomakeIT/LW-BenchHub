@@ -207,8 +207,6 @@ class LwLabTaskBase(TaskBase):
         self.scene_retry_count = 0
         self.object_retry_count = 0
 
-        self._create_objects()
-
     def get_termination_cfg(self):
         return self.termination_cfg
 
