@@ -1,19 +1,19 @@
 from lwlab.core.checks.checker_factory import get_checkers_from_cfg
 
 
-def get_task_desc(env_cfg):
+def get_task_desc(isaac_arena_env):
     """
     Get the task description from the environment configuration.
     """
     base_desc = ""
-    if hasattr(env_cfg, 'task_name') and hasattr(env_cfg, 'layout_id') and hasattr(env_cfg, 'style_id') and hasattr(env_cfg, 'get_ep_meta'):
-        base_desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.layout_id, env_cfg.style_id, env_cfg.get_ep_meta()["lang"])
-    elif hasattr(env_cfg, 'task_name') and hasattr(env_cfg, 'usd_path') and hasattr(env_cfg, 'get_ep_meta'):
-        base_desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(env_cfg.task_name, env_cfg.usd_path, env_cfg.get_ep_meta()["lang"])
+    if hasattr(isaac_arena_env.task, 'task_name') and hasattr(isaac_arena_env.scene, 'layout_id') and hasattr(isaac_arena_env.scene, 'style_id') and hasattr(isaac_arena_env.orchestrator, 'get_ep_meta'):
+        base_desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(isaac_arena_env.task.task_name, isaac_arena_env.scene.layout_id, isaac_arena_env.scene.style_id, isaac_arena_env.orchestrator.get_ep_meta()["lang"])
+    elif hasattr(isaac_arena_env.task, 'task_name') and hasattr(isaac_arena_env.scene, 'usd_path') and hasattr(isaac_arena_env.orchestrator, 'get_ep_meta'):
+        base_desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(isaac_arena_env.scene.task_name, isaac_arena_env.scene.usd_path, isaac_arena_env.orchestrator.get_ep_meta()["lang"])
     return base_desc
 
 
-def setup_task_description_ui(env_cfg, env):
+def setup_task_description_ui(isaac_arena_env, env):
     """
     Set up UI for displaying task description in the overlay window.
 
@@ -27,7 +27,7 @@ def setup_task_description_ui(env_cfg, env):
     import omni.ui as ui
 
     desc = None
-    base_desc = get_task_desc(env_cfg)
+    base_desc = get_task_desc(isaac_arena_env)
 
     if base_desc is not None:
         desc = base_desc + "\nCheckpoints: not saved"
@@ -53,11 +53,11 @@ def setup_task_description_ui(env_cfg, env):
     checker_labels = {}
     checkers = None
 
-    if hasattr(env_cfg, "checkers_cfg") and get_checkers_from_cfg is not None:
+    if hasattr(isaac_arena_env.task, "checkers_cfg") and get_checkers_from_cfg is not None:
         try:
             filtered_cfg = {
                 name: cfg
-                for name, cfg in env_cfg.checkers_cfg.items()
+                for name, cfg in isaac_arena_env.task.checkers_cfg.items()
                 if cfg.get("warning_on_screen", False)
             }
             if filtered_cfg:

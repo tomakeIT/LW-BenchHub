@@ -701,7 +701,7 @@ def main():
         return new_env, teleop_interface, viewports, overlay_window
 
     def setup_env_config_with_args(env, viewports=None):
-        env_cfg = env.cfg
+        isaac_arena_env = env.cfg.isaac_arena_env
         if not args_cli.headless and args_cli.enable_cameras and args_cli.enable_multiple_viewports:
             viewports = setup_cameras(env, viewports)
             for key, v_p in viewports.items():
@@ -712,7 +712,7 @@ def main():
                 res_new = v_p.viewport_api.get_texture_resolution()
                 print(f"Viewport {key} resolution: {res}, scale: {sca}, new resolution: {res_new}")
         if not args_cli.headless:
-            overlay_window = setup_task_description_ui(env_cfg, env)
+            overlay_window = setup_task_description_ui(isaac_arena_env, env)
         return viewports, overlay_window
 
     def run_simulation(env, teleop_interface):
