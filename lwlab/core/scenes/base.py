@@ -65,7 +65,6 @@ class BaseSceneEnvCfg(LwBaseCfg):
     # Scene settings
     scene: USDSceneCfg = MISSING
     usd_path: str = MISSING
-    warmup_steps: int = 10
 
     def __post_init__(self):
         """Post initialization."""

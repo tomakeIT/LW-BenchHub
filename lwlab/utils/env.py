@@ -273,4 +273,5 @@ def parse_env_cfg(
         cfg.sim.decimation = replay_cfgs["ep_meta"]["sim_args"]["decimation"]
         # cfg.sim.render_interval = replay_cfgs["ep_meta"]["sim_args"]["render_interval"]
         # cfg.scene.num_envs = replay_cfgs["ep_meta"]["sim_args"]["num_envs"]
+    cfg.warmup_steps = 10
     return cfg
