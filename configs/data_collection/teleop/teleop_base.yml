@@ -26,6 +26,7 @@ object_projects: []
 usd_simplify: false
 use_fabric: false
 seed: 0
+warmup_steps: 10
 
 # =========================
 # Data Collection Settings

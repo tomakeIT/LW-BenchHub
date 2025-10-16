@@ -47,6 +47,7 @@ from typing import Optional, Any
 class PandaOmronEmbodiment(LwLabEmbodimentBase):
 
     name = "pandaomron"
+    robot_base_link: str = "mobilebase0_wheeled_base"
 
     def __init__(self, enable_cameras: bool = False, initial_pose: Optional[Pose] = None):
         super().__init__(enable_cameras, initial_pose)
@@ -272,6 +273,7 @@ class PandaOmronMimicEnv:
 
 class PandaOmronRelEmbodiment(PandaOmronEmbodiment):
     name: str = "PandaOmron-Rel"
+    robot_vis_helper_cfg = VIS_HELPER_CFG
 
     def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
         super().__init__(enable_cameras, initial_pose)
