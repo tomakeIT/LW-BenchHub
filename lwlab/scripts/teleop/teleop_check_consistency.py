@@ -580,7 +580,7 @@ def main():
         if not args_cli.headless:
             viewports, overlay_window = setup_env_config_with_args(env)
 
-        print(colored(env_cfg.get_ep_meta()["lang"], "green"))
+        print(colored(env_cfg.isaac_arena_env.orchestrator.get_ep_meta()["lang"], "green"))
 
         current_recorded_demo_count = 0
         success_step_count = 0
