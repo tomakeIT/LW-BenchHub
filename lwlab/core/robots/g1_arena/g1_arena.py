@@ -13,9 +13,12 @@ class G1BaseEmbodiment(LwLabEmbodimentBase):
 
     def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
         super().__init__(enable_cameras, initial_pose)
-        self.scene_config.robot = G1_GEARWBC_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
-        self.action_config.left_arm_action = None
-        self.action_config.right_arm_action = None
+        self.init_robot_base_height = 0.75
+        self.init_waist_yaw = 0.0
+        self.init_waist_pitch = 0.0
+        self.init_waist_roll = 0.0
+        # self.sim.dt = 1 / 200  # physics frequency: 100Hz
+        # self.decimation = 4  # action frequency: 50Hz
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
         """
@@ -109,10 +112,16 @@ class G1BaseEmbodiment(LwLabEmbodimentBase):
 
 
 class G1ArenaJointEmbodiment(G1WBCJointEmbodiment, G1BaseEmbodiment):
-
-    pass
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
+        self.scene_config.robot = G1_GEARWBC_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.action_config.left_arm_action = None
+        self.action_config.right_arm_action = None
 
 
 class G1ArenaPinkEmbodiment(G1WBCPinkEmbodiment, G1BaseEmbodiment):
-
-    pass
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
+        self.scene_config.robot = G1_GEARWBC_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.action_config.left_arm_action = None
+        self.action_config.right_arm_action = None
