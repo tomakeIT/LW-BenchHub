@@ -39,6 +39,7 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         self.scene = scene
         self.embodiment = embodiment
         self.task = task
+
         scene.setup_env_config(self)
         task.setup_env_config(self)
         embodiment.setup_env_config(self)
@@ -56,32 +57,11 @@ class LwLabBaseOrchestrator(OrchestratorBase):
             # modify background
             self.scene.assets[self.scene.scene_type].usd_path = self.scene.usd_path
 
-        # init ref fixtures
-        self._init_ref_fixtures()
-
-        # add ref fixtureassets to arena
-        self._add_ref_fixtures_to_arena()
-
-        # place robot and objects
-        self.place_robot_and_objects()
-
         # setup scene done terms
         self.setup_scene_done_terms()
 
         # setup scene event terms
         self.setup_scene_event_terms()
-
-    def _init_ref_fixtures(self):
-        for fixtr in self.fixture_refs.values():
-            if isinstance(fixtr, IsaacFixture):
-                fixtr.setup_cfg(self)
-
-    def _add_ref_fixtures_to_arena(self):
-        # add ref fixtures to arena
-        from isaac_arena.assets.object_reference import ObjectReference
-        for fixtr in self.fixture_refs.values():
-            if isinstance(fixtr, IsaacFixture):
-                self.scene.add_asset(ObjectReference(parent_asset=self.scene.assets[self.scene.scene_type]))
 
     def _reset_internal(self, env_ids, env):
         """
@@ -148,26 +128,6 @@ class LwLabBaseOrchestrator(OrchestratorBase):
         ep_meta.update(self.task.get_ep_meta())
         ep_meta["cache_usd_version"] = {"floorplan_version": ep_meta["floorplan_version"], "objects_version": ep_meta["objects_version"]}
         return ep_meta
-
-    def place_robot_and_objects(self):
-        """
-        Place the robot and objects in the scene.
-        """
-        # place robot
-        self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor()
-        self.embodiment.scene_config.init_state.pos = self.init_robot_base_pos_anchor
-        self.embodiment.scene_config.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
-
-        # place objects
-        object_placements = EnvUtils.sample_object_placements(self, need_retry=False)
-        self._apply_object_poses(object_placements)
-
-    def _apply_object_poses(self, object_placements):
-        for obj_pos, obj_quat, obj in object_placements.items():
-            if obj.task_name in self.task.assets:
-                obj_quat_wxyz = Tn.convert_quat(obj_quat, to="wxyz")
-                self.task.assets[obj.task_name].init_state.pos = obj_pos
-                self.task.assets[obj.task_name].init_state.rot = obj_quat_wxyz
 
     def _extract_cfg(self, cfg, key):
         if hasattr(cfg, key):

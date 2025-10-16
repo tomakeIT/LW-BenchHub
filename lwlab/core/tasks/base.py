@@ -48,6 +48,9 @@ from lwlab.core.models.objects.LwLabObject import LwLabObject
 from isaaclab.sensors import ContactSensorCfg
 from lwlab.core.models.fixtures import Fixture, FixtureType, fixture_is_type
 import lwlab.utils.fixture_utils as FixtureUtils
+from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
+from isaac_arena.assets.object_reference import ObjectReference
+from isaac_arena.assets.asset import Asset
 
 
 @configclass
@@ -194,6 +197,8 @@ class LwLabTaskBase(TaskBase):
         self.init_robot_base_ref = None
         self.events_cfg = EventCfg()
         self.termination_cfg = TerminationsCfg()
+        self.assets = {}
+        self.contact_sensors = {}
         self.init_checkers_cfg()
         self.checkers = get_checkers_from_cfg(self.checkers_cfg)
         self.checkers_results = form_checker_result(self.checkers_cfg)
@@ -398,23 +403,26 @@ class LwLabTaskBase(TaskBase):
             objects_version.append({cfg["name"]: cfg["info"]["obj_version"]})
         self.objects_version = objects_version
 
-        self.assets = {}
-        self.contact_sensors = {}
         for cfg in self.object_cfgs:
-            self.assets[cfg["info"]["task_name"]] = LwLabObject(
-                name=cfg["info"]["task_name"],
-                tags=["object"],
-                usd_path=cfg["info"]["obj_path"],
-                prim_path=f"{{ENV_REGEX_NS}}/{self.context.scene_name.split('-')[0]}/{cfg['info']['task_name']}",
-                object_type=ObjectType.RIGID,
+            self.add_asset(
+                LwLabObject(
+                    name=cfg["info"]["task_name"],
+                    tags=["object"],
+                    usd_path=cfg["info"]["obj_path"],
+                    prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{cfg['info']['task_name']}",
+                    object_type=ObjectType.RIGID,
+                )
             )
-            self.contact_sensors[f"{cfg['info']['task_name']}_contact"] = ContactSensorCfg(
-                prim_path=f"{{ENV_REGEX_NS}}/{self.context.scene_name.split('-')[0]}/{cfg['info']['task_name']}/{cfg['info']['name']}",
-                update_period=0.0,
-                history_length=6,
-                debug_vis=False,
-                force_threshold=0.0,
-                filter_prim_paths_expr=[],
+            self.add_contact_sensor_cfg(
+                name=f"{cfg['info']['task_name']}_contact",
+                cfg=ContactSensorCfg(
+                    prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{cfg['info']['task_name']}/{cfg['info']['name']}",
+                    update_period=0.0,
+                    history_length=6,
+                    debug_vis=False,
+                    force_threshold=0.0,
+                    filter_prim_paths_expr=[],
+                )
             )
 
     def get_obj_lang(self, obj_name="obj", get_preposition=False):
@@ -442,6 +450,14 @@ class LwLabTaskBase(TaskBase):
                 updated_placement[0] = np.array(updated_placement[0])[None, :].repeat(self.num_envs, axis=0)
             object_placements[obj_name] = updated_placement
         return object_placements, updated_obj_names
+
+    def add_asset(self, asset: Asset):
+        assert asset.name is not None, "Asset with the same name already exists"
+        self.assets[asset.name] = asset
+
+    def add_contact_sensor_cfg(self, name: str, cfg: ContactSensorCfg):
+        assert name is not None, "Contact sensor with the same name already exists"
+        self.contact_sensors[name] = cfg
 
     def get_scene_cfg(self):
         super().get_scene_cfg()
@@ -627,8 +643,38 @@ class LwLabTaskBase(TaskBase):
             self.fixture_refs[ref_name] = self.get_fixture(**fn_kwargs)
         return self.fixture_refs[ref_name]
 
+    def _init_ref_fixtures(self):
+        for fixtr in self.fixture_refs.values():
+            if isinstance(fixtr, IsaacFixture):
+                self.add_asset(
+                    ObjectReference(
+                        name=fixtr.name,
+                        prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
+                        parent_asset=self.scene_assets[self.scene_type]
+                    )
+                )
+        for fixtr in self.fixture_refs.values():
+            if isinstance(fixtr, IsaacFixture):
+                fixtr.setup_cfg(self)
+
+    def _apply_object_placements(self, object_placements):
+        for obj_pos, obj_quat, obj in object_placements.items():
+            if obj.task_name in self.assets:
+                obj_quat_wxyz = Tn.convert_quat(obj_quat, to="wxyz")
+                self.assets[obj.task_name].init_state.pos = obj_pos
+                self.assets[obj.task_name].init_state.rot = obj_quat_wxyz
+
     def setup_env_config(self, orchestrator):
+        self.scene_assets = orchestrator.scene.assets
+        self.scene_type = orchestrator.scene.scene_type
         self.fixtures = orchestrator.scene.fixtures
+        self._setup_kitchen_references()
+        self._init_ref_fixtures()
+        self._get_obj_cfgs()
+        self._create_objects()
+
+        object_placements = EnvUtils.sample_object_placements(orchestrator)
+        self._apply_object_placements(object_placements)
 
     def get_ep_meta(self):
         ep_meta = {}

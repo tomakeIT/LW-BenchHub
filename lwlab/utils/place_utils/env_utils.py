@@ -1047,33 +1047,35 @@ def create_obj(env_cfg, cfg: Dict[str, Any], version=None):
 
 
 def sample_object_placements(orchestrator, need_retry=True) -> dict:
+    context = orchestrator.task.context
     try:
-        if not hasattr(orchestrator.scene, "placement_initializer"):
-            orchestrator.scene.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, orchestrator.scene.context.seed)
+        if not hasattr(orchestrator.task, "placement_initializer"):
+            orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
         else:
-            assert isinstance(orchestrator.scene.placement_initializer, SequentialCompositeSampler), "placement_initializer must be a SequentialCompositeSampler"
+            assert isinstance(orchestrator.task.placement_initializer, SequentialCompositeSampler), "placement_initializer must be a SequentialCompositeSampler"
 
         if orchestrator.scene.is_replay_mode:
             return orchestrator.task._load_placement()
 
         if not need_retry:
-            return orchestrator.scene.placement_initializer.sample(
+            return orchestrator.task.placement_initializer.sample(
                 placed_objects=orchestrator.scene.fxtr_placements,
                 max_attempts=15000,
             )
 
         # Check if scene retry count exceeds max
-        if orchestrator.task.scene_retry_count >= orchestrator.task.max_scene_retry:
-            raise RuntimeError(f"Maximum scene retries ({orchestrator.task.max_scene_retry}) exceeded. Failed to place objects after {orchestrator.task.max_scene_retry} scene reloads.")
+        if orchestrator.task.scene_retry_count >= context.max_scene_retry:
+            raise RuntimeError(f"Maximum scene retries ({context.max_scene_retry}) exceeded. Failed to place objects after {context.max_scene_retry} scene reloads.")
 
         # Check if object retry count exceeds max
-        if orchestrator.task.object_retry_count >= orchestrator.task.max_object_placement_retry:
+        if orchestrator.task.object_retry_count >= context.max_object_placement_retry:
             orchestrator.task.scene_retry_count += 1
-            print(f"All object placement retries failed, reloading entire model (scene retry {orchestrator.task.scene_retry_count}/{orchestrator.task.max_scene_retry})")
+            print(f"All object placement retries failed, reloading entire model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
             orchestrator.task = LwLabTaskBase()
             orchestrator.scene.setup_env_config(orchestrator)
+            orchestrator.task.setup_env_config(orchestrator)
 
-        return orchestrator.scene.placement_initializer.sample(
+        return orchestrator.task.placement_initializer.sample(
             placed_objects=orchestrator.scene.fxtr_placements,
             max_attempts=15000,
         )
@@ -1089,6 +1091,7 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
                 orchestrator.task.scene_retry_count += 1
                 orchestrator.task = LwLabTaskBase()
                 orchestrator.scene.setup_env_config(orchestrator)
+                orchestrator.task.setup_env_config(orchestrator)
             else:
                 # No cached versions, try to replace object
                 print(f"Attempting to replace failed object: {failed_obj_name}")
@@ -1100,12 +1103,14 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
                     print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {orchestrator.task.scene_retry_count}/{orchestrator.task.max_scene_retry})")
                     orchestrator.task = LwLabTaskBase()
                     orchestrator.scene.setup_env_config(orchestrator)
+                    orchestrator.task.setup_env_config(orchestrator)
         else:
             print("Could not identify failed object, falling back to model reload")
             orchestrator.task.scene_retry_count += 1
-            print(f"Reloading model (scene retry {orchestrator.task.scene_retry_count}/{orchestrator.task.max_scene_retry})")
+            print(f"Reloading model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
             orchestrator.task = LwLabTaskBase()
             orchestrator.scene.setup_env_config(orchestrator)
+            orchestrator.task.setup_env_config(orchestrator)
 
         return sample_object_placements(orchestrator, need_retry)
 
