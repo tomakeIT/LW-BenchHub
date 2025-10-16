@@ -602,9 +602,7 @@ def main():
 
     def save_metrics():
         """Save metrics data to JSON file"""
-        metrics_data = {}
-        if hasattr(env_cfg, 'get_checker_results'):
-            metrics_data = env_cfg.get_checker_results()
+        metrics_data = env_cfg.isaac_arena_env.task.get_checker_results()
 
         # Save metrics to JSON file
         if metrics_data:

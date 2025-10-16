@@ -460,9 +460,7 @@ def main():
 
     def save_metrics(env):
         """Save metrics data to JSON file"""
-        metrics_data = {}
-        if hasattr(env.cfg, 'get_checker_results'):
-            metrics_data = env.cfg.get_checker_results()
+        metrics_data = env.cfg.isaac_arena_env.task.get_checker_results()
 
         # Save metrics to JSON file
         if metrics_data:
@@ -669,8 +667,8 @@ def main():
                 scene_name = "robocasalibero"
             else:
                 scene_name = "robocasakitchen"
-            scene_name = f"{scene_name}-{env.cfg.layout_id}-{env.cfg.style_id}"
-            object_cfgs = copy.deepcopy(env.cfg.object_cfgs)
+            scene_name = f"{scene_name}-{env.cfg.isaac_arena_env.scene.layout_id}-{env.cfg.isaac_arena_env.scene.style_id}"
+            object_cfgs = copy.deepcopy(env.cfg.isaac_arena_env.task.object_cfgs)
             cache_usd_version = {
                 "floorplan_version": env.cfg.isaac_arena_env.scene.floorplan_version,
                 "objects_version": env.cfg.isaac_arena_env.task.objects_version
