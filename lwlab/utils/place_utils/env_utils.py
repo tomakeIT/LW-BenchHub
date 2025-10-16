@@ -1418,8 +1418,8 @@ def get_safe_robot_anchor(cfg, unsafe_anchor_pos, unsafe_anchor_ori):
 
 
 def set_camera_follow_pose(env: ManagerBasedRLEnv, offset, lookat):
-    if env.cfg.robot_base_link is not None:
-        robot_base_link_idx = env.scene.articulations["robot"].data.body_names.index(env.cfg.robot_base_link)
+    if env.cfg.isaac_arena_env.embodiment.robot_base_link is not None:
+        robot_base_link_idx = env.scene.articulations["robot"].data.body_names.index(env.cfg.isaac_arena_env.embodiment.robot_base_link)
         robot_mat = T.quat2mat(env.scene.articulations["robot"].data.body_com_quat_w[..., robot_base_link_idx, :][0].cpu().numpy()[[1, 2, 3, 0]])
         robot_pos = env.scene.articulations["robot"].data.body_com_pos_w[..., robot_base_link_idx, :][0].cpu().numpy()
         robot_pos += (robot_mat @ np.array(offset).reshape(3, 1))[:, 0]
