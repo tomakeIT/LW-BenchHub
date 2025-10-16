@@ -52,10 +52,10 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
     def __init__(self, enable_cameras: bool = False, initial_pose: Optional[Pose] = None):
         super().__init__(enable_cameras, initial_pose)
         self.scene_config = PandaOmronSceneCfg()
-        self.action_config = MISSING
-        self.observation_config = MISSING
-        self.event_config = MISSING
-        self.mimic_env = MISSING
+        self.action_config = None
+        self.observation_config = None
+        self.event_config = None
+        self.mimic_env = None
         self.camera_config = PandaOmronCameraCfg()
         self.offset_config = OFFSET_CONFIG
 

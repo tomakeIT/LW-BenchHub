@@ -82,6 +82,7 @@ class LwLabScene(Scene):
                  excute_mode: ExecuteMode = ExecuteMode.TELEOP,
                  **kwargs,
                  ):
+        super().__init__()
         self.context = get_context()
         self.scene_name = self.context.scene_name
         self.layout_id: int = None

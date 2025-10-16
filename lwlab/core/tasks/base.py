@@ -211,7 +211,7 @@ class LwLabTaskBase(TaskBase):
         self.init_checkers_cfg()
         self.checkers = get_checkers_from_cfg(self.checkers_cfg)
         self.checkers_results = form_checker_result(self.checkers_cfg)
-        self.contact_queues = [ContactQueue() for _ in range(self.num_envs)]
+        self.contact_queues = [ContactQueue() for _ in range(self.context.num_envs)]
 
         # Initialize retry counts
         self.scene_retry_count = 0
