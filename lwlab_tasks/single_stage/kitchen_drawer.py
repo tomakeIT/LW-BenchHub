@@ -88,12 +88,6 @@ class ManipulateDrawer(LwLabTaskBase):
         random_index = self.rng.integers(len(inits))
         robot_base_pos, robot_base_ori, side = inits[random_index]
         self.drawer_side = side
-        if hasattr(self, "init_robot_base_pos_anchor"):
-            self.init_robot_base_pos_anchor[:2] = robot_base_pos[:2]
-            self.init_robot_base_ori_anchor[:2] = robot_base_ori[:2]
-        else:
-            self.init_robot_base_pos_anchor = robot_base_pos
-            self.init_robot_base_ori_anchor = robot_base_ori
         return True
 
     def _setup_scene(self, env, env_ids=None):

@@ -4,6 +4,7 @@ from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from lwlab.core.robots.unitree.g1 import G1_GEARWBC_CFG
 from isaac_arena.utils.pose import Pose
 import torch
+import numpy as np
 import lwlab.utils.math_utils.transform_utils.torch_impl as T
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 import isaaclab.utils.math as math_utils
@@ -19,6 +20,35 @@ class G1BaseEmbodiment(LwLabEmbodimentBase):
         self.init_waist_roll = 0.0
         # self.sim.dt = 1 / 200  # physics frequency: 100Hz
         # self.decimation = 4  # action frequency: 50Hz
+
+    def set_default_offset_config(self):
+        self.offset_config = {
+            "left_offset": np.array([0.2, 0.16, 0.09523]),
+            "right_offset": np.array([0.2, -0.16, 0.09523]),
+            "left2arm_transform": np.array([[1.0, 0.0, 0.0, 0.0],
+                                            [0.0, 1.0, 0.0, 0.0],
+                                            [0.0, 0.0, 1.0, 0.0],
+                                            [0.0, 0.0, 0.0, 1.0]]),
+            "right2arm_transform": np.array([[1.0, 0.0, 0.0, 0.0],
+                                             [0.0, 1.0, 0.0, 0.0],
+                                             [0.0, 0.0, 1.0, 0.0],
+                                             [0.0, 0.0, 0.0, 1.0]]),
+            "vuer_head_mat": np.array([[1, 0, 0, 0],
+                                       [0, 1, 0, 1.1],
+                                       [0, 0, 1, -0.0],
+                                       [0, 0, 0, 1]]),
+            "vuer_right_wrist_mat": np.array([[1, 0, 0, 0.25],  # -y
+                                              [0, 1, 0, 0.7],  # z
+                                              [0, 0, 1, -0.3],  # -x
+                                              [0, 0, 0, 1]]),
+            "vuer_left_wrist_mat": np.array([[1, 0, 0, -0.25],
+                                             [0, 1, 0, 0.7],
+                                             [0, 0, 1, -0.3],
+                                             [0, 0, 0, 1]]),
+            "left2finger_transform": np.array([[0, -1, 0, 0], [0, 0, -1, 0], [1, 0, 0, 0], [0, 0, 0, 1]]),
+            "right2finger_transform": np.array([[0, -1, 0, 0], [0, 0, -1, 0], [1, 0, 0, 0], [0, 0, 0, 1]]),
+            "robot_arm_length": 0.7
+        }
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
         """
@@ -106,8 +136,13 @@ class G1BaseEmbodiment(LwLabEmbodimentBase):
                 left_arm_action = arm_action  # Robot frame
             else:
                 right_arm_action = arm_action  # Robot frame
-        left_gripper = torch.tensor([-action["left_gripper"]], device=action['rbase'].device)
-        right_gripper = torch.tensor([-action["right_gripper"]], device=action['rbase'].device)
+        # range [-1, 1]
+        left_gripper = torch.tensor([action["left_gripper"]], device=action['rbase'].device)
+        right_gripper = torch.tensor([action["right_gripper"]], device=action['rbase'].device)
+        # convert to range [0, 1]
+        left_gripper = -(left_gripper + 1) / 2
+        right_gripper = -(right_gripper + 1) / 2
+        # print(left_gripper, right_gripper, left_arm_action, right_arm_action, base_action)
         return torch.concat([left_gripper, right_gripper, left_arm_action, right_arm_action, base_action]).unsqueeze(0)
 
 

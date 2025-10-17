@@ -121,7 +121,7 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
         if self.task.resample_robot_placement_on_reset:
             # TODO:(ju.zheng) need to update this
             self.sample_robot_base(env, env_ids)
-            set_robot_to_position(env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)
+            set_robot_to_position(env, self.init_robot_base_pos, self.init_robot_base_ori, env_ids=env_ids)
 
     def _update_fxtr_obj_placement(self, object_placements):
         updated_obj_names = []

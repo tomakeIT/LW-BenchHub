@@ -210,11 +210,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
         }
 
     def setup_env_config(self, orchestrator):
-        self.place_robot(orchestrator)
-
-    def place_robot(self, orchestrator):
         self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
-        self.scene_config.robot.init_state.pos = self.init_robot_base_pos_anchor
         self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
 
     def get_robot_anchor(self, orchestrator):

@@ -60,6 +60,7 @@ from isaac_arena.assets.object_reference import ObjectReference
 from isaac_arena.assets.object_base import ObjectType
 from isaaclab.utils import configclass
 from lwlab.utils.log_utils import copy_dict_for_json
+from isaaclab.assets import AssetBaseCfg
 
 '''
 What second stage need to do:
@@ -181,6 +182,14 @@ class LwLabScene(Scene):
         env_cfg.sim.physx.bounce_threshold_velocity = 0.01
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
         env_cfg.sim.render.enable_translucency = True
+
+        # add light in scene
+        light = AssetBaseCfg(
+            prim_path="{ENV_REGEX_NS}/light",
+            spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=9000.0),
+        )
+        setattr(env_cfg.scene, "light", light)
+
         return env_cfg
 
 

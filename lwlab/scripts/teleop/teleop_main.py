@@ -503,10 +503,12 @@ def main():
                     pos_sensitivity=0.05 * args_cli.sensitivity, rot_sensitivity=0.05 * args_cli.sensitivity,
                     base_sensitivity=0.5 * args_cli.sensitivity, base_yaw_sensitivity=0.8 * args_cli.sensitivity
                 )
+                teleop_interface.env = env
             elif args_cli.teleop_device.lower() == "spacemouse":
                 teleop_interface = Se3SpaceMouse(env,
                                                  pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.2 * args_cli.sensitivity
                                                  )
+                teleop_interface.env = env
             # elif args_cli.teleop_device.lower() == "gamepad":
             #     teleop_interface = Se3Gamepad(
             #         pos_sensitivity=0.1 * args_cli.sensitivity, rot_sensitivity=0.1 * args_cli.sensitivity
@@ -837,7 +839,7 @@ def main():
                     should_reset_recording_instance = False
 
                 if not args_cli.headless:
-                    update_task_desc(env, env_cfg)
+                    update_task_desc(env, env_cfg.isaac_arena_env)
 
                 frame_count = 0
                 # Reset demo counter for new session
