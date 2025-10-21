@@ -126,7 +126,7 @@ from typing import Dict, Any, Callable
 
 
 class LwLabEmbodimentBase(EmbodimentBase):
-    observation_cameras: dict | None = None
+    observation_cameras: dict | None = {}
     robot_vis_helper_cfg: dict | None = None
     robot_base_link: str | None = None
 
@@ -142,8 +142,16 @@ class LwLabEmbodimentBase(EmbodimentBase):
         self.robot_spawn_deviation_pos_x = 0.15
         self.robot_spawn_deviation_pos_y = 0.05
         self.robot_spawn_deviation_rot = 0.0
+        self.reward_gripper_joint_names = []
+        self.reward_arm_joint_names = []
 
         self.set_default_offset_config()
+
+    def _setup_camera_config(self, task_type: str):
+        for cam_name, cam_info in self.observation_cameras.items():
+            if task_type not in cam_info["tags"]:
+                continue
+            setattr(self.camera_config, cam_name, cam_info["camera_cfg"])
 
     def get_recorder_term_cfg(self):
         if self.context.execute_mode in [ExecuteMode.TELEOP, ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS]:
@@ -213,6 +221,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
     def setup_env_config(self, orchestrator):
         self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
         self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
+        self._setup_camera_config(orchestrator.task.task_type)
 
     def get_robot_anchor(self, orchestrator):
         (

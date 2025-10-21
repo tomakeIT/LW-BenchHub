@@ -749,6 +749,14 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         object_placements = EnvUtils.sample_object_placements(orchestrator)
         self._apply_object_placements(object_placements)
 
+        self._set_reward_joint_names(
+            orchestrator.embodiment.reward_gripper_joint_names,
+            orchestrator.embodiment.reward_arm_joint_names
+        )
+
+    def _set_reward_joint_names(self, gripper_joint_names, arm_joint_names):
+        pass
+
     def get_ep_meta(self):
         ep_meta = {}
         ep_meta["task_name"] = self.task_name

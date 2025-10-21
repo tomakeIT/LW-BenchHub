@@ -234,10 +234,8 @@ class BaseOpenDrawerRlCfg(BaseRLEnvCfg, OpenDrawer):
         """
         return []
 
-    def set_reward_gripper_joint_names(self, gripper_joint_names):
+    def set_reward_joint_names(self, gripper_joint_names, arm_joint_names):
         self.rewards.grasp_handle.params["asset_cfg"].joint_names = gripper_joint_names
-
-    def set_reward_arm_joint_names(self, arm_joint_names):
         self.rewards.target_qpos_reward.params["asset_cfg"].joint_names = arm_joint_names
 
     def __post_init__(self):

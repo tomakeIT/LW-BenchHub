@@ -3,8 +3,9 @@ import numpy as np
 import json
 import time
 from dataclasses import MISSING
+from isaaclab.utils import configclass
 from lwlab.utils.math_utils import transform_utils as T
-from .common import LocoActionsCfg, DecoupledWBCActionsCfg, PinkActionsCfg, RLActionsCfg
+from .common import ActionsCfg, LocoActionsCfg, DecoupledWBCActionsCfg, PinkActionsCfg, RLActionsCfg
 
 from isaaclab.assets import ArticulationCfg
 from isaaclab.sensors import FrameTransformerCfg
@@ -17,7 +18,6 @@ from isaaclab.sensors.frame_transformer.frame_transformer_cfg import OffsetCfg
 
 import lwlab.core.mdp as mdp
 from lwlab.core.mdp.actions.g1_action import G1ActionCfg
-from lwlab.core.robots.base import BaseRobotCfg
 from lwlab.core.mdp.actions.decoupled_wbc_action import G1DecoupledWBCActionCfg
 from .assets_cfg import (
     G1_HIGH_PD_CFG,
@@ -25,7 +25,14 @@ from .assets_cfg import (
     G1_Loco_CFG,
     G1_GEARWBC_CFG,
 )
-from lwlab.core.models.grippers.dex3 import Dex3GripperCfg
+from lwlab.core.models.grippers.dex3 import Dex3GripperCfg, BaseGripperCfg
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.managers import ObservationTermCfg as ObsTerm
+import lwlab.core.mdp as mdp_isaac_lab
+from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase
+from isaac_arena.utils.pose import Pose
+from isaac_arena.environments.isaac_arena_manager_based_env import IsaacArenaManagerBasedRLEnvCfg
+from isaaclab_tasks.manager_based.manipulation.stack.mdp.observations import ee_frame_pos, ee_frame_quat, gripper_pos
 ##
 # Pre-defined configs
 ##
@@ -34,265 +41,210 @@ FRAME_MARKER_SMALL_CFG = FRAME_MARKER_CFG.copy()
 FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
 
-class UnitreeG1EnvCfg(BaseRobotCfg):
-    actions: PinkActionsCfg = PinkActionsCfg()
-    robot_scale: float = 1.0
-    robot_cfg: ArticulationCfg = G1_HIGH_PD_CFG
-    offset_config = OFFSET_CONFIG_G1
-    robot_base_link: str = "pelvis"
-    gripper_cfg = Dex3GripperCfg(
-        "unitree_dex3_left",
-        "unitree_dex3_right"
+@configclass
+class G1SceneCfg:
+    robot: ArticulationCfg = G1_HIGH_PD_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+    ee_frame: FrameTransformerCfg = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/pelvis",
+        debug_vis=False,
+        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link",
+                name="tool_left_arm",
+                offset=OffsetCfg(pos=(0.0415, 0.003, 0.0)),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link",
+                name="tool_right_arm",
+                offset=OffsetCfg(pos=(0.0415, -0.003, 0.0)),
+            ),
+        ],
     )
-    hand_action_mode: str = MISSING
-    robot_to_fixture_dist: float = 0.50
-    robot_base_offset = {"pos": [0.0, 0.0, 0.8], "rot": [0.0, 0.0, 0.0]}
-    observation_cameras: dict = {
-        "left_hand_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link/left_hand_palm_link/left_hand_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.05, -0.05, 0.0), rot=(-0.2706, -0.2706, 0.65328, 0.65328), convention="opengl"),  # 90, -45, 180
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=14.8,
-                    focus_distance=400.0,
-                    horizontal_aperture=83.0,  # For a 75° FOV (assuming square image)
-                    clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["teleop"]
-        },
-        "first_person_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/torso_link/first_person_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(-0.4, 0.0, 0.75), rot=(0.59637, 0.37993, -0.37993, -0.59637), convention="opengl"),  # 0.0, -65, -90
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=27.7,  # Adjusted for 60° FOV
-                    clipping_range=(0.1, 1.0e5),
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["teleop"]
-        },
-        "right_hand_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link/right_hand_palm_link/right_hand_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.05, 0.05, 0.0), rot=(0.65328, 0.65328, -0.2706, -0.2706), convention="opengl"),  # 90, -45, 0
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=14.8,
-                    focus_distance=400.0,
-                    horizontal_aperture=83.0,  # For a 75° FOV (assuming square image)
-                    clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["teleop"]
-        },
-        "left_shoulder_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/torso_link/left_shoulder_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(-0.1, 0.4, 0.5), rot=(0.28818, 0.25453, -0.33065, -0.86188), convention="opengl"),  # -35, -30, -150
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=62,  # For a 75° FOV (assuming square image)
-                    clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["teleop"]
-        },
-        "eye_in_hand_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/torso_link/eye_in_hand_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.3, 0, 0.4), rot=(0.70442, 0.06163, -0.06163, -0.70442), convention="opengl"),  # 0, -10, -90
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=83.0,  # For a 75° FOV (assuming square image)
-                    clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["teleop"]
-        },
-        "right_shoulder_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/torso_link/right_shoulder_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(-0.1, -0.4, 0.5), rot=(0.71134, 0.39777, -0.12609, -0.56558), convention="opengl"),  # 40, -25, -32
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=62,  # For a 75° FOV (assuming square image)
-                    clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["teleop"]
-        },
-        "hand_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link/hand_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.04353, -0.01712, 0.16093),
-                                                rot=(0.65164, 0.27138, -0.01743, -0.70811),
-                                                convention="opengl"),
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=27.7,  # Adjusted for 60° FOV
-                    clipping_range=(0.1, 1.0e5),
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": ["rl"]
-        },
-        "global_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/torso_link/global_camera",
-                # offset=TiledCameraCfg.OffsetCfg(pos=(0.25, 0.3, 0.38),
-                #                                 rot=(-0.01853, -0.10431, 0.33021, 0.93794),
-                #                                 convention="opengl"),
-                offset=TiledCameraCfg.OffsetCfg(pos=(0.9, 0, 0.24521),
-                                                rot=(0.56538, 0.43517, 0.42607, 0.55627),
-                                                convention="opengl"),
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=27.7,  # Adjusted for 60° FOV
-                    clipping_range=(0.1, 1.0e5),
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": []
-        },
-        "d435_camera": {
-            "camera_cfg": TiledCameraCfg(
-                prim_path="{ENV_REGEX_NS}/Robot/d435_link/d435_camera",
-                offset=TiledCameraCfg.OffsetCfg(pos=(0, 0, 0),
-                                                rot=(0.52217, 0.4768, -0.4768, -0.52217),
-                                                convention="opengl"),
-                data_types=["rgb"],
-                spawn=sim_utils.PinholeCameraCfg(
-                    focal_length=24.0,
-                    focus_distance=400.0,
-                    horizontal_aperture=27.7,  # Adjusted for 60° FOV
-                    clipping_range=(0.1, 1.0e5),
-                    lock_camera=True
-                ),
-                width=224,
-                height=224,
-                update_period=0.05,
-            ),
-            "tags": []
-        }
-    }
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.scene.robot.spawn.scale = (self.robot_scale, self.robot_scale, self.robot_scale)
-        self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/pelvis",
-            debug_vis=False,
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link",
-                    name="tool_left_arm",
-                    offset=OffsetCfg(pos=(0.0415, 0.003, 0.0)),
+
+@configclass
+class G1HandRLSceneCfg(G1SceneCfg):
+    ee_frame = FrameTransformerCfg(
+        prim_path="{ENV_REGEX_NS}/Robot/pelvis",
+        debug_vis=False,
+        visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
+        target_frames=[
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link",
+                name="tool_right_arm",
+                offset=OffsetCfg(
+                    pos=(0.13, 0.04, 0),
                 ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link",
-                    name="tool_right_arm",
-                    offset=OffsetCfg(pos=(0.0415, -0.003, 0.0)),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_hand_thumb_2_link",
+                name="tool_thumb_tip",
+                offset=OffsetCfg(
+                    pos=(0.114, -0.02, 0),
+                    rot=(0.7071068, 0, 0.7071068, 0),
                 ),
-            ],
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_hand_index_1_link",
+                name="tool_index_tip",
+                offset=OffsetCfg(
+                    pos=(0.05, 0.0, 0),
+                ),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_hand_middle_1_link",
+                name="tool_middle_tip",
+                offset=OffsetCfg(
+                    pos=(0.05, 0.0, 0),
+                ),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_hand_index_1_link",
+                name="tool_index_tip",
+                offset=OffsetCfg(
+                    pos=(0.05, 0.0, 0),
+                ),
+            ),
+            FrameTransformerCfg.FrameCfg(
+                prim_path="{ENV_REGEX_NS}/Robot/right_hand_middle_1_link",
+                name="tool_middle_tip",
+                offset=OffsetCfg(
+                    pos=(0.05, 0.0, 0),
+                ),
+            ),
+        ],
+    )
+
+
+@configclass
+class G1PinkActionsCfg(PinkActionsCfg):
+    base_action: mdp.RelativeJointPositionActionCfg = mdp.RelativeJointPositionActionCfg(
+        asset_name="robot",
+        joint_names=["base_.*"],
+        scale={
+            "base_x_joint": 0.01,
+            "base_y_joint": 0.01,
+            "base_yaw_joint": 0.02,
+        },  # 01,
+        # scale=0.01,  # 01,
+        use_zero_offset=True,  # use default offset is not working for base action
+    )
+
+    arms_action: G1ActionCfg = G1ActionCfg(asset_name="robot", joint_names=[
+        "left_shoulder_pitch_joint",
+        "left_shoulder_roll_joint",
+        "left_shoulder_yaw_joint",
+        "left_elbow_joint",
+        "left_wrist_roll_joint",
+        "left_wrist_pitch_joint",
+        "left_wrist_yaw_joint",
+        "right_shoulder_pitch_joint",
+        "right_shoulder_roll_joint",
+        "right_shoulder_yaw_joint",
+        "right_elbow_joint",
+        "right_wrist_roll_joint",
+        "right_wrist_pitch_joint",
+        "right_wrist_yaw_joint"
+    ])
+
+
+@configclass
+class G1LocoActionsCfg(LocoActionsCfg):
+    base_action = mdp.LegPositionActionCfg(
+        asset_name="robot",
+        joint_names=['left_hip_pitch_joint', 'right_hip_pitch_joint', 'left_hip_roll_joint',
+                     'right_hip_roll_joint', 'left_hip_yaw_joint', 'right_hip_yaw_joint',
+                     'left_knee_joint', 'right_knee_joint', 'left_ankle_pitch_joint',
+                     'right_ankle_pitch_joint', 'left_ankle_roll_joint', 'right_ankle_roll_joint'],
+        body_name="base",
+        scale=1.0,  # action scaling factor
+        loco_config="g1_loco.yaml",  # gait control configuration file
+        squat_config="g1_squat.yaml"  # squat control configuration file
+    )
+
+    left_arm_action = mdp.DifferentialInverseKinematicsActionCfg(
+        asset_name="robot",
+        joint_names=["left_shoulder.*", "left_wrist.*", "left_elbow.*"],  # TODO
+        body_name="left_wrist_yaw_link",
+        controller=mdp.DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        scale=1.0,
+        body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0.0415, 0.003, 0.0)),
+    )
+
+    right_arm_action = mdp.DifferentialInverseKinematicsActionCfg(
+        asset_name="robot",
+        joint_names=["right_shoulder.*", "right_wrist.*", "right_elbow.*"],  # TODO
+        body_name="right_wrist_yaw_link",
+        controller=mdp.DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
+        scale=1.0,
+        body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0.0415, -0.003, 0.0)),
+    )
+
+
+@configclass
+class G1RLActionsCfg(RLActionsCfg):
+    right_arm_action = mdp.JointPositionActionCfg(
+        asset_name="robot", joint_names=["right_shoulder.*", "right_wrist.*", "right_elbow.*"], scale=1, use_default_offset=True
+    )
+
+
+@configclass
+class G1DecoupledWBCActionsCfg(DecoupledWBCActionsCfg):
+    base_action: G1DecoupledWBCActionCfg = G1DecoupledWBCActionCfg(asset_name="robot", joint_names=[".*"])
+    left_hand_action: mdp.ActionTermCfg = None
+    right_hand_action: mdp.ActionTermCfg = None
+
+
+@configclass
+class G1CameraCfg:
+    left_hand_camera: TiledCameraCfg = None
+    first_person_camera: TiledCameraCfg = None
+    right_hand_camera: TiledCameraCfg = None
+    left_shoulder_camera: TiledCameraCfg = None
+    eye_in_hand_camera: TiledCameraCfg = None
+    right_shoulder_camera: TiledCameraCfg = None
+    hand_camera: TiledCameraCfg = None
+    global_camera: TiledCameraCfg = None
+    d435_camera: TiledCameraCfg = None
+
+
+@configclass
+class G1ObservationsCfg:
+    """Observation specifications for the MDP."""
+
+    @configclass
+    class PolicyCfg(ObsGroup):
+        """Observations for policy group with state values."""
+
+        actions = ObsTerm(func=mdp_isaac_lab.last_action)
+        joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
+        joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
+        eef_pos = ObsTerm(func=ee_frame_pos)
+        eef_quat = ObsTerm(func=ee_frame_quat)
+        gripper_pos = ObsTerm(func=gripper_pos)
+
+        def __post_init__(self):
+            self.enable_corruption = False
+            self.concatenate_terms = False
+
+    policy: PolicyCfg = PolicyCfg()
+
+
+class UnitreeG1EnvCfg(LwLabEmbodimentBase):
+
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(initial_pose)
+        self.name = "G1"
+        self.gripper_cfg = Dex3GripperCfg(
+            "unitree_dex3_left",
+            "unitree_dex3_right"
         )
-        self.actions.base_action = mdp.RelativeJointPositionActionCfg(
-            asset_name="robot",
-            joint_names=["base_.*"],
-            scale={
-                "base_x_joint": 0.01,
-                "base_y_joint": 0.01,
-                "base_yaw_joint": 0.02,
-            },  # 01,
-            # scale=0.01,  # 01,
-            use_zero_offset=True,  # use default offset is not working for base action
-        )
-        # Configure actions based on the actions type
-        if hasattr(self.actions, 'arms_action'):
-            # PinkActionsCfg - use G1ActionCfg for arms
-            self.actions.arms_action = G1ActionCfg(asset_name="robot", joint_names=[
-                "left_shoulder_pitch_joint",
-                "left_shoulder_roll_joint",
-                "left_shoulder_yaw_joint",
-                "left_elbow_joint",
-                "left_wrist_roll_joint",
-                "left_wrist_pitch_joint",
-                "left_wrist_yaw_joint",
-                "right_shoulder_pitch_joint",
-                "right_shoulder_roll_joint",
-                "right_shoulder_yaw_joint",
-                "right_elbow_joint",
-                "right_wrist_roll_joint",
-                "right_wrist_pitch_joint",
-                "right_wrist_yaw_joint"
-            ])
-
-        if hasattr(self.actions, 'left_arm_action') and hasattr(self.actions, 'right_arm_action'):
-            # ActionsCfg or LocoActionsCfg - use DifferentialInverseKinematicsActionCfg for arms
-            self.actions.left_arm_action = mdp.DifferentialInverseKinematicsActionCfg(
-                asset_name="robot",
-                joint_names=["left_shoulder.*", "left_wrist.*", "left_elbow.*"],  # TODO
-                body_name="left_wrist_yaw_link",
-                controller=mdp.DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-                scale=1.0,
-                body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0.0415, 0.003, 0.0)),
-            )
-            self.actions.right_arm_action = mdp.DifferentialInverseKinematicsActionCfg(
-                asset_name="robot",
-                joint_names=["right_shoulder.*", "right_wrist.*", "right_elbow.*"],  # TODO
-                body_name="right_wrist_yaw_link",
-                controller=mdp.DifferentialIKControllerCfg(command_type="pose", use_relative_mode=False, ik_method="dls"),
-                scale=1.0,
-                body_offset=mdp.DifferentialInverseKinematicsActionCfg.OffsetCfg(pos=(0.0415, -0.003, 0.0)),
-            )
-
-        self.actions.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
-        self.actions.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
+        self.observation_config = G1ObservationsCfg()
+        self.action_config = G1PinkActionsCfg()
+        self.scene_config = G1SceneCfg()
+        self.robot_scale = robot_scale
+        self.scene_config.robot.spawn.scale = (self.robot_scale, self.robot_scale, self.robot_scale)
         self.left_gripper_contact = ContactSensorCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Robot/{self.gripper_cfg.left_contact_body_name}",
             update_period=0.0,
@@ -307,38 +259,209 @@ class UnitreeG1EnvCfg(BaseRobotCfg):
             debug_vis=False,
             filter_prim_paths_expr=[],
         )
-        setattr(self.scene, "left_gripper_contact", self.left_gripper_contact)
-        setattr(self.scene, "right_gripper_contact", self.right_gripper_contact)
+        self.camera_config = G1CameraCfg()
+        self.robot_base_link: str = "pelvis"
+        self.hand_action_mode: str | None = None
+        self.robot_to_fixture_dist: float = 0.50
+        self.robot_base_offset = {"pos": [0.0, 0.0, 0.8], "rot": [0.0, 0.0, 0.0]}
+        self.observation_cameras: dict = {
+            "left_hand_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/left_wrist_yaw_link/left_hand_palm_link/left_hand_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(0.05, -0.05, 0.0), rot=(-0.2706, -0.2706, 0.65328, 0.65328), convention="opengl"),  # 90, -45, 180
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=14.8,
+                        focus_distance=400.0,
+                        horizontal_aperture=83.0,  # For a 75° FOV (assuming square image)
+                        clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["teleop"]
+            },
+            "first_person_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/torso_link/first_person_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(-0.4, 0.0, 0.75), rot=(0.59637, 0.37993, -0.37993, -0.59637), convention="opengl"),  # 0.0, -65, -90
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=27.7,  # Adjusted for 60° FOV
+                        clipping_range=(0.1, 1.0e5),
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["teleop"]
+            },
+            "right_hand_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link/right_hand_palm_link/right_hand_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(0.05, 0.05, 0.0), rot=(0.65328, 0.65328, -0.2706, -0.2706), convention="opengl"),  # 90, -45, 0
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=14.8,
+                        focus_distance=400.0,
+                        horizontal_aperture=83.0,  # For a 75° FOV (assuming square image)
+                        clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["teleop"]
+            },
+            "left_shoulder_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/torso_link/left_shoulder_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(-0.1, 0.4, 0.5), rot=(0.28818, 0.25453, -0.33065, -0.86188), convention="opengl"),  # -35, -30, -150
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=62,  # For a 75° FOV (assuming square image)
+                        clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["teleop"]
+            },
+            "eye_in_hand_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/torso_link/eye_in_hand_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(0.3, 0, 0.4), rot=(0.70442, 0.06163, -0.06163, -0.70442), convention="opengl"),  # 0, -10, -90
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=83.0,  # For a 75° FOV (assuming square image)
+                        clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["teleop"]
+            },
+            "right_shoulder_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/torso_link/right_shoulder_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(-0.1, -0.4, 0.5), rot=(0.71134, 0.39777, -0.12609, -0.56558), convention="opengl"),  # 40, -25, -32
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=62,  # For a 75° FOV (assuming square image)
+                        clipping_range=(0.01, 50.0),  # Closer clipping for hand camera
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["teleop"]
+            },
+            "hand_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link/hand_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(0.04353, -0.01712, 0.16093),
+                                                    rot=(0.65164, 0.27138, -0.01743, -0.70811),
+                                                    convention="opengl"),
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=27.7,  # Adjusted for 60° FOV
+                        clipping_range=(0.1, 1.0e5),
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": ["rl"]
+            },
+            "global_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/torso_link/global_camera",
+                    # offset=TiledCameraCfg.OffsetCfg(pos=(0.25, 0.3, 0.38),
+                    #                                 rot=(-0.01853, -0.10431, 0.33021, 0.93794),
+                    #                                 convention="opengl"),
+                    offset=TiledCameraCfg.OffsetCfg(pos=(0.9, 0, 0.24521),
+                                                    rot=(0.56538, 0.43517, 0.42607, 0.55627),
+                                                    convention="opengl"),
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=27.7,  # Adjusted for 60° FOV
+                        clipping_range=(0.1, 1.0e5),
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": []
+            },
+            "d435_camera": {
+                "camera_cfg": TiledCameraCfg(
+                    prim_path="{ENV_REGEX_NS}/Robot/d435_link/d435_camera",
+                    offset=TiledCameraCfg.OffsetCfg(pos=(0, 0, 0),
+                                                    rot=(0.52217, 0.4768, -0.4768, -0.52217),
+                                                    convention="opengl"),
+                    data_types=["rgb"],
+                    spawn=sim_utils.PinholeCameraCfg(
+                        focal_length=24.0,
+                        focus_distance=400.0,
+                        horizontal_aperture=27.7,  # Adjusted for 60° FOV
+                        clipping_range=(0.1, 1.0e5),
+                        lock_camera=True
+                    ),
+                    width=224,
+                    height=224,
+                    update_period=0.05,
+                ),
+                "tags": []
+            }
+        }
         self.viewport_cfg = {
             "offset": [-0.8, 0.0, 1.2],
             "lookat": [1.0, 0.0, -0.5]
         }
+        self.offset_config = OFFSET_CONFIG_G1
 
 
 class UnitreeG1LocoEnvCfg(UnitreeG1EnvCfg):
-    actions: LocoActionsCfg = LocoActionsCfg()
-    robot_cfg: ArticulationCfg = G1_Loco_CFG
-    robot_name: str = "G1-Loco"
-    robot_base_offset = {"pos": [0.0, 0.0, 0.83], "rot": [0.0, 0.0, 0.0]}
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.actions.base_action = mdp.LegPositionActionCfg(
-            asset_name="robot",
-            joint_names=['left_hip_pitch_joint', 'right_hip_pitch_joint', 'left_hip_roll_joint',
-                         'right_hip_roll_joint', 'left_hip_yaw_joint', 'right_hip_yaw_joint',
-                         'left_knee_joint', 'right_knee_joint', 'left_ankle_pitch_joint',
-                         'right_ankle_pitch_joint', 'left_ankle_roll_joint', 'right_ankle_roll_joint'],
-            body_name="base",
-            scale=1.0,  # action scaling factor
-            loco_config="g1_loco.yaml",  # gait control configuration file
-            squat_config="g1_squat.yaml"  # squat control configuration file
-        )
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-Loco"
+        self.action_config = G1LocoActionsCfg()
+        self.scene_config.robot = G1_Loco_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.robot_base_offset = {"pos": [0.0, 0.0, 0.83], "rot": [0.0, 0.0, 0.0]}
 
 
 class UnitreeG1HandEnvCfg(UnitreeG1EnvCfg):
-    robot_name: str = "G1-Hand"
-    hand_action_mode: str = "tracking"
+
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-Hand"
+        self.hand_action_mode = "tracking"
+        self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
+        self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device, base_move=True) -> torch.Tensor:
         base_action = action["base"]
@@ -366,7 +489,7 @@ class UnitreeG1HandEnvCfg(UnitreeG1EnvCfg):
 
         left_arm_action = None
         right_arm_action = None
-        if self.actions.left_arm_action.controller.use_relative_mode:  # Relative mode
+        if self.action_config.left_arm_action.controller.use_relative_mode:  # Relative mode
             left_arm_action = action["left_arm_delta"]
             right_arm_action = action["right_arm_delta"]
         else:  # Absolute mode
@@ -395,12 +518,13 @@ class UnitreeG1HandEnvCfg(UnitreeG1EnvCfg):
 
 
 class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
-    robot_name: str = "G1-Controller"
-    hand_action_mode: str = "handle"
 
-    def __post_init__(self):
-        super().__post_init__()
-
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-Controller"
+        self.hand_action_mode = "handle"
+        self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
+        self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
         # base auto-lock state
         self.base_lock_state = False
         self.base_lock_value_x = 0.0
@@ -655,7 +779,7 @@ class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
         base_action[1] = world_xy[1]
         left_arm_action = None
         right_arm_action = None
-        if hasattr(self.actions, 'left_arm_action') and hasattr(self.actions, 'right_arm_action'):
+        if hasattr(self.action_config, 'left_arm_action') and hasattr(self.action_config, 'right_arm_action'):
             for arm_idx, abs_arm in enumerate([action["left_arm_abs"], action["right_arm_abs"]]):
                 pose_quat = abs_arm[3:7]
                 combined_quat = T.quat_multiply(base_quat, pose_quat)
@@ -692,15 +816,20 @@ class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
 
 
 class UnitreeG1LocoHandEnvCfg(UnitreeG1LocoEnvCfg):
-    robot_name: str = "G1-Loco-Hand"
-    hand_action_mode: str = "tracking"
+
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-Loco-Hand"
+        self.hand_action_mode = "tracking"
+        self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
+        self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
         base_action = action["base"]
         base_action = torch.cat([base_action, torch.tensor([action["base_loco_mode"]], dtype=action["base"].dtype, device=action["base"].device)], dim=0)
         left_arm_action = None
         right_arm_action = None
-        if self.actions.left_arm_action.controller.use_relative_mode:  # Relative mode
+        if self.action_config.left_arm_action.controller.use_relative_mode:  # Relative mode
             left_arm_action = action["left_arm_delta"]
             right_arm_action = action["right_arm_delta"]
         else:  # Absolute mode
@@ -734,8 +863,13 @@ class UnitreeG1LocoHandEnvCfg(UnitreeG1LocoEnvCfg):
 
 
 class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
-    robot_name: str = "G1-Loco-Controller"
-    hand_action_mode: str = "handle"
+
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-Loco-Controller"
+        self.hand_action_mode = "handle"
+        self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
+        self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
         base_action = torch.zeros(3,)
@@ -748,7 +882,7 @@ class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
 
         left_arm_action = None
         right_arm_action = None
-        if self.actions.left_arm_action.controller.use_relative_mode:  # Relative mode
+        if self.action_config.left_arm_action.controller.use_relative_mode:  # Relative mode
             left_arm_action = action["left_arm_delta"]
             right_arm_action = action["right_arm_delta"]
         else:  # Absolute mode
@@ -795,155 +929,41 @@ class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
 
 
 class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
-    actions: RLActionsCfg = RLActionsCfg()
-    robot_name: str = "G1-RL"
-    robot_to_fixture_dist: float = 0.20
-    hand_action_mode: str = "rl"
-    robot_base_offset = {"pos": [0.0, 0.2, 0.92], "rot": [0.0, 0.0, 0.0]}
 
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-
-        self.actions.right_arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=["right_shoulder.*", "right_wrist.*", "right_elbow.*"], scale=1, use_default_offset=True
-        )
-        self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/pelvis",
-            debug_vis=False,
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link",
-                    name="tool_right_arm",
-                    offset=OffsetCfg(
-                        pos=(0.13, 0.04, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_thumb_2_link",
-                    name="tool_thumb_tip",
-                    offset=OffsetCfg(
-                        pos=(0.114, -0.02, 0),
-                        rot=(0.7071068, 0, 0.7071068, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_index_1_link",
-                    name="tool_index_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_middle_1_link",
-                    name="tool_middle_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_index_1_link",
-                    name="tool_index_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_middle_1_link",
-                    name="tool_middle_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-            ],
-        )
-        self.set_reward_gripper_joint_names(["right_hand_.*"])
-        self.set_reward_arm_joint_names(["right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
-                                         "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint"])
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-RL"
+        self.hand_action_mode = "rl"
+        self.scene_config = G1HandRLSceneCfg()
+        self.action_config = G1RLActionsCfg()
+        self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
+        self.robot_to_fixture_dist = 0.20
+        self.robot_base_offset = {"pos": [0.0, 0.2, 0.92], "rot": [0.0, 0.0, 0.0]}
+        self.reward_gripper_joint_names = ["right_hand_.*"]
+        self.reward_arm_joint_names = ["right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
+                                       "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint"]
 
 
-class UnitreeG1FullHandRLEnvRLCfg(UnitreeG1HandEnvCfg):
-    robot_name: str = "G1-FullHand"
-    robot_to_fixture_dist: float = 0.20
-    hand_action_mode: str = "rl"
-    robot_base_offset = {"pos": [-0.25, 0.3, 0.95], "rot": [0.0, 0.0, 0.0]}
+class UnitreeG1FullHandRLEnvRLCfg(UnitreeG1HandEnvRLCfg):
 
-    def __post_init__(self):
-        # post init of parent
-        super().__post_init__()
-        del self.actions.base_action
-        del self.actions.left_hand_action
-        del self.actions.right_hand_action
-        del self.actions.left_arm_action
-
-        self.actions.right_arm_action = mdp.JointPositionActionCfg(
-            asset_name="robot", joint_names=["right_shoulder.*", "right_wrist.*", "right_elbow.*", "right_hand.*"], scale=1, use_default_offset=True
-        )
-        self.actions.left_arm_action = mdp.JointPositionActionCfg(
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-FullHand"
+        self.action_config.left_arm_action = mdp.JointPositionActionCfg(
             asset_name="robot", joint_names=["left_shoulder.*", "left_wrist.*", "left_elbow.*", "left_hand.*"], scale=1, use_default_offset=True
         )
-
-        self.scene.ee_frame = FrameTransformerCfg(
-            prim_path="{ENV_REGEX_NS}/Robot/pelvis",
-            debug_vis=False,
-            visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/EndEffectorFrameTransformer"),
-            target_frames=[
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_wrist_yaw_link",
-                    name="tool_right_arm",
-                    offset=OffsetCfg(
-                        pos=(0.13, 0.04, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_thumb_2_link",
-                    name="tool_thumb_tip",
-                    offset=OffsetCfg(
-                        pos=(0.114, -0.02, 0),
-                        rot=(0.7071068, 0, 0.7071068, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_index_1_link",
-                    name="tool_index_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_middle_1_link",
-                    name="tool_middle_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_index_1_link",
-                    name="tool_index_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-                FrameTransformerCfg.FrameCfg(
-                    prim_path="{ENV_REGEX_NS}/Robot/right_hand_middle_1_link",
-                    name="tool_middle_tip",
-                    offset=OffsetCfg(
-                        pos=(0.05, 0.0, 0),
-                    ),
-                ),
-            ],
-        )
+        self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
+        self.robot_to_fixture_dist = 0.20
+        self.robot_base_offset = {"pos": [-0.25, 0.3, 0.95], "rot": [0.0, 0.0, 0.0]}
 
 
 class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
 
-    actions: DecoupledWBCActionsCfg = DecoupledWBCActionsCfg()
-    robot_cfg: ArticulationCfg = G1_GEARWBC_CFG
-    robot_name: str = "G1-Controller-DecoupledWBC"
-    hand_action_mode: str = "handle"
-
-    def __post_init__(self):
+    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+        super().__init__(robot_scale, initial_pose)
+        self.name = "G1-Controller-DecoupledWBC"
+        self.scene_config.robot = G1_GEARWBC_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
+        self.action_config = G1DecoupledWBCActionsCfg()
         self.observation_cameras["left_hand_camera"] = {
             "camera_cfg": TiledCameraCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/left_hand_palm_link/left_hand_camera",
@@ -980,16 +1000,15 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
             ),
             "tags": ["teleop"]
         }
-        super().__post_init__()
-        self.actions.base_action = G1DecoupledWBCActionCfg(asset_name="robot", joint_names=[".*"])
-        self.actions.left_arm_action = None
-        self.actions.right_arm_action = None
         self.init_robot_base_height = 0.75
         self.init_waist_yaw = 0.0
         self.init_waist_pitch = 0.0
         self.init_waist_roll = 0.0
-        self.sim.dt = 1 / 200  # physics frequency: 100Hz
-        self.decimation = 4  # action frequency: 50Hz
+
+    def modify_env_cfg(self, env_cfg: IsaacArenaManagerBasedRLEnvCfg) -> IsaacArenaManagerBasedRLEnvCfg:
+        return super().modify_env_cfg(env_cfg)
+        env_cfg.sim.dt = 1 / 200  # physics frequency: 100Hz
+        env_cfg.decimation = 4  # action frequency: 50Hz
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
         """

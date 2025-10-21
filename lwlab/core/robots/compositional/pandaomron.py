@@ -118,16 +118,6 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
             }
         }
 
-    def setup_env_config(self, orchestrator):
-        super().setup_env_config(orchestrator)
-        self._setup_camera_config(orchestrator.task.task_type)
-
-    def _setup_camera_config(self, task_type: str):
-        for cam_name, cam_info in self.observation_cameras.items():
-            if task_type not in cam_info["tags"]:
-                continue
-            setattr(self.camera_config, cam_name, cam_info["camera_cfg"])
-
     def _update_scene_cfg_with_robot_initial_pose(self, scene_config: Any, pose: Pose) -> Any:
         # We override the default initial pose setting function in order to also set
         # the initial pose of the stand.

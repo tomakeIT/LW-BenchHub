@@ -2,6 +2,7 @@ from isaaclab.utils import configclass
 import lwlab.core.mdp as mdp
 from dataclasses import MISSING
 from lwlab.core.mdp.actions.g1_action import G1ActionCfg
+from lwlab.core.mdp.actions.decoupled_wbc_action import G1DecoupledWBCActionCfg
 
 
 @configclass
