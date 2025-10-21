@@ -23,6 +23,7 @@ from isaaclab.utils import math as math_utils
 import lwlab.utils.math_utils.transform_utils.torch_impl as T
 from lwlab.utils import object_utils as OU
 
+
 class CoffeeMachine(Fixture):
     """
     Coffee machine object. Supports turning on coffee machine, and simulated coffee pouring

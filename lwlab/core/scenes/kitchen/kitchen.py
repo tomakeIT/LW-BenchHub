@@ -73,7 +73,6 @@ What second stage need to do:
     - object placement
     - robot placement
     - retry (init scene_cfg / task_cfg again)
-3. 
 '''
 
 

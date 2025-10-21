@@ -1127,7 +1127,7 @@ class PnPToasterToCounter(PnP):  # DONE
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the toaster to plate task is successful.
         Checks if the object is on the plate and the gripper is far from the object.

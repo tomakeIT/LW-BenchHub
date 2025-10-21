@@ -40,8 +40,6 @@ import numpy as np
 from isaac_arena.utils.configclass import make_configclass
 from isaac_arena.assets.object_base import ObjectType
 import lwlab.utils.object_utils as OU
-from lwlab.utils.fixture_utils import fixture_is_type
-from lwlab.core.models.fixtures.fixture import FixtureType
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 import lwlab.utils.math_utils.transform_utils.torch_impl as Tt
 from lwlab.utils.log_utils import copy_dict_for_json
@@ -50,7 +48,6 @@ from lwlab.core.models.objects.LwLabObject import LwLabObject
 from isaaclab.sensors import ContactSensorCfg
 from lwlab.core.models.fixtures import Fixture, FixtureType, fixture_is_type
 import lwlab.utils.fixture_utils as FixtureUtils
-from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 from isaac_arena.assets.object_reference import ObjectReference
 from isaac_arena.assets.asset import Asset
 from isaac_arena.utils.pose import Pose
@@ -285,7 +282,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def init_fixtures(self, env, env_ids=None):
         for fixture_controller in self.fixture_refs.values():
-            if isinstance(fixture_controller, IsaacFixture):
+            if isinstance(fixture_controller, Fixture):
                 fixture_controller.setup_env(env)
 
     def init_checkers_cfg(self):
@@ -720,7 +717,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def _init_ref_fixtures(self):
         for fixtr in self.fixture_refs.values():
-            if isinstance(fixtr, IsaacFixture):
+            if isinstance(fixtr, Fixture):
                 self.add_asset(
                     ObjectReference(
                         name=fixtr.name,
@@ -730,7 +727,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                     )
                 )
         for fixtr in self.fixture_refs.values():
-            if isinstance(fixtr, IsaacFixture):
+            if isinstance(fixtr, Fixture):
                 fixtr.setup_cfg(self)
 
     def _apply_object_placements(self, object_placements):
@@ -804,64 +801,3 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def _setup_scene(self, env, env_ids=None):
         pass
-
-
-class BaseTaskEnvCfg(LwBaseCfg):
-    execute_mode: ExecuteMode = MISSING  # DONE
-    observations: ObservationsCfg = ObservationsCfg()  # TODO
-    # MDP settings
-    rewards: RewardsCfg = RewardsCfg()  # TODO
-    terminations: TerminationsCfg = TerminationsCfg()  # DONE
-    events: EventCfg = EventCfg()  # DONE
-    task_name: str = MISSING
-    reset_objects_enabled: bool = True
-    reset_robot_enabled: bool = True
-    task_type: str = "teleop"
-    fix_object_pose_cfg: dict = None
-
-    def set_reward_gripper_joint_names(self, joint_names):
-        pass
-
-    def set_reward_arm_joint_names(self, joint_names):
-        pass
-
-    def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["task_name"] = self.task_name
-
-        return ep_meta
-
-    def __post_init__(self):
-        """Post initialization."""
-        super().__post_init__()
-        # general settings
-        self.episode_length_s = 8.0
-        self.viewer.eye = (3.0, -4.0, 2.0)
-        self.viewer.lookat = (3.0, 1.0, 0.3)
-        # self.viewer.origin_type = "asset_root"
-        # self.viewer.asset_name = "robot"
-        # simulation settings
-        self.sim.dt = 1 / 100  # physics frequency: 100Hz
-        self.sim.render_interval = 4  # render frequency: 25Hz
-        self.decimation = 2  # action frequency: 50Hz
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.friction_correlation_distance = 0.00625
-        self.contact_queues = [ContactQueue() for _ in range(self.num_envs)]
-
-        # render camera settings
-        # TODO: xiaowei.song
-        if hasattr(self, "enable_cameras") and self.enable_cameras:
-            for name, camera_infos in self.observation_cameras.items():
-                if self.task_type in camera_infos["tags"]:
-                    if self.task_type == "teleop" and self.execute_mode is not ExecuteMode.TELEOP:
-                        setattr(self.observations.policy, name,
-                                ObsTerm(
-                                    func=mdp.image,
-                                    params={
-                                        "sensor_cfg": SceneEntityCfg(name),
-                                        "data_type": "rgb",
-                                        "normalize": False,
-                                    }
-                                )
-                                )
