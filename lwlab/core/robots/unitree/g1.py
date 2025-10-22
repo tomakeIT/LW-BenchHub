@@ -233,7 +233,7 @@ class G1ObservationsCfg:
 
 class UnitreeG1EnvCfg(LwLabEmbodimentBase):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
         super().__init__(initial_pose)
         self.name = "G1"
         self.gripper_cfg = Dex3GripperCfg(
@@ -243,7 +243,7 @@ class UnitreeG1EnvCfg(LwLabEmbodimentBase):
         self.observation_config = G1ObservationsCfg()
         self.action_config = G1PinkActionsCfg()
         self.scene_config = G1SceneCfg()
-        self.robot_scale = robot_scale
+        self.robot_scale = self.context.robot_scale
         self.scene_config.robot.spawn.scale = (self.robot_scale, self.robot_scale, self.robot_scale)
         self.left_gripper_contact = ContactSensorCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Robot/{self.gripper_cfg.left_contact_body_name}",
@@ -519,8 +519,8 @@ class UnitreeG1HandEnvCfg(UnitreeG1EnvCfg):
 
 class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
-        super().__init__(robot_scale, initial_pose)
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
         self.name = "G1-Controller"
         self.hand_action_mode = "handle"
         self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
@@ -817,8 +817,8 @@ class UnitreeG1ControllerEnvCfg(UnitreeG1EnvCfg):
 
 class UnitreeG1LocoHandEnvCfg(UnitreeG1LocoEnvCfg):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
-        super().__init__(robot_scale, initial_pose)
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
         self.name = "G1-Loco-Hand"
         self.hand_action_mode = "tracking"
         self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
@@ -864,8 +864,8 @@ class UnitreeG1LocoHandEnvCfg(UnitreeG1LocoEnvCfg):
 
 class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
-        super().__init__(robot_scale, initial_pose)
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
         self.name = "G1-Loco-Controller"
         self.hand_action_mode = "handle"
         self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
@@ -930,8 +930,8 @@ class UnitreeG1LocoControllerEnvCfg(UnitreeG1LocoEnvCfg):
 
 class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
-        super().__init__(robot_scale, initial_pose)
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
         self.name = "G1-RL"
         self.hand_action_mode = "rl"
         self.scene_config = G1HandRLSceneCfg()
@@ -946,8 +946,8 @@ class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
 
 class UnitreeG1FullHandRLEnvRLCfg(UnitreeG1HandEnvRLCfg):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
-        super().__init__(robot_scale, initial_pose)
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
         self.name = "G1-FullHand"
         self.action_config.left_arm_action = mdp.JointPositionActionCfg(
             asset_name="robot", joint_names=["left_shoulder.*", "left_wrist.*", "left_elbow.*", "left_hand.*"], scale=1, use_default_offset=True
@@ -959,8 +959,8 @@ class UnitreeG1FullHandRLEnvRLCfg(UnitreeG1HandEnvRLCfg):
 
 class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
 
-    def __init__(self, robot_scale: float = 1.0, initial_pose: Pose | None = None):
-        super().__init__(robot_scale, initial_pose)
+    def __init__(self, enable_cameras: bool = False, initial_pose: Pose | None = None):
+        super().__init__(enable_cameras, initial_pose)
         self.name = "G1-Controller-DecoupledWBC"
         self.scene_config.robot = G1_GEARWBC_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.action_config = G1DecoupledWBCActionsCfg()

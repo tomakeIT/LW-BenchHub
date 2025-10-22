@@ -261,9 +261,6 @@ def parse_env_cfg(
     # we assume users always use a class for the configuration
     if isinstance(cfg, dict):
         raise RuntimeError(f"Configuration for the task: '{task_name}' is not a class. Please provide a class.")
-
-    if execute_mode == ExecuteMode.REPLAY_JOINT_TARGETS:
-        cfg.set_replay_joint_targets_action()
     # simulation device
     cfg.sim.device = device
     # disable fabric to read/write through USD

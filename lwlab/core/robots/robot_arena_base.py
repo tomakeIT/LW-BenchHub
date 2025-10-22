@@ -18,6 +18,7 @@ import numpy as np
 from dataclasses import MISSING
 from typing import List, Optional
 
+from isaac_arena.environments.isaac_arena_manager_based_env import IsaacArenaManagerBasedRLEnvCfg
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
@@ -199,6 +200,12 @@ class LwLabEmbodimentBase(EmbodimentBase):
             self.last_pos["right_arm_action"] = right_arm_action.clone()
 
         return action
+
+    def modify_env_cfg(self, env_cfg: IsaacArenaManagerBasedRLEnvCfg) -> IsaacArenaManagerBasedRLEnvCfg:
+        env_cfg = super().modify_env_cfg(env_cfg)
+        if self.context.execute_mode == ExecuteMode.REPLAY_JOINT_TARGETS:
+            self.set_replay_joint_targets_action(env_cfg)
+        return env_cfg
 
     def set_replay_joint_targets_action(self, cfg):
         cfg.actions = ActionsCfg()
