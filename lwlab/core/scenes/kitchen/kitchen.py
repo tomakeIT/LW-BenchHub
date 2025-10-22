@@ -51,7 +51,6 @@ from lwlab.utils.errors import SamplingError
 from lwlab.core.models.fixtures.fixture import FixtureType, Fixture
 from lwlab.utils.fixture_utils import fixture_is_type
 from lwlab.utils.place_utils.usd_object import USDObject
-from lwlab.utils.place_utils.env_utils import set_robot_to_position, sample_robot_base_helper, get_safe_robot_anchor
 
 
 from isaac_arena.scene.scene import Scene
@@ -969,7 +968,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg, NoDeepcopyMixin):
                 raise ValueError("offset value is not correct !! please make sure offset has key pos and rot !!")
 
         # Intercept the unsafe anchor and make it safe
-        safe_anchor_pos, safe_anchor_ori = get_safe_robot_anchor(
+        safe_anchor_pos, safe_anchor_ori = EnvUtils.get_safe_robot_anchor(
             cfg=self,
             unsafe_anchor_pos=robot_base_pos_anchor,
             unsafe_anchor_ori=robot_base_ori_anchor
@@ -986,7 +985,7 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg, NoDeepcopyMixin):
             if len(self.init_robot_base_ori) == 4:  # xyzw
                 self.init_robot_base_ori = Tn.mat2euler(Tn.quat2mat(self.init_robot_base_ori)).tolist()
         else:
-            robot_pos = sample_robot_base_helper(
+            robot_pos = EnvUtils.sample_robot_base_helper(
                 env=env,
                 anchor_pos=self.init_robot_base_pos_anchor,
                 anchor_ori=self.init_robot_base_ori_anchor,
@@ -1025,4 +1024,4 @@ class RobocasaKitchenEnvCfg(BaseSceneEnvCfg, NoDeepcopyMixin):
 
         if env.cfg.isaac_arena_env.task.resample_robot_placement_on_reset:
             self.sample_robot_base(env, env_ids)
-            set_robot_to_position(env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)
+            EnvUtils.set_robot_to_position(env, self.init_robot_base_pos, self.init_robot_base_ori, keep_z=False, env_ids=env_ids)
