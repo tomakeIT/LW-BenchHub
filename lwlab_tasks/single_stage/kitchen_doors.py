@@ -74,6 +74,10 @@ class ManipulateDoor(LwLabTaskBase):
             self.fxtr.open_door(env=env, env_ids=env_ids)
         # set the door state then place the objects otherwise objects initialized in opened drawer will fall down before the drawer is opened
         super()._setup_scene(env, env_ids)
+        self._place_robot(scene=env.cfg.isaac_arena_env.scene)
+
+    def _place_robot(self, scene: LwLabScene):
+        pass
 
     def _check_success(self, env):
         """
@@ -138,10 +142,6 @@ class ManipulateLowerDoor(ManipulateDoor):
     robot_side = ""
     behavior: str = "open"
     robot_spawn_deviation_pos_x = 0.05
-
-    def _setup_scene(self, env, env_ids=None):
-        super()._setup_scene(env, env_ids)
-        self._place_robot(scene=env.cfg.isaac_arena_env.scene)
 
     def _place_robot(self, scene: LwLabScene):
         x_ofs = (self.fxtr.width / 2) + self.X_OFS
@@ -278,10 +278,6 @@ class OpenFridge(OpenDoor):
     task_name: str = "OpenFridge"
     fixture_id = FixtureType.FRIDGE
 
-    def _load_model(self, *args, **kwargs):
-        super()._load_model(*args, **kwargs)
-        self._place_robot(scene=env.cfg.isaac_arene_env.scene)
-
     def _place_robot(self, scene: LwLabScene):
         if isinstance(self.fxtr, FridgeBottomFreezer):
             OFFSET = (-0.30, -0.30)
@@ -309,10 +305,6 @@ class OpenFridge(OpenDoor):
 class CloseFridge(CloseDoor):
     task_name: str = "CloseFridge"
     fixture_id = FixtureType.FRIDGE
-
-    def _load_model(self, *args, **kwargs):
-        super()._load_model(*args, **kwargs)
-        self._place_robot(scene=env.cfg.isaac_arene_env.scene)
 
     def _place_robot(self, scene: LwLabScene):
         if isinstance(self.fxtr, FridgeBottomFreezer):

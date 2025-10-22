@@ -111,7 +111,7 @@ class ManipulateDrawer(LwLabTaskBase):
                 valid_drawer = True
                 break
         if not valid_drawer:
-            self._load_model()
+            self._load_model()  # TODO: xiaowei.song, _load_model has removed
             return
 
         self.drawer = self.register_fixture_ref("drawer", dict(id=self.drawer))
