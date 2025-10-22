@@ -4,7 +4,6 @@
 # SPDX-License-Identifier: BSD-3-Clause
 
 from dataclasses import MISSING
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 from isaaclab.sim.schemas.schemas_cfg import RigidBodyPropertiesCfg
 from isaaclab.assets import RigidObjectCfg

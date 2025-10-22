@@ -29,7 +29,6 @@ from typing import Optional
 from lwlab import CONFIGS_PATH
 
 from lwlab.utils.config_loader import config_loader
-from lwlab.core.context import get_context
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
@@ -63,6 +62,7 @@ def main(args):
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab_tasks.utils import parse_env_cfg
     from lwlab.utils.place_utils.env_utils import set_seed
+    from lwlab.core.context import get_context
 
     if "-" in args_cli.task:
         env_cfg = parse_env_cfg(
