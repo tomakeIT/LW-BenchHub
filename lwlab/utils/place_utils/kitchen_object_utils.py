@@ -50,6 +50,7 @@ def sample_kitchen_object(
     rotate_upright=False,
     projects=None,
     version=None,
+    ignore_cache=False,
 ):
     """
     Sample a kitchen object from the specified groups and within max_size bounds.
@@ -80,7 +81,7 @@ def sample_kitchen_object(
     while not valid_object_sampled:
         cache_key = object_cfgs.get("task_name")
 
-        if cache_key and cache_key in OBJECT_INFO_CACHE:
+        if not ignore_cache and cache_key and cache_key in OBJECT_INFO_CACHE:
             print(f"--- Fast Reset: Found '{cache_key}' in runtime cache. Bypassing loader. ---")
             acquire_start_time = time.time()
             cached_data = OBJECT_INFO_CACHE[cache_key]
@@ -254,7 +255,7 @@ def recreate_object(orchestrator, failed_obj_name):
         orchestrator.task.objects.pop(failed_obj_name, None)
         obj_cfg.pop("info", None)
 
-        model, info = EnvUtils.create_obj(orchestrator.task, obj_cfg)
+        model, info = EnvUtils.create_obj(orchestrator.task, obj_cfg, ignore_cache=True)
         obj_cfg["info"] = info
         orchestrator.task.objects[model.task_name] = model
         orchestrator.task.assets[info["task_name"]].usd_path = info["obj_path"]

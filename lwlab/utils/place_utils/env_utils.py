@@ -952,7 +952,7 @@ def find_object_cfg_by_name(object_cfgs, name):
     raise ValueError
 
 
-def create_obj(task: LwLabTaskBase, cfg: Dict[str, Any], version=None):
+def create_obj(task: LwLabTaskBase, cfg: Dict[str, Any], version=None, ignore_cache=False):
     """
     Helper function for creating objects.
     Called by _create_objects()
@@ -1039,6 +1039,7 @@ def create_obj(task: LwLabTaskBase, cfg: Dict[str, Any], version=None):
         rotate_upright=cfg.get("rotate_upright", False),
         projects=task.object_projects,
         version=version,
+        ignore_cache=ignore_cache,
     )
 
 # replay mode load placement
