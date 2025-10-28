@@ -65,6 +65,8 @@ VALID_CFG_KEYS = set(
         "init_robot_here",
         "reset_region",
         "rotate_upright",
+        "rgb_replace",
+        "auxiliary_obj_placement",
         *VALID_PROPERTY_KEYS,
     }
 )
@@ -659,6 +661,10 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
             y_ranges.append(np.array([-target_size[1] / 2, target_size[1] / 2]))
             ref_pos = [0, 0, 0]
             ref_rot = 0.0
+            target_pos = placement.get("pos", None)
+            if target_pos is not None:
+                x_ranges[0] += target_pos[0]
+                y_ranges[0] += target_pos[1]
         else:
             fixture = orchestrator.task.get_fixture(
                 id=fixture_id,
@@ -1037,6 +1043,7 @@ def create_obj(task: LwLabTaskBase, cfg: Dict[str, Any], version=None, ignore_ca
         max_size=cfg.get("max_size", (None, None, None)),
         object_scale=cfg.get("object_scale", None),
         rotate_upright=cfg.get("rotate_upright", False),
+        rgb_replace=cfg.get("rgb_replace", None),
         projects=task.object_projects,
         version=version,
         ignore_cache=ignore_cache,
@@ -1267,7 +1274,7 @@ def check_valid_robot_pose(env: ManagerBasedRLEnv, robot_pos, env_ids=None):
         if not obs_prim.IsValid() or obs_prim.GetAttribute("type").Get() == "WallLayout":
             continue
         # Compute the world-space bounding box for prim
-        obs_bbox = OpenUsd.get_prim_aabb_bounding_box(obs_prim)
+        obs_bbox = OpenUsd.get_prim_aabb_bounding_box(obs_prim, use_cache=False)
 
         # Check if the robot bounding box overlaps with the current object bounding box
         if check_overlap(env, robot_bbox, obs_bbox):

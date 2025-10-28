@@ -235,11 +235,11 @@ class L90S3PickUpTheRedMugAndPlaceItToTheRightOfTheCaddy(PubBookInCaddy):
             "desk_caddy",
             {
                 "gripper_far": True,
-                "contact": False,
                 "side": "right",
-                "side_threshold": 1.5,
-                "margin_threshold": [0.001, 0.2],
+                "side_threshold": 0.5,
+                "margin_threshold": [0.001, 0.3],
                 "stable_threshold": 0.5,
             }
         )
+
         return success

@@ -53,7 +53,7 @@ python3  /workspace/lwlab/ci_run/teleop_ci.py --task LGPushThePlateToTheFrontOfT
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LGPutTheBowlOnTheStove --layout libero-8-8
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LGPutTheWineBottleOnTheRack --layout libero-8-8
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LGTurnOnTheStove --layout libero-8-8
-python3  /workspace/lwlab/ci_run/teleop_ci.py --task L10L6PutTheWhiteMugOnThePlateAndPutTheChocolatePuddingToTheRightOfThePlate --layout libero-2-2
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L6PutTheRedMugOnThePlate --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L5PutTheRedMugOnTheRightPlate --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L6PutTheChocolatePuddingToTheLeftOfThePlate --layout libero-2-2
@@ -74,7 +74,7 @@ python3  /workspace/lwlab/ci_run/teleop_ci.py --task LOPickUpTheOrangeJuiceAndPl
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LOPickUpTheSaladDressingAndPlaceItInTheBasket --layout libero-5-5
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LOPickUpTheTomatoSauceAndPlaceItInTheBasket --layout libero-5-5
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L2PickUpTheButterAndPutItInTheBasket --layout libero-2-2
-python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpTheBlackBowlInTheTopDrawerOfTheWoodenCabinetAndPlaceItOnThePlate --layout libero-8-8
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpBlackBowlInTopDrawerOfWoodenCabinetAndPlaceItOnPlate --layout libero-8-8
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpTheBlackBowlOnTheCookieBoxAndPlaceItOnThePlate --layout libero-8-8
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpTheBlackBowlOnTheRamekinAndPlaceItOnThePlate --layout libero-8-8
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpTheBlackBowlOnTheStoveAndPlaceItOnThePlate --layout libero-8-8
@@ -83,8 +83,8 @@ python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90S4PickUpTheBookOnTheRigh
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L1PickUpTheAlphabetSoupAndPutItInTheBasket --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L4PickUpTheBlackBowlOnTheLeftAndPutItInTheTray --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90S3PickUpTheRedMugAndPlaceItToTheRightOfTheCaddy --layout libero-4-4
-python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpTheBlackBowlBetweenThePlateAndTheRamekinAndPlaceItOnThePlate --layout libero-8-8
-python3  /workspace/lwlab/ci_run/teleop_ci.py --task L10L5PutTheWhiteMugOnTheLeftPlateAndPutTheYellowAndWhiteMugOnTheRightPlate --layout libero-2-2
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task LSPickUpBlackBowlBetweenPlateAndRamekinAndPlaceItOnPlate --layout libero-8-8
+python3  /workspace/lwlab/ci_run/teleop_ci.py --task L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L3PickUpTheTomatoSauceAndPutItInTheTray --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90L3PickUpTheKetchupAndPutItInTheTray     --layout libero-2-2
 python3  /workspace/lwlab/ci_run/teleop_ci.py --task L90K2PutTheMiddleBlackBowlOnThePlate --layout libero-1-1

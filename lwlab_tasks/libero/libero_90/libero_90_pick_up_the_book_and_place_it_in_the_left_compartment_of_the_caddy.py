@@ -95,9 +95,28 @@ class L90S1PickUpTheBookAndPlaceItInTheLeftCompartmentOfTheCaddy(LiberoEnvCfg, B
 
     def _check_success(self):
 
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.book)
-        object_on_caddy = OU.check_obj_in_receptacle(self.env, self.book, self.desk_caddy)
-        book_pos = self.env.scene.rigid_objects[self.book].data.body_com_pos_w[0, 0, :2]
-        caddy_pos = self.env.scene.rigid_objects[self.desk_caddy].data.body_com_pos_w[0, 0, :2]
-        pos_success = torch.tensor([(book_pos[0] - caddy_pos[0]) > 0.1], device=self.env.device).repeat(self.env.num_envs)
-        return pos_success & is_gripper_obj_far & object_on_caddy
+        # Get full 3D positions for all environments
+        book_pos_full = torch.mean(self.env.scene.rigid_objects[self.book].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        caddy_pos_full = torch.mean(self.env.scene.rigid_objects[self.desk_caddy].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+
+        # Check 1: gripper far from book
+        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.book)  # tensor (num_envs,)
+
+        # Check 2: book is near caddy (xy distance check)
+        xy_dist = torch.norm(book_pos_full[:, :2] - caddy_pos_full[:, :2], dim=-1)  # (num_envs,)
+        caddy_obj = self.env.cfg.objects[self.desk_caddy]
+        th = float(caddy_obj.horizontal_radius * 0.7)  # convert to float scalar
+        object_on_caddy = xy_dist < th  # tensor (num_envs,) - comparison with scalar is valid
+
+        # Check 3: book is in left compartment (x coordinate check)
+        pos_success = (book_pos_full[:, 0] - caddy_pos_full[:, 0]) > 0.1  # tensor (num_envs,)
+
+        # Check 4: book is actually inside the caddy (height check)
+        # Book should be lower than caddy top, ensuring it's inside not just on top
+        z_diff = book_pos_full[:, 2] - caddy_pos_full[:, 2]
+        book_inside_caddy = (z_diff > -0.05) & (z_diff < 0.1)  # tensor (num_envs,)
+
+        # Check 5: book is stable (not moving)
+        book_stable = OU.check_object_stable(self.env, self.book, threshold=0.5)  # tensor (num_envs,)
+
+        return pos_success & is_gripper_obj_far & object_on_caddy & book_inside_caddy & book_stable

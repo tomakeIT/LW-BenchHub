@@ -39,7 +39,7 @@ class LOPickUpTheButterAndPlaceItInTheBasket(PutObjectInBasket):
                     fixture=self.floor,
                     size=(0.2, 0.3),
                     pos=(-0.1, 0.0),
-                    # ensure_object_boundary_in_range=False,
+                    ensure_object_boundary_in_range=False,
                 ),
                 info=dict(
                     mjcf_path="/objects/lightwheel/butter/Butter001/model.xml",
@@ -56,7 +56,7 @@ class LOPickUpTheButterAndPlaceItInTheBasket(PutObjectInBasket):
                     fixture=self.floor,
                     size=(0.4, 0.25),
                     pos=(-0.1, 0.0),
-                    # ensure_object_boundary_in_range=False,
+                    ensure_object_boundary_in_range=False,
                 ),
                 info=dict(
                     mjcf_path="/objects/lightwheel/chocolate_pudding/ChocolatePudding001/model.xml",
@@ -248,9 +248,24 @@ class L90L2PickUpTheButterAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
         return cfgs
 
     def _check_success(self):
-        butter_success = OU.check_obj_in_receptacle(self.env, "butter", "basket")
+        '''
+        Check if the butter is placed in the basket.
+        '''
+
         far_from_objects = self._gripper_obj_farfrom_objects()
-        return butter_success & far_from_objects
+
+        obj_pos = torch.mean(self.env.scene.rigid_objects["butter"].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        basket_pos = torch.mean(self.env.scene.rigid_objects["basket"].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+
+        xy_dist = torch.norm(obj_pos[:, :2] - basket_pos[:, :2], dim=-1)  # (num_envs,)
+        object_in_basket_xy = xy_dist < 0.5
+
+        object_stable = OU.check_object_stable(self.env, "butter", threshold=0.01)
+
+        z_diff = obj_pos[:, 2] - basket_pos[:, 2]
+        height_check = (z_diff > -0.05) & (z_diff < 0.02)
+
+        return object_in_basket_xy & far_from_objects & object_stable & height_check
 
     def _gripper_obj_farfrom_objects(self):
         gripper_far_tensor = torch.tensor([True], device=self.env.device).repeat(self.env.num_envs)

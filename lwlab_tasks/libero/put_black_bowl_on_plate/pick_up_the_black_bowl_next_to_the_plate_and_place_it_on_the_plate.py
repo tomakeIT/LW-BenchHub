@@ -19,12 +19,29 @@ class LSPickUpTheBlackBowlNextToThePlateAndPlaceItOnThePlate(PutBlackBowlOnPlate
 
     def _setup_kitchen_references(self):
         super()._setup_kitchen_references()
-        self.bowl = "bowl"
         self.bowl_target = "bowl_target"
+        self.bowl = "bowl"
 
     def _get_obj_cfgs(self):
         cfgs = super()._get_obj_cfgs()
 
+        cfgs.append(
+            dict(
+                name=self.bowl_target,
+                obj_groups="bowl",
+                info=dict(
+                    mjcf_path=self.bowl_mjcf_path
+                ),
+                graspable=True,
+                object_scale=0.6,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.3, 0.3),
+                    pos=(0.75, -0.1),
+                    ensure_valid_placement=True,
+                ),
+            )
+        )
         cfgs.append(
             dict(
                 name=self.bowl,
@@ -43,24 +60,6 @@ class LSPickUpTheBlackBowlNextToThePlateAndPlaceItOnThePlate(PutBlackBowlOnPlate
             )
         )
 
-        cfgs.append(
-            dict(
-                name=self.bowl_target,
-                obj_groups="bowl",
-                info=dict(
-                    mjcf_path=self.bowl_mjcf_path
-                ),
-                graspable=True,
-                object_scale=0.6,
-                placement=dict(
-                    fixture=self.dining_table,
-                    size=(0.4, 0.4),
-                    pos=(-0.2, -0.4),
-                    ensure_valid_placement=True,
-                ),
-            )
-        )
-
         return cfgs
 
     def _check_success(self):
@@ -68,5 +67,20 @@ class LSPickUpTheBlackBowlNextToThePlateAndPlaceItOnThePlate(PutBlackBowlOnPlate
         Check if the bowl is placed on the plate.
         '''
         is_gripper_obj_far = OU.gripper_obj_far(self.env, self.bowl_target)
-        object_on_plate = OU.check_obj_in_receptacle(self.env, self.bowl_target, self.plate)
-        return object_on_plate & is_gripper_obj_far
+
+        bowl_pos = torch.mean(self.env.scene.rigid_objects[self.bowl_target].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        plate_pos = torch.mean(self.env.scene.rigid_objects[self.plate].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+
+        xy_distance = torch.norm(bowl_pos[:, :2] - plate_pos[:, :2], dim=1)
+        bowl_centered = xy_distance < 0.08
+
+        z_diff = bowl_pos[:, 2] - plate_pos[:, 2]
+        bowl_on_plate_height = (z_diff > 0.01) & (z_diff < 0.15)
+
+        bowl_vel = torch.mean(self.env.scene.rigid_objects[self.bowl_target].data.body_com_vel_w, dim=1)  # (num_envs, 3)
+        bowl_speed = torch.norm(bowl_vel, dim=1)
+
+        bowl_stable = bowl_speed < 0.05
+
+        success = is_gripper_obj_far & bowl_centered & bowl_on_plate_height & bowl_stable
+        return success

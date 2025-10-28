@@ -19,6 +19,11 @@ class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
 
     task_name: str = "L90L3PickUpTheTomatoSauceAndPutItInTheTray"
 
+    def _setup_kitchen_references(self):
+        super()._setup_kitchen_references()
+        # Define wooden_tray early so it's available in _check_success
+        self.wooden_tray = "wooden_tray"
+
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
         ep_meta[
@@ -32,7 +37,7 @@ class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
         cfg_index = 0
         while cfg_index < len(cfgs):
             if cfgs[cfg_index]['name'] == self.basket:
-                self.wooden_tray = "wooden_tray"
+                # Replace basket with wooden_tray
                 cfgs[cfg_index]['name'] = self.wooden_tray
                 cfgs[cfg_index]['info']['mjcf_path'] = "/objects/lightwheel/tray/Tray016/model.xml"
                 cfgs[cfg_index]['object_scale'] = 0.6
@@ -49,7 +54,7 @@ class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
             self.env,
             self.tomato_sauce,
             self.wooden_tray,
-            th_z_axis_cos=0.95,  # verticality
+            th_z_axis_cos=0.8,  # verticality
             th_xy_dist=0.4,    # within 0.4 diameter
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )

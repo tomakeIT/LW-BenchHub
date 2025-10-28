@@ -16,6 +16,7 @@ class USDObject():
         obj_path,
         object_scale=(1.0, 1.0, 1.0),
         rotate_upright=False,
+        rgb_replace=None
     ):
         # get scale in x, y, z
         if isinstance(object_scale, float):
@@ -40,12 +41,30 @@ class USDObject():
         self._setup_region_dict(usd)
         usd.scale_size(scale_factor=self.object_scale)
         usd.set_contact_force_threshold(name=self.name, contact_force_threshold=0.0)
+        # get rgb_replace
+        if rgb_replace is not None:
+            if isinstance(rgb_replace, tuple) or isinstance(rgb_replace, list):
+                assert len(rgb_replace) == 3
+                rgb_replace = np.array(rgb_replace)
+            elif isinstance(rgb_replace, np.ndarray):
+                assert rgb_replace.shape[0] == 3
+            else:
+                raise Exception("got invalid rgb_replace: {}".format(rgb_replace))
+            rgb_replace = np.array(rgb_replace)
+            usd.set_rgb(rgb=rgb_replace)
+            rgb_str = "_".join([f"{scale:.2f}" for scale in rgb_replace])
+            self.obj_path = self.obj_path.replace(".usd", f"_rgb_{rgb_str}.usd")
+        # save to a new file if scaled
+        if not np.allclose(object_scale, [1, 1, 1], atol=1e-6):
+            scale_str = "_".join([f"{scale:.1f}" for scale in object_scale])
+            self.obj_path = self.obj_path.replace(".usd", f"_scaled_{scale_str}.usd")
         usd.export(self.obj_path)
 
     def _setup_region_dict(self, usd):
         if self.rotate_upright:
             self.init_quat = np.array([0.5, 0.5, 0.5, 0.5])
         reg_bboxes = usd.get_prim_by_prefix("reg_", only_xform=False)
+        reg_bboxes += usd.get_prim_by_prefix("anchor_site", only_xform=False)
         for reg_bbox in reg_bboxes:
             reg_dict = dict()
             if reg_bbox.GetTypeName() == "Cylinder" or reg_bbox.GetTypeName() == "Mesh":

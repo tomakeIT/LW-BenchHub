@@ -41,16 +41,17 @@ class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
     def _get_obj_cfgs(self):
         cfgs = []
 
+        # Place shelf first - reduce scale and adjust position to avoid blocking pan
         cfgs.append(
             dict(
                 name=self.shelf,
                 obj_groups="shelf",
                 graspable=True,
-                object_scale=1.2,
+                object_scale=1.0,  # Reduced from 1.2 to 1.0 for more clearance
                 placement=dict(
                     fixture=self.dining_table,
-                    size=(0.5, 0.3),
-                    pos=(-0.75, 0.4),
+                    size=(0.2, 0.2),
+                    pos=(-1, 0.4),
                     ensure_object_boundary_in_range=False,
                     rotation=np.pi / 2,
                 ),
@@ -60,22 +61,7 @@ class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
             )
         )
 
-        cfgs.append(
-            dict(
-                name=self.bowl,
-                obj_groups="bowl",
-                graspable=True,
-                placement=dict(
-                    fixture=self.dining_table,
-                    size=(0.25, 0.25),
-                    pos=(0.7, 0.0),
-                ),
-                info=dict(
-                    mjcf_path="/objects/lightwheel/bowl/Bowl009/model.xml",
-                ),
-            )
-        )
-
+        # Place frying pan second - it's the main object
         cfgs.append(
             dict(
                 name=self.frying_pan,
@@ -85,12 +71,31 @@ class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
                 placement=dict(
                     fixture=self.dining_table,
                     size=(0.5, 0.25),
-                    pos=(0.4, -0.15),
+                    pos=(0.4, -0.05),
                     rotation=-np.pi / 8,
                     ensure_object_boundary_in_range=False,
                 ),
                 info=dict(
                     mjcf_path="/objects/lightwheel/pot/Pot086/model.xml",
+                ),
+            )
+        )
+
+        # Place bowl last in a separate area to avoid conflicts
+        cfgs.append(
+            dict(
+                name=self.bowl,
+                obj_groups="bowl",
+                graspable=True,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.5, 0.5),  # Even larger sampling area
+                    pos=(0.2, 0.5),   # Move to a different area (upper right)
+                    ensure_valid_placement=True,
+                    margin=0.01,      # Reduce margin requirement for faster placement
+                ),
+                info=dict(
+                    mjcf_path="/objects/lightwheel/bowl/Bowl009/model.xml",
                 ),
             )
         )

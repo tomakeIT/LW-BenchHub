@@ -46,7 +46,7 @@ class L90K4PutTheWineBottleOnTheWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"akita_black_bowl",
-                obj_groups=["bowl"],
+                obj_groups="bowl",
                 graspable=True,
                 washable=True,
                 info=dict(
@@ -65,7 +65,7 @@ class L90K4PutTheWineBottleOnTheWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"wine_bottle",
-                obj_groups=["bottle"],
+                obj_groups="bottle",
                 graspable=True,
                 washable=True,
                 info=dict(
@@ -84,6 +84,19 @@ class L90K4PutTheWineBottleOnTheWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
 
     def _check_success(self):
         wine_bottle_pos = OU.get_object_pos(self.env, "wine_bottle")
-        ret = OU.point_in_fixture(wine_bottle_pos, self.winerack, only_2d=True)
-        ret_tensor = torch.tensor(ret, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
-        return ret_tensor & OU.gripper_obj_far(self.env, "wine_bottle", th=0.35)
+        gripper_far = OU.gripper_obj_far(self.env, "wine_bottle", th=0.3)
+
+        # Check if wine bottle is stable (not moving) - more relaxed threshold
+        bottle_stable = OU.check_object_stable(self.env, "wine_bottle", threshold=0.3)
+
+        result_tensor = torch.zeros(self.env.num_envs, dtype=torch.bool, device=self.env.device)
+
+        for i in range(self.env.num_envs):
+            # Check 1: Wine bottle is in wine rack area (xy check)
+            in_rack = OU.point_in_fixture(wine_bottle_pos[i], self.winerack, only_2d=True)
+
+            # All conditions must be met - convert numpy bool to tensor bool
+            in_rack_tensor = torch.tensor(bool(in_rack), dtype=torch.bool, device=self.env.device)
+            result_tensor[i] = in_rack_tensor & gripper_far[i] & bottle_stable[i]
+
+        return result_tensor

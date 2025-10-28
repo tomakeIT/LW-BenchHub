@@ -151,6 +151,15 @@ class Stove(Fixture):
 
         return knobs_state
 
+    def is_burner_on(self, env, burner_loc, th=0.35):
+        """
+        checks if a specified burner is on or off
+        """
+        knobs_state = self.get_knobs_state(env=env)
+        knob_value = knobs_state[burner_loc]
+        knob_on = (torch.abs(knob_value) >= th) & (torch.abs(knob_value) <= (2 * torch.pi - 0.35))
+        return knob_on
+
     def check_obj_location_on_stove(self, env, obj_name, threshold=0.08, need_knob_on=True):
         """
         Check if the object is on the stove and close to a burner and the knob is on (optional).

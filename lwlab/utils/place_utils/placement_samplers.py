@@ -12,6 +12,7 @@ from lwlab.utils.math_utils.transform_utils.numpy_impl import (
     quat_multiply,
     rotate_2d_point,
     quat2mat,
+    quat2axisangle,
 )
 
 from lwlab.utils.object_utils import obj_in_region, objs_intersect
@@ -328,6 +329,8 @@ class UniformRandomSampler(ObjectPositionSampler):
             else:
                 self.reference_object = [self.reference_object, ref_fixture.name if isinstance(ref_fixture, Fixture) else ref_fixture]
 
+        reference_rot = self.reference_rot
+        ref_quat = mat2quat(euler2mat([0, 0, self.reference_rot]))
         if reference is None:
             base_offset = self.reference_pos
         elif type(reference) is str:
@@ -336,10 +339,12 @@ class UniformRandomSampler(ObjectPositionSampler):
             ), "Invalid reference received. Current options are: {}, requested: {}".format(
                 placed_objects.keys(), reference
             )
+            # replace ref_quat with reference object's quat
             ref_pos, ref_quat, ref_obj = placed_objects[reference]
             base_offset = np.array(ref_pos)
             if on_top:
                 base_offset[-1] += abs(quat2mat(ref_quat) @ ref_obj.top_offset)[-1]
+            reference_rot = (quat2axisangle(ref_quat))[2]
         else:
             base_offset = np.array(reference)
             assert (
@@ -356,9 +361,6 @@ class UniformRandomSampler(ObjectPositionSampler):
             ), "Object '{}' has already been sampled!".format(obj.task_name)
 
             success = False
-
-            # get reference rotation
-            ref_quat = mat2quat(euler2mat([0, 0, self.reference_rot]))
 
             if (
                 isinstance(obj, USDObject) or isinstance(obj, Fixture)
@@ -387,7 +389,7 @@ class UniformRandomSampler(ObjectPositionSampler):
                 )
                 for i in range(len(region_points)):
                     region_points[i][0:2] = rotate_2d_point(
-                        region_points[i][0:2], rot=self.reference_rot
+                        region_points[i][0:2], rot=reference_rot
                     )
                 region_points += base_offset
 
@@ -420,7 +422,7 @@ class UniformRandomSampler(ObjectPositionSampler):
 
                 # apply rotation
                 object_x, object_y = rotate_2d_point(
-                    [relative_x, relative_y], rot=self.reference_rot
+                    [relative_x, relative_y], rot=reference_rot
                 )
 
                 object_x = object_x + base_offset[0]

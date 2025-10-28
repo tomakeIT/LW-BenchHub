@@ -1,6 +1,7 @@
 from .put_object_in_basket import PutObjectInBasket
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
+import torch
 
 
 class LOPickUpTheChocolatePuddingAndPlaceItInTheBasket(PutObjectInBasket):
@@ -82,6 +83,20 @@ class LOPickUpTheChocolatePuddingAndPlaceItInTheBasket(PutObjectInBasket):
         '''
         Check if the chocolate pudding is placed in the basket.
         '''
+
         is_gripper_obj_far = OU.gripper_obj_far(self.env, self.chocolate_pudding)
-        object_in_basket = OU.check_obj_in_receptacle(self.env, self.chocolate_pudding, self.basket)
-        return object_in_basket & is_gripper_obj_far
+
+        obj_pos = torch.mean(self.env.scene.rigid_objects[self.chocolate_pudding].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        basket_pos = torch.mean(self.env.scene.rigid_objects[self.basket].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+
+        xy_dist = torch.norm(obj_pos[:, :2] - basket_pos[:, :2], dim=-1)  # (num_envs,)
+
+        object_in_basket_xy = xy_dist < 0.10
+
+        object_stable = OU.check_object_stable(self.env, self.chocolate_pudding, threshold=0.5)
+
+        z_diff = obj_pos[:, 2] - basket_pos[:, 2]
+
+        height_check = (z_diff > -0.5) & (z_diff < 0.5)
+
+        return object_in_basket_xy & is_gripper_obj_far & object_stable & height_check

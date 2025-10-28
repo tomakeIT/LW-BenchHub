@@ -184,10 +184,12 @@ class L10K6PutTheYellowAndWhiteMugInTheMicrowaveAndCloseIt(L90K6PutTheYellowAndW
         return ep_meta
 
     def _check_success(self):
-        mug_pos = OU.get_object_pos(self.env, self.white_yellow_mug)
-        mug_success = OU.point_in_fixture(mug_pos, self.microwave)
-        mug_success = torch.tensor(mug_success, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
-        return mug_success & self.microwave.is_closed(self.env) & OU.gripper_obj_far(self.env, self.microwave.name, th=0.4)
+        mug_poses = OU.get_object_pos(self.env, self.white_yellow_mug)
+        mug_success_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        for i, mug_pos in enumerate(mug_poses):
+            mug_success = OU.point_in_fixture(mug_pos, self.microwave)
+            mug_success_tensor[i] = torch.as_tensor(mug_success, dtype=torch.bool, device=self.env.device)
+        return mug_success_tensor & self.microwave.is_closed(self.env) & OU.gripper_obj_far(self.env, self.microwave.name, th=0.4)
 
 
 class L90L5PutTheRedMugOnTheLeftPlate(LiberoMugPlacementBase):

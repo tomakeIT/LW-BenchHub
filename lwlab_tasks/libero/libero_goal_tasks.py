@@ -218,7 +218,7 @@ class LGPutTheBowlOnTopOfTheCabinet(LiberoGoalTasksBase):
         # Get bowl position and check if it's on the drawer
         bowl_pos = self.env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
         bowl_on_drawer = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
-        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
         # Check if gripper is far from the bowl
         gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
 
@@ -388,7 +388,7 @@ class LGPutTheWineBottleOnTopOfTheCabinet(LiberoGoalTasksBase):
         # Get wine bottle position and check if it's on the drawer
         wine_bottle_pos = self.env.scene.rigid_objects[self.wine_bottle].data.root_pos_w[0, :].cpu().numpy()
         bottle_on_drawer = OU.point_in_fixture(wine_bottle_pos, self.drawer, only_2d=True)
-        bottle_on_drawer_tensor = torch.tensor(bottle_on_drawer, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bottle_on_drawer_tensor = torch.tensor(bottle_on_drawer, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
         # Check if gripper is far from the wine bottle
         gripper_far = OU.gripper_obj_far(self.env, self.wine_bottle)
 
@@ -734,11 +734,13 @@ class LGPushThePlateToTheFrontOfTheStove(LiberoGoalTasksBase):
 
     def _check_success(self):
         stove_pos = self.stove.pos
-        plate_pos = OU.get_object_pos(self.env, self.plate)
-        x_dist = plate_pos[0] - stove_pos[0]
-        success = stove_pos[1] - plate_pos[1] > 0.3 and x_dist < self.stove.size[0] / 2.0
-        plate_success = torch.tensor([success], dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
-        return plate_success & OU.gripper_obj_far(self.env, self.plate, th=0.35)
+        plate_poses = OU.get_object_pos(self.env, self.plate)
+        plate_success_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        for i, plate_pos in enumerate(plate_poses):
+            x_dist = plate_pos[0] - stove_pos[0]
+            success = stove_pos[1] - plate_pos[1] > 0.3 and x_dist < self.stove.size[0] / 2.0
+            plate_success_tensor[i] = success
+        return plate_success_tensor & OU.gripper_obj_far(self.env, self.plate, th=0.35)
 
 
 class LGPutTheBowlOnTheStove(LiberoGoalTasksBase):
@@ -815,7 +817,7 @@ class LGPutTheBowlOnTheStove(LiberoGoalTasksBase):
         # Get bowl position and check if it's on the stove
         bowl_pos = self.env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
         bowl_on_stove = OU.point_in_fixture(bowl_pos, self.stove, only_2d=True)
-        bowl_on_stove_tensor = torch.tensor(bowl_on_stove, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bowl_on_stove_tensor = torch.tensor(bowl_on_stove, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
         # Check if gripper is far from the bowl
         gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
 
@@ -897,7 +899,7 @@ class LGPutTheWineBottleOnTheRack(LiberoGoalTasksBase):
         # Get wine bottle position and check if it's on the rack
         wine_bottle_pos = self.env.scene.rigid_objects[self.wine_bottle].data.root_pos_w[0, :].cpu().numpy()
         bottle_on_rack = OU.point_in_fixture(wine_bottle_pos, self.winerack, only_2d=True)
-        bottle_on_rack_tensor = torch.tensor(bottle_on_rack, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bottle_on_rack_tensor = torch.tensor(bottle_on_rack, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
         # Check if gripper is far from the wine bottle
         gripper_far = OU.gripper_obj_far(self.env, self.wine_bottle)
 

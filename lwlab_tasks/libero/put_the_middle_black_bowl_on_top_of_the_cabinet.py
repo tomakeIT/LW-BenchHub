@@ -116,13 +116,13 @@ class L90K2PutTheMiddleBlackBowlOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         return cfgs
 
     def _check_success(self):
-        bowl1 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl"), self.drawer, only_2d=True)
-        bowl2 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl1"), self.drawer, only_2d=True)
-        bowl3 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl2"), self.drawer, only_2d=True)
-        bowl1_tensor = torch.tensor(bowl1, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
-        bowl2_tensor = torch.tensor(bowl2, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
-        bowl3_tensor = torch.tensor(bowl3, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
-        return (bowl1_tensor | bowl2_tensor | bowl3_tensor) & self._gripper_obj_farfrom_objects()
+        result_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        for i in range(self.env.num_envs):
+            bowl1 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl")[i], self.drawer, only_2d=True)
+            bowl2 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl1")[i], self.drawer, only_2d=True)
+            bowl3 = OU.point_in_fixture(OU.get_object_pos(self.env, "akita_black_bowl2")[i], self.drawer, only_2d=True)
+            result_tensor[i] = torch.as_tensor(bowl1 | bowl2 | bowl3, dtype=torch.bool, device=self.env.device)
+        return result_tensor & self._gripper_obj_farfrom_objects()
 
     def _gripper_obj_farfrom_objects(self):
         gripper_far_tensor = torch.tensor([True], device=self.env.device).repeat(self.env.num_envs)

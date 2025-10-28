@@ -80,7 +80,7 @@ class L90L5PutTheYellowAndWhiteMugOnTheRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"plate",
-                obj_groups=["plate"],
+                obj_groups="plate",
                 graspable=True,
                 washable=True,
                 object_scale=0.8,
@@ -98,7 +98,7 @@ class L90L5PutTheYellowAndWhiteMugOnTheRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"plate1",
-                obj_groups=["plate"],
+                obj_groups="plate",
                 graspable=True,
                 washable=True,
                 object_scale=0.8,
@@ -149,7 +149,7 @@ class L90L5PutTheWhiteMugOnTheLeftPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"plate",
-                obj_groups=["plate"],
+                obj_groups="plate",
                 graspable=True,
                 washable=True,
                 object_scale=0.8,
@@ -167,7 +167,7 @@ class L90L5PutTheWhiteMugOnTheLeftPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"plate_left",
-                obj_groups=["plate"],
+                obj_groups="plate",
                 graspable=True,
                 washable=True,
                 object_scale=0.8,
@@ -236,8 +236,8 @@ class L90L5PutTheWhiteMugOnTheLeftPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         return ret | ret2
 
 
-class L10L5PutTheWhiteMugOnTheLeftPlateAndPutTheYellowAndWhiteMugOnTheRightPlate(L90L5PutTheWhiteMugOnTheLeftPlate):
-    task_name: str = "L10L5PutTheWhiteMugOnTheLeftPlateAndPutTheYellowAndWhiteMugOnTheRightPlate"
+class L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate(L90L5PutTheWhiteMugOnTheLeftPlate):
+    task_name: str = "L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate"
 
     def _check_success(self):
         ret = OU.check_place_obj1_on_obj2(self.env, "porcelain_mug", "plate_left")

@@ -61,7 +61,7 @@ class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LiberoEnvCfg, Bas
                 placement=dict(
                     fixture=self.table,
                     size=(0.25, 0.25),
-                    pos=(0.3, 0.1),
+                    pos=(0.0, 0.1),
                 ),
             )
         )
@@ -77,7 +77,7 @@ class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LiberoEnvCfg, Bas
                 placement=dict(
                     fixture=self.table,
                     size=(0.25, 0.25),
-                    pos=(0.4, -0.5),
+                    pos=(0.5, 0.0),
                 ),
             )
         )
@@ -93,7 +93,7 @@ class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LiberoEnvCfg, Bas
                 placement=dict(
                     fixture=self.table,
                     size=(0.25, 0.25),
-                    pos=(0.0, 0.1),
+                    pos=(0.5, -0.3),
                 ),
             )
         )

@@ -208,8 +208,13 @@ class L90K3TurnOnTheStoveAndPutTheFryingPanOnIt(L90K3TurnOnTheStove):
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        pot_success = OU.point_in_fixture(OU.get_object_pos(self.env, "chefmate_8_frypan"), self.stove, only_2d=True)
-        pot_success = torch.tensor([pot_success], device=self.env.device).repeat(self.env.num_envs)
+        pot_success = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        for i in range(self.env.num_envs):
+            pot_success[i] = torch.as_tensor(
+                OU.point_in_fixture(OU.get_object_pos(self.env, "chefmate_8_frypan")[i], self.stove, only_2d=True),
+                dtype=torch.bool,
+                device=self.env.device,
+            )
         return knob_success & pot_success & OU.gripper_obj_far(self.env, "chefmate_8_frypan", 0.35)
 
 
@@ -336,6 +341,11 @@ class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LiberoEnvCfg, BaseTaskEnvCfg):
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        pot_success = OU.point_in_fixture(OU.get_object_pos(self.env, self.frying_pan), self.stove, only_2d=True)
-        pot_success = torch.tensor([pot_success], device=self.env.device).repeat(self.env.num_envs)
+        pot_success = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        for i in range(self.env.num_envs):
+            pot_success[i] = torch.as_tensor(
+                OU.point_in_fixture(OU.get_object_pos(self.env, self.frying_pan)[i], self.stove, only_2d=True),
+                dtype=torch.bool,
+                device=self.env.device,
+            )
         return knob_success & pot_success & OU.gripper_obj_far(self.env, self.frying_pan, 0.35)

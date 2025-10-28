@@ -134,8 +134,7 @@ class ElectricKettle(Fixture):
                     self._last_lid_update[env_id] = None
                 else:
                     self._last_lid_update[env_id] = time.time()
-
-            if self._lid_button[env_id] > 0.1 and self._lid <= 0.01:
+            if self._lid_button[env_id] > 0.1 and self._lid[env_id] <= 0.01:
                 self.set_lid(env, 1.0, gradual=True)
 
             # Handle switch/power state

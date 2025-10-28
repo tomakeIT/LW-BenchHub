@@ -116,12 +116,12 @@ class Sink(Fixture):
         for env_id, (site, origin_radius) in enumerate(self.water_sites):
             if site is None or not site.IsValid():
                 continue
-            water_site_pos = torch.tensor([usd.get_prim_pos_rot_in_world(site)[0]], device=env.device) + env.scene.env_origins  # (env_num, 3)
+            water_site_pos = torch.tensor([usd.get_prim_pos_rot_in_world(site)[0]], device=env.device)  # (env_num, 3)
             # obj_pos is (3,), water_site_pos is (env_num, 3)
-            obj_pos_xy = obj_pos[0:2]  # (2,)
-            water_site_pos_xy = water_site_pos[:, 0:2]  # (env_num, 2)
+            obj_pos_xy = obj_pos[env_id][0:2]  # (2,)
+            water_site_pos_xy = water_site_pos[:, 0:2]  # (2,)
             # Broadcast obj_pos_xy to match water_site_pos_xy
-            xy_check = torch.norm(water_site_pos_xy - obj_pos_xy.unsqueeze(0), dim=1) < xy_thresh
+            xy_check = torch.norm(water_site_pos_xy - obj_pos_xy) < xy_thresh
             # Get cylinder height/length
             cylinder_height = 0.0
             if site.GetAttribute("height").Get():
@@ -129,7 +129,7 @@ class Sink(Fixture):
 
             if cylinder_height > 0:
                 z_check = (
-                    obj_pos[2]
+                    obj_pos[env_id][2]
                     < water_site_pos[:, 2] + cylinder_height
                 )
                 result |= xy_check & z_check

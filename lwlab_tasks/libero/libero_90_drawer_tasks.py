@@ -439,7 +439,7 @@ class L90K4CloseTheBottomDrawerOfTheCabinetAndOpenTheTopDrawer(L90K4CloseTheBott
 
     def _check_success(self):
         cabinet_closed = self.drawer.is_closed(self.env, [self.bottom_drawer_joint_name])
-        top_open = self.drawer.is_open(self.env, [self.top_drawer_joint_name], th=0.5)
+        top_open = self.drawer.is_open(self.env, [self.top_drawer_joint_name], th=0.9)
         return cabinet_closed & top_open & OU.gripper_obj_far(self.env, self.drawer.name)
 
 
@@ -648,7 +648,7 @@ class L90K10CloseTheTopDrawerOfTheCabinetAndPutTheBlackBowlOnTopOfIt(LiberoDrawe
         # Get bowl position and check if it's on the drawer
         bowl_pos = self.env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
         bowl_on_drawer = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
-        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
         # Check if gripper is far from the bowl
         gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
 

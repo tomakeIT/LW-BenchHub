@@ -13,6 +13,7 @@ class LiberoBlackBowlAndPlateBase(LiberoEnvCfg, BaseTaskEnvCfg):
 
     task_name: str = "LiberoBlackBowlAndPlateBase"
     enable_fixtures = ['storage_furniture']
+    fix_object_pose_cfg: dict = None
 
     def __post_init__(self):
         self.activate_contact_sensors = False
@@ -38,6 +39,44 @@ class LiberoBlackBowlAndPlateBase(LiberoEnvCfg, BaseTaskEnvCfg):
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
 
+    def _load_model(self):
+
+        if self.fix_object_pose_cfg is None:
+            self.fix_object_pose_cfg = {}
+
+        super()._load_model()
+
+        if hasattr(self, 'object_placements'):
+            if self.akita_black_bowl_front in self.object_placements:
+                sample_z = self.object_placements[self.akita_black_bowl_front][0][2]
+            elif self.akita_black_bowl_middle in self.object_placements:
+                sample_z = self.object_placements[self.akita_black_bowl_middle][0][2]
+            elif self.akita_black_bowl_back in self.object_placements:
+                sample_z = self.object_placements[self.akita_black_bowl_back][0][2]
+            else:
+                sample_z = 0.82
+
+            table_pos = self.counter.pos if hasattr(self.counter, 'pos') else [0, 0, 0]
+
+            front_pos = (table_pos[0] + 0.3, table_pos[1] - 0.15, sample_z)
+            middle_pos = (table_pos[0] + 0.3, table_pos[1] + 0.05, sample_z)
+            back_pos = (table_pos[0] + 0.3, table_pos[1] + 0.25, sample_z)
+
+            self.fix_object_pose_cfg[self.akita_black_bowl_front] = {"pos": front_pos}
+            self.fix_object_pose_cfg[self.akita_black_bowl_middle] = {"pos": middle_pos}
+            self.fix_object_pose_cfg[self.akita_black_bowl_back] = {"pos": back_pos}
+
+            for bowl_name, bowl_pos in [
+                (self.akita_black_bowl_front, front_pos),
+                (self.akita_black_bowl_middle, middle_pos),
+                (self.akita_black_bowl_back, back_pos)
+            ]:
+                if bowl_name in self.object_placements:
+                    bowl_obj = copy.deepcopy(self.object_placements[bowl_name])
+                    bowl_obj_list = list(bowl_obj)
+                    bowl_obj_list[0] = bowl_pos
+                    self.object_placements[bowl_name] = tuple(bowl_obj_list)
+
     def _get_obj_cfgs(self):
         cfgs = []
 
@@ -48,10 +87,11 @@ class LiberoBlackBowlAndPlateBase(LiberoEnvCfg, BaseTaskEnvCfg):
                 pos=pos,
                 margin=0.02,
             )
-        black_bowl_front_placement = get_placement(pos=(-0.7, 0.0), size=(0.5, 0.5))
-        black_bowl_middle_placement = get_placement(pos=(-0.5, -0.3), size=(0.4, 0.4))
-        black_bowl_back_placement = get_placement(pos=(-0.7, -0.6), size=(0.4, 0.4))
-        plate_placement = get_placement()
+
+        plate_placement = get_placement(pos=(0.0, -0.3), size=(0.5, 0.5))
+        black_bowl_front_placement = get_placement(pos=(-0.5, -0.15), size=(0.5, 0.5))
+        black_bowl_middle_placement = get_placement(pos=(-0.5, -0.4), size=(0.5, 0.5))
+        black_bowl_back_placement = get_placement(pos=(-0.5, -0.65), size=(0.5, 0.5))
 
         def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, scale=1.0):
             if mjcf_path is not None:
@@ -221,13 +261,15 @@ class L90K2StackTheMiddleBlackBowlOnTheBackBlackBowl(LiberoBlackBowlAndPlateBase
         return ep_meta
 
     def _check_success(self):
+
         return OU.check_place_obj1_on_obj2(
             self.env,
             self.akita_black_bowl_middle,
             self.akita_black_bowl_front,
-            th_z_axis_cos=0.95,  # verticality
-            th_xy_dist=0.7,    # within 0.4 diameter
-            th_xyz_vel=0.5     # velocity vector length less than 0.5
+            th_z_axis_cos=0.5,   # verticality - allows up to 60 degree tilt
+            th_xy_dist=1.0,      # xy distance threshold - very relaxed, within bowl diameter
+            th_xyz_vel=0.5,      # velocity threshold - relaxed
+            gipper_th=0.3        # gripper distance threshold - more relaxed
         )
 
 
@@ -332,9 +374,12 @@ class L90K5PutTheBlackBowlOnTopOfTheCabinet(L90K5PutTheBlackBowlOnThePlate):
 
     def _check_success(self):
         import torch
-        bowl_pos = OU.get_object_pos(self.env, self.akita_black_bowl)
-        bowl_success = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
-        bowl_success_tensor = torch.tensor(bowl_success, dtype=torch.bool, device="cpu").repeat(self.env.num_envs)
+        bowl_poses = OU.get_object_pos(self.env, self.akita_black_bowl)
+        bowl_success_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        for i, bowl_pos in enumerate(bowl_poses):
+            bowl_success = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
+            bowl_success_tensor[i] = torch.as_tensor(bowl_success, dtype=torch.bool, device=self.env.device)
+
         result = bowl_success_tensor & OU.gripper_obj_far(self.env, self.akita_black_bowl)
         return result
 

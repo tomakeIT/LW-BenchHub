@@ -444,8 +444,8 @@ class L90S4PickUpTheBookOnTheRightAndPlaceItOnTheCabinetShelf(_BaseStudyScene4):
             self.env,
             self.yellow_book,
             self.shelf,
-            th_z_axis_cos=0.0,  # 不检查Z轴角度
-            th_xy_dist=0.25,    # 保持XY距离检查
-            th_xyz_vel=0.5      # 保持稳定性检查
+            th_z_axis_cos=0.0,
+            th_xy_dist=0.25,
+            th_xyz_vel=0.5
         )
         return book_on_shelf_result

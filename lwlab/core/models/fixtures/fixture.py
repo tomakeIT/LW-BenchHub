@@ -676,7 +676,7 @@ class Fixture:
             reg_height = reg_dict.get("height", None)
             reg_size = reg_dict["size"]
             if min_size is not None:
-                if max(min_size[:2]) > max(reg_size[:2]):
+                if (min_size[0] > reg_size[0]) or (min_size[1] > reg_size[1]):
                     # object cannot fit plane
                     continue
                 if not any(fixture_is_type(self, fixture_type) for fixture_type in Z_OPEN_FIXTURE_TYPES):

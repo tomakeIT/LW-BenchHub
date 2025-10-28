@@ -15,7 +15,8 @@
 import os
 import math
 from turtle import st
-from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema
+from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema, UsdShade
+from pxr import Sdf
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
@@ -211,6 +212,26 @@ class OpenUsd:
         else:
             cr_api = PhysxSchema.PhysxContactReportAPI.Get(stage, prim.GetPrimPath())
         cr_api.CreateThresholdAttr().Set(contact_force_threshold)
+
+    @staticmethod
+    def set_rgb(root_prim, rgb):
+        """Set object rgb"""
+        xformable = UsdGeom.Xformable(OpenUsd.get_prim_by_name(root_prim, "root")[0])
+        if not xformable:
+            raise ValueError("prim must be xformable")
+
+        shader_prims = OpenUsd.get_prim_by_name_and_type(root_prim, "Shader", "Shader")
+        if shader_prims.__len__() == 0:
+            raise ValueError("prim has no shader")
+
+        for shader_prim in shader_prims:
+            shader = UsdShade.Shader(shader_prim)
+            if not shader:
+                continue
+            diffuse_tint_input = shader.GetInput("inputs:diffuse_tint")
+            if not (diffuse_tint_input and diffuse_tint_input.GetAttr().IsValid()):
+                diffuse_tint_input = shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f)
+            diffuse_tint_input.Set((rgb[0], rgb[1], rgb[2]))
 
     @staticmethod
     def export(stage, path):
@@ -412,9 +433,12 @@ class OpenUsd:
         return infos
 
     @staticmethod
-    def get_prim_aabb_bounding_box(prim):
-        """Get prim aabb bounding box"""
+    def get_prim_aabb_bounding_box(prim, use_cache=True):
+        """Get prim aabb bounding box without caching"""
         bbox_cache = UsdGeom.BBoxCache(Usd.TimeCode.Default(), [UsdGeom.Tokens.default_])
+        if not use_cache:
+            # Clear any existing cache to ensure fresh computation
+            bbox_cache.Clear()
         return bbox_cache.ComputeWorldBound(prim).ComputeAlignedBox()
 
     @staticmethod
@@ -481,6 +505,9 @@ class OpenUsdWrapper:
 
     def set_contact_force_threshold(self, name, contact_force_threshold=0.0):
         return self._usd.set_contact_force_threshold(self.stage, self.root_prim, name, contact_force_threshold)
+
+    def set_rgb(self, rgb=(1.0, 1.0, 1.0)):
+        return self._usd.set_rgb(self.root_prim, rgb)
 
     def export(self, path):
         return self._usd.export(self.stage, path)

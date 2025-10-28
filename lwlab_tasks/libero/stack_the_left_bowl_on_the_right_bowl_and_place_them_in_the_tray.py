@@ -43,6 +43,25 @@ class L90L4StackTheLeftBowlOnTheRightBowlAndPlaceThemInTheTray(LiberoEnvCfg, Bas
         cfgs = []
         cfgs.append(
             dict(
+                name=f"wooden_tray",
+                obj_groups=["tray"],
+                graspable=True,
+                washable=True,
+                info=dict(
+                    mjcf_path="/objects/lightwheel/tray/Tray016/model.xml"
+                ),
+                object_scale=0.6,
+                placement=dict(
+                    fixture=self.dining_table,
+                    size=(0.6, 0.6),
+                    rotation=np.pi / 2,
+                    margin=0.02,
+                    pos=(-0.5, -0.6)
+                ),
+            )
+        )
+        cfgs.append(
+            dict(
                 name=f"akita_black_bowl",
                 obj_groups=["bowl"],
                 graspable=True,
@@ -89,25 +108,6 @@ class L90L4StackTheLeftBowlOnTheRightBowlAndPlaceThemInTheTray(LiberoEnvCfg, Bas
                     fixture=self.dining_table,
                     size=(0.80, 0.50),
                     pos=(0.2, 0.2),
-                ),
-            )
-        )
-        cfgs.append(
-            dict(
-                name=f"wooden_tray",
-                obj_groups=["tray"],
-                graspable=True,
-                washable=True,
-                info=dict(
-                    mjcf_path="/objects/lightwheel/tray/Tray016/model.xml"
-                ),
-                object_scale=0.6,
-                placement=dict(
-                    fixture=self.dining_table,
-                    size=(0.6, 0.5),
-                    rotation=np.pi / 2,
-                    margin=0.02,
-                    pos=(-0.5, -0.6)
                 ),
             )
         )

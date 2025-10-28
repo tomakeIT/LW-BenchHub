@@ -5,6 +5,7 @@ from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from termcolor import colored
 import time
+import os
 
 OBJECT_INFO_CACHE = {}
 
@@ -48,6 +49,7 @@ def sample_kitchen_object(
     max_size=(None, None, None),
     object_scale=None,
     rotate_upright=False,
+    rgb_replace=None,
     projects=None,
     version=None,
     ignore_cache=False,
@@ -145,6 +147,24 @@ def sample_kitchen_object(
                 total_acquire_time = acquire_end_time - acquire_start_time
                 print(f"Total Acquire Time: {total_acquire_time:.4f}s")
 
+            if cache_key:
+                OBJECT_INFO_CACHE[cache_key] = {
+                    'obj_path': obj_path,
+                    'obj_name': obj_name,
+                    'obj_res': obj_res,
+                    'category': category,
+                }
+                # check and cache lid info if exists
+                lid_name = obj_name + "_Lid"
+                lid_usd_path = os.path.dirname(obj_path) + f"/{lid_name}/{lid_name}.usd"
+                if os.path.exists(lid_usd_path):
+                    OBJECT_INFO_CACHE[f"{cache_key}_lid"] = {
+                        'obj_path': lid_usd_path,
+                        'obj_name': lid_name,
+                        'obj_res': obj_res,
+                        'category': category,
+                    }
+
         sampled_category = find_most_similar_category(obj_res["assetName"])
         if sampled_category is None:
             sampled_category = category
@@ -187,6 +207,7 @@ def sample_kitchen_object(
             obj_path=obj_path,
             object_scale=obj_scale,
             rotate_upright=rotate_upright,
+            rgb_replace=rgb_replace,
         )
         obj_info.size = model.size
         obj_info.set_attrs(obj_res["property"])

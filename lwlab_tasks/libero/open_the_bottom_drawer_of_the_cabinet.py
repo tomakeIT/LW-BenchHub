@@ -44,7 +44,7 @@ class L90K1OpenTheBottomDrawerOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         ep_meta = super().get_ep_meta()
         ep_meta[
             "lang"
-        ] = f"put the black bowl on the plate."
+        ] = f"Open the bottom drawer of the cabinet."
         return ep_meta
 
     def _get_obj_cfgs(self):
@@ -52,7 +52,7 @@ class L90K1OpenTheBottomDrawerOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"akita_black_bowl",
-                obj_groups=["bowl"],
+                obj_groups="bowl",
                 graspable=True,
                 washable=True,
                 info=dict(
@@ -71,7 +71,7 @@ class L90K1OpenTheBottomDrawerOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs.append(
             dict(
                 name=f"plate",
-                obj_groups=["plate"],
+                obj_groups="plate",
                 graspable=True,
                 washable=True,
                 info=dict(
@@ -102,4 +102,4 @@ class L90K1OpenTheTopDrawerOfTheCabinet(L90K1OpenTheBottomDrawerOfTheCabinet):
         return ep_meta
 
     def _check_success(self):
-        return self.drawer.is_open(self.env, [self.top_joint_name], th=0.5) & OU.gripper_obj_far(self.env, self.drawer.name)
+        return self.drawer.is_open(self.env, [self.top_joint_name], th=0.5) & OU.gripper_obj_far(self.env, self.drawer.name, th=0.5)

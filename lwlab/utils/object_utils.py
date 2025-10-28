@@ -26,7 +26,7 @@ def array_to_string(array):
     return " ".join(["{}".format(x) for x in array])
 
 
-def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_check: bool = False) -> torch.Tensor:
+def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_check: bool = False, th=0.05) -> torch.Tensor:
     """
     whether an object (another mujoco object) is inside of fixture. applies for most fixtures
     """
@@ -37,7 +37,8 @@ def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_
     # step 1: calculate fxiture points
     fixtr_int_regions = fixture.get_int_sites(relative=False)
     check = []
-    for i in range(env.num_envs):
+    for i in range(env.cfg.scene.num_envs):
+        inside_of = False
         for reset_region in fixtr_int_regions.values():
             inside_of = True
             fixtr_p0, fixtr_px, fixtr_py, fixtr_pz = [r + env.scene.env_origins[i].cpu().numpy() for r in reset_region]
@@ -58,7 +59,7 @@ def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_
                 # calculate 8 boundary points of object
                 obj_points_to_check = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
                 # threshold to mitigate false negatives: even if the bounding box point is out of bounds,
-                th = 0.05
+                # th = 0.05
 
             for obj_p in obj_points_to_check:
                 check1 = (
@@ -223,6 +224,13 @@ def point_in_fixture(point: np.ndarray, fixture: Fixture, only_2d: bool = False)
 
         only_2d (bool): whether to check only in 2D
     """
+    try:
+        if isinstance(point, torch.Tensor):
+            point = point.detach().cpu().numpy()
+    except Exception as e:
+        print(f"Error converting point to numpy array: {e}")
+        pass
+
     p0, px, py, pz = fixture.get_ext_sites(relative=False)
     th = 0.00
     u = px - p0
@@ -380,6 +388,42 @@ def check_obj_in_receptacle(env: ManagerBasedEnv, obj_name: str, receptacle_name
     return is_contact & is_closed
 
 
+def check_fxtr_upright(env, fixture_name, th=15):
+    """
+    Check if the fixture is upright based on its rotation.
+    """
+    fixture_quat_wxyz = env.scene.articulations[fixture_name].data.body_com_quat_w
+    fixture_quat_xyzw = T.convert_quat(fixture_quat_wxyz.cpu().numpy(), to="xyzw")
+    fixture_quat_xyzw = torch.tensor(fixture_quat_xyzw, device=env.device)
+    roll, pitch, yaw = euler_xyz_from_quat(fixture_quat_xyzw, degrees=True)
+    is_upright = (torch.abs(roll) < th) & (torch.abs(pitch) < th)
+
+    return is_upright
+
+
+def check_obj_scrubbed(env, sponge_name, obj_name):
+    """
+    Determine if the sponge is scrubbing the object by checking contact and movement.
+    """
+    # Check if sponge is in contact with bowl
+    in_contact = check_obj_in_receptacle(env, sponge_name, obj_name)
+    sponge_pos = torch.mean(env.scene.rigid_objects[sponge_name].data.body_com_pos_w, dim=1)
+    prev_sponge_pos = getattr(env, "prev_sponge_pos", sponge_pos)
+
+    movement_vector = sponge_pos - prev_sponge_pos
+
+    in_contact = env.cfg.check_contact(env.cfg.objects[sponge_name], env.cfg.objects[obj_name])
+
+    sponge_still_inside = check_obj_in_receptacle(env, sponge_name, obj_name)
+    env.prev_sponge_pos = sponge_pos
+
+    scrubbing = (
+        in_contact & sponge_still_inside & (torch.norm(movement_vector) > 0.001)
+    )
+
+    return scrubbing
+
+
 def check_obj_in_receptacle_no_contact(env: ManagerBasedEnv, obj_name: str, receptacle_name: str, th: float = None) -> torch.Tensor:
     """
     check if object is in receptacle object based on threshold
@@ -429,6 +473,22 @@ def check_fixture_in_receptacle(env: ManagerBasedEnv, fixture_name: str, fixture
         th = recep.horizontal_radius * 0.7
     is_closed = torch.norm(fix_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
     return is_contact & is_closed
+
+
+def check_obj_grasped(env, obj_name, threshold=0.035):
+    """
+    Check if the gripper has grasped the object by analyzing contact and proximity
+    """
+    robot_articulation = env.scene.articulations["robot"].data.joint_names
+    gripper_joints = ["right_hand_middle_0_joint", "right_hand_middle_1_joint"]
+    joint_index = [robot_articulation.index(joint) for joint in gripper_joints]
+    gripper_joint_positions = env.scene.articulations["robot"].data.joint_pos[:, joint_index]
+    gripper_closed = (gripper_joint_positions < threshold).all()
+    is_contact = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
+    obj = env.cfg.objects[obj_name]
+    for gripper_name in [name for name in list(env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
+        is_contact |= env.cfg.check_contact(gripper_name.replace("_contact", ""), obj)
+    return gripper_closed & is_contact
 
 
 def gripper_obj_far(env: ManagerBasedEnv, obj_name: str = "obj", th: float = 0.25, eef_name: str = None) -> torch.Tensor:
@@ -685,8 +745,8 @@ def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_ax
     return gripper_far & obj1_is_standing & obj1_in_obj2 & obj1_stable
 
 
-def get_object_pos(env: ManagerBasedEnv, name: str) -> torch.Tensor:
-    return env.scene.rigid_objects[name].data.body_com_pos_w[0, 0, :]
+def get_object_pos(env, name):
+    return env.scene.rigid_objects[name].data.body_com_pos_w[:, 0, :]
 
 
 def check_near(pos1: torch.Tensor, pos2: torch.Tensor, th: float = 0.2) -> bool:
@@ -865,8 +925,8 @@ def is_obj_z_up(env: ManagerBasedEnv, obj_name: str = "obj", th: float = 5.0) ->
     return torch.logical_and(torch.abs(r) < th, torch.abs(p) < th)
 
 
-def grasp_obj(env: ManagerBasedEnv, obj_name: str = "obj") -> torch.Tensor:
-    close_to_obj = torch.logical_not(gripper_obj_far(env, obj_name, th=0.15, eef_name="tool_left_arm"))
+def grasp_obj(env, obj_name='obj', threshold=0.15):
+    close_to_obj = torch.logical_not(gripper_obj_far(env, obj_name, th=threshold, eef_name="tool_left_arm"))
     left_hand_action_closed = env.action_manager.action[:, -2] > 0.5
     return torch.logical_and(close_to_obj, left_hand_action_closed)
 

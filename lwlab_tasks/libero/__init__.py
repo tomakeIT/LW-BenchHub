@@ -395,9 +395,9 @@ gym.register(
 )
 
 gym.register(
-    id="Robocasa-Task-L10L6PutTheWhiteMugOnThePlateAndPutTheChocolatePuddingToTheRightOfThePlate",
+    id="Robocasa-Task-L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={"env_cfg_entry_point": f"{__name__}.libero_10_MugOnAndChocolateRightPlate:L10L6PutTheWhiteMugOnThePlateAndPutTheChocolatePuddingToTheRightOfThePlate"},
+    kwargs={"env_cfg_entry_point": f"{__name__}.libero_10_MugOnAndChocolateRightPlate:L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate"},
 )
 
 gym.register(
@@ -554,10 +554,10 @@ gym.register(
 )
 
 gym.register(
-    id="Robocasa-Task-LSPickUpTheBlackBowlInTheTopDrawerOfTheWoodenCabinetAndPlaceItOnThePlate",
+    id="Robocasa-Task-LSPickUpBlackBowlInTopDrawerOfWoodenCabinetAndPlaceItOnPlate",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.put_black_bowl_on_plate.pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate:LSPickUpTheBlackBowlInTheTopDrawerOfTheWoodenCabinetAndPlaceItOnThePlate",
+        "env_cfg_entry_point": f"{__name__}.put_black_bowl_on_plate.pick_up_the_black_bowl_in_the_top_drawer_of_the_wooden_cabinet_and_place_it_on_the_plate:LSPickUpBlackBowlInTopDrawerOfWoodenCabinetAndPlaceItOnPlate",
     },
     disable_env_checker=True,
 )
@@ -634,18 +634,18 @@ gym.register(
     disable_env_checker=True,
 )
 gym.register(
-    id="Robocasa-Task-LSPickUpTheBlackBowlBetweenThePlateAndTheRamekinAndPlaceItOnThePlate",
+    id="Robocasa-Task-LSPickUpBlackBowlBetweenPlateAndRamekinAndPlaceItOnPlate",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.put_black_bowl_on_plate.pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate:LSPickUpTheBlackBowlBetweenThePlateAndTheRamekinAndPlaceItOnThePlate",
+        "env_cfg_entry_point": f"{__name__}.put_black_bowl_on_plate.pick_up_the_black_bowl_between_the_plate_and_the_ramekin_and_place_it_on_the_plate:LSPickUpBlackBowlBetweenPlateAndRamekinAndPlaceItOnPlate",
     },
     disable_env_checker=True,
 )
 gym.register(
-    id="Robocasa-Task-L10L5PutTheWhiteMugOnTheLeftPlateAndPutTheYellowAndWhiteMugOnTheRightPlate",
+    id="Robocasa-Task-L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
-        "env_cfg_entry_point": f"{__name__}.put_the_yellow_and_white_mug_on_the_right_plate:L10L5PutTheWhiteMugOnTheLeftPlateAndPutTheYellowAndWhiteMugOnTheRightPlate",
+        "env_cfg_entry_point": f"{__name__}.put_the_yellow_and_white_mug_on_the_right_plate:L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate",
     },
     disable_env_checker=True,
 )

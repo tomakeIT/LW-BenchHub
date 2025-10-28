@@ -16,6 +16,7 @@ from dataclasses import MISSING
 from typing import Any, Dict, List
 from copy import deepcopy
 import torch
+import os
 
 from isaaclab.envs.manager_based_rl_env_cfg import ManagerBasedRLEnvCfg
 from isaaclab.utils import configclass
@@ -188,6 +189,53 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     STOOL_EXCLUDED_LAYOUT: list = [1, 3, 5, 6, 18, 20, 36, 39, 40, 43, 47, 50, 52]
     SHELVES_INCLUDED_LAYOUT: list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     DOUBLE_CAB_EXCLUDED_LAYOUTS: list = [32, 41, 59]
+    FREEZER_EXCLUDED_LAYOUTS = [
+        1,
+        3,
+        4,
+        5,
+        6,
+        8,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        19,
+        20,
+        22,
+        23,
+        25,
+        26,
+        27,
+        28,
+        30,
+        31,
+        33,
+        34,
+        35,
+        36,
+        37,
+        39,
+        40,
+        42,
+        46,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        58,
+        59,
+        60,
+    ]
     _start_success_check_count: int = 10
     enable_fixtures: list[str] = []
     movable_fixtures: list[str] = []
@@ -396,6 +444,49 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                 obj_cfg["info"] = info
                 self.objects[model.task_name] = model
                 # self.model.merge_objects([model])
+                # check and create lid for object if needed
+                orig_obj_group = obj_cfg.get("obj_groups", None)
+                if isinstance(orig_obj_group, str) and orig_obj_group.endswith("_merge"):
+                    lid_name = info["name"] + "_Lid"
+                    lid_usd_path = os.path.dirname(model.obj_path) + f"/{lid_name}/{lid_name}.usd"
+                    if not os.path.exists(lid_usd_path):
+                        raise FileNotFoundError(f"Lid USD file not found: {lid_usd_path}")
+
+                    lid_cfg = deepcopy(obj_cfg)
+                    lid_cfg["name"] = obj_cfg["name"] + "_lid"
+                    lid_cfg["obj_groups"] = lid_usd_path
+                    lid_cfg["type"] = "object"
+
+                    specified_aux_placement = obj_cfg.get("auxiliary_obj_placement", None)
+                    if specified_aux_placement is not None:
+                        lid_cfg["placement"] = specified_aux_placement
+                        obj_cfg.pop("auxiliary_obj_placement", None)
+                    else:
+                        reset_regions = model.get_reset_regions()
+                        if "anchor_site" in reset_regions:  # use anchor_site for lid placement if exists
+                            int_region = reset_regions["anchor_site"]
+                            lid_cfg["placement"] = dict(
+                                size=(int_region["size"][0], int_region["size"][1]),
+                                pos=int_region["offset"],
+                                ensure_object_boundary_in_range=False,
+                                sample_args=dict(
+                                    reference=obj_cfg["name"],
+                                    ref_fixture=obj_cfg["placement"]["fixture"],
+                                ),
+                            )
+                        else:
+                            lid_cfg["placement"]["sample_args"] = dict(
+                                reference=obj_cfg["name"],
+                                ref_fixture=obj_cfg["placement"]["fixture"],
+                            ),
+
+                    # add in the new object to the model
+                    all_obj_cfgs.append(lid_cfg)
+                    model, info = EnvUtils.create_obj(self, lid_cfg)
+
+                    lid_cfg["info"] = info
+                    self.objects[model.task_name] = model
+
                 try_to_place_in = obj_cfg["placement"].get("try_to_place_in", None)
                 object_ref = obj_cfg["placement"].get("object", None)
 
@@ -450,7 +541,6 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                     )
                 elif (
                     object_ref
-                    and "in_container" in obj_cfg["info"]["groups_containing_sampled_obj"]
                 ):
                     parent = object_ref
                     if parent in self.objects:

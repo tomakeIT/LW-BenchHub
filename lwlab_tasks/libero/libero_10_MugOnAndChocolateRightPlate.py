@@ -7,12 +7,12 @@ import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L10L6PutTheWhiteMugOnThePlateAndPutTheChocolatePuddingToTheRightOfThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
+class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
     """
-    L10L6PutTheWhiteMugOnThePlateAndPutTheChocolatePuddingToTheRightOfThePlate: put the white mug on the plate and put the chocolate pudding to the right of the plate
+    L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate: put the white mug on the plate and put the chocolate pudding to the right of the plate
     """
 
-    task_name: str = "L10L6PutTheWhiteMugOnThePlateAndPutTheChocolatePuddingToTheRightOfThePlate"
+    task_name: str = "L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate"
 
     def __post_init__(self):
         self.activate_contact_sensors = False

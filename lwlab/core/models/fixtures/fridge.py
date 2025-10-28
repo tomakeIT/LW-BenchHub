@@ -27,12 +27,14 @@ class Fridge(Fixture):
         super().__init__(name, prim, num_envs, **kwargs)
         self._fridge_door_joint_names = []
         self._freezer_door_joint_names = []
+        self._drawer_joint_names = []
         for joint_name in self._joint_infos:
             if "door" in joint_name and "fridge" in joint_name:
                 self._fridge_door_joint_names.append(joint_name)
             elif "door" in joint_name and "freezer" in joint_name:
                 self._freezer_door_joint_names.append(joint_name)
-
+            elif "drawer" in joint_name:
+                self._drawer_joint_names.append(joint_name)
         self._fridge_reg_names = [
             reg_name for reg_name in self._regions.keys() if "fridge" in reg_name
         ]
@@ -56,7 +58,7 @@ class Fridge(Fixture):
             joint_names = self._freezer_door_joint_names
         return super().is_closed(env, joint_names, th)
 
-    def check_rack_contact(self, env, object_name, rack_index=None, compartment="firdge", reg_type=("shelf"),):
+    def check_rack_contact(self, env, object_name, rack_index=None, compartment="fridge", reg_type="shelf",):
         """
         Check if an object is in contact with a specific shelf or drawer in the fridge.
 
@@ -74,7 +76,7 @@ class Fridge(Fixture):
         """
         region_names = [
             name
-            for name in self.get_reset_regions(env)]
+            for name in self.get_reset_regions(env, reg_type=reg_type, compartment=compartment, rack_index=rack_index)]
         inside = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
         for i in range(env.num_envs):
             obj_pos = torch.mean(env.scene.rigid_objects[object_name].data.body_com_pos_w, dim=1)[i]
@@ -109,34 +111,69 @@ class Fridge(Fixture):
             self.get_int_sites = orig_get_int
         return inside
 
-    def open_door(self, env, env_ids=None, min=0.9, max=1, entity="fridge"):
-        joint_names = None
-        if entity == "fridge":
-            joint_names = self._fridge_door_joint_names
-        elif entity == "freezer":
-            joint_names = self._freezer_door_joint_names
-        self.set_joint_state(min=min, max=max, env=env, env_ids=env_ids, joint_names=joint_names)
+    def open_door(self, env, env_ids=None, min=0.9, max=1, entity="fridge", reg_type="door", drawer_rack_index=None):
+        if reg_type == "door":
+            joint_names = None
+            if entity == "fridge":
+                joint_names = self._fridge_door_joint_names
+            elif entity == "freezer":
+                joint_names = self._freezer_door_joint_names
+            self.set_joint_state(min=min, max=max, env=env, env_ids=env_ids, joint_names=joint_names)
+        elif reg_type == "drawer":
+            drawer_joints = self._get_drawer_joints(
+                compartment=entity, drawer_rack_index=drawer_rack_index
+            )
+            if drawer_joints:
+                self.set_joint_state(min=min, max=max, env=env, env_ids=env_ids, joint_names=drawer_joints)
+        else:
+            raise ValueError(f"Invalid reg_type: {reg_type}")
 
-    def close_door(self, env, env_ids=None, min=0, max=0, entity="fridge"):
-        joint_names = None
-        if entity == "fridge":
-            joint_names = self._fridge_door_joint_names
-        elif entity == "freezer":
-            joint_names = self._freezer_door_joint_names
-        self.set_joint_state(min=min, max=max, env=env, env_ids=env_ids, joint_names=joint_names)
+    def close_door(self, env, env_ids=None, min=0, max=0, entity="fridge", reg_type="door", drawer_rack_index=None):
+        if reg_type == "door":
+            joint_names = None
+            if entity == "fridge":
+                joint_names = self._fridge_door_joint_names
+            elif entity == "freezer":
+                joint_names = self._freezer_door_joint_names
+            self.set_joint_state(min=min, max=max, env=env, env_ids=env_ids, joint_names=joint_names)
+        elif reg_type == "drawer":
+            drawer_joints = self._get_drawer_joints(
+                compartment=entity, drawer_rack_index=drawer_rack_index
+            )
+            if drawer_joints:
+                self.set_joint_state(
+                    min=min, max=max, env=env, env_ids=env_ids, joint_names=drawer_joints
+                )
+        else:
+            raise ValueError(f"Invalid reg_type: {reg_type}")
 
     def get_reset_region_names(self):
         return self._fridge_reg_names + self._freezer_reg_names
 
-    def get_reset_regions(self, env=None, reg_type="fridge", z_range=(0.50, 1.50), rack_index=None):
-        assert reg_type in ["fridge", "freezer"]
-        reset_region_names = [
-            reg_name
-            for reg_name in self.get_reset_region_names()
-            if reg_type in reg_name
-        ]
+    def get_reset_regions(self, env, compartment="fridge", reg_type=("shelf"), z_range=(0.50, 1.50), rack_index=None):
+        assert compartment in ["fridge", "freezer"]
+        if isinstance(reg_type, str):
+            reg_type = tuple([reg_type])
+            for t in reg_type:
+                assert t in ["shelf", "drawer"]
+        region_names = []
+        for reg_name in self.get_reset_region_names():
+            if compartment not in reg_name:
+                continue
+
+            if "drawer" in reg_name:
+                # it is a drawer
+                if "drawer" not in reg_type:
+                    continue
+            else:
+                # it is a shelf
+                if "shelf" not in reg_type:
+                    continue
+
+            region_names.append(reg_name)
+
         reset_regions = {}
-        for reg_name in reset_region_names:
+        for reg_name in region_names:
             reg_dict = self._regions.get(reg_name, None)
             if reg_dict is None:
                 continue
@@ -145,7 +182,7 @@ class Fridge(Fixture):
             py = reg_dict["py"]
             pz = reg_dict["pz"]
             height = pz[2] - p0[2]
-            if height < 0.20:
+            if height < 0.20 and "drawer" not in reg_type:
                 # region is too small, skip
                 continue
 
@@ -183,6 +220,50 @@ class Fridge(Fixture):
                     f"Available indices: {list(range(len(sorted_regions)))}"
                 )
         return dict(sorted_regions)
+
+    def _get_drawer_joints(self, compartment="fridge", drawer_rack_index=None):
+        """
+        Returns the list of drawer joint names for a given compartment. If drawer_rack_index is provided,
+        selects a single joint based on reverse-alphabetical sorting (highest first).
+
+        Args:
+            compartment (str): "fridge" or "freezer"
+            drawer_rack_index (int or None):
+                - None: return all matching drawer joints
+                - -1: highest drawer
+                - -2: second highest drawer (falls back to highest if only one)
+                - N >= 0: Nth drawer in reverse-sorted order
+
+        Returns:
+            list[str]: selected joint names (can be empty if none found)
+        """
+        compartment_drawer_joints = []
+        for joint_name in self._drawer_joint_names:
+            stripped_name = joint_name[len(self.name) + 1:]
+            if compartment in stripped_name:
+                compartment_drawer_joints.append(joint_name)
+
+        if not compartment_drawer_joints:
+            return []
+
+        if drawer_rack_index is None:
+            return compartment_drawer_joints
+
+        sorted_joints = sorted(compartment_drawer_joints, reverse=True)
+
+        if drawer_rack_index == -1:
+            return [sorted_joints[0]] if sorted_joints else []
+        elif drawer_rack_index == -2:
+            if len(sorted_joints) > 1:
+                return [sorted_joints[1]]
+            return [sorted_joints[0]] if sorted_joints else []
+        elif 0 <= drawer_rack_index < len(sorted_joints):
+            return [sorted_joints[drawer_rack_index]]
+        else:
+            raise ValueError(
+                f"drawer_rack_index {drawer_rack_index} out of range for {compartment} drawer joints. "
+                f"Available indices: {list(range(len(sorted_joints)))}"
+            )
 
 
 class FridgeFrenchDoor(Fridge):

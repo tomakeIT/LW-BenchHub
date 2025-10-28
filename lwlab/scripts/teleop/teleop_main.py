@@ -205,7 +205,7 @@ def optimize_rendering(env):
     # enable DLSS and performance optimization
     settings.set_bool("/rtx-transient/dlssg/enabled", True)
     settings.set_int("/rtx/post/dlss/execMode", 0)  # "Performance"
-    settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", False)
+    settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", True)
 
     # TODO this option affects the rendering of dynamic spawned objects
     settings.set_bool("/app/renderer/skipMaterialLoading", False)
