@@ -1,8 +1,7 @@
 from .put_object_in_basket import PutObjectInBasket
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 import torch
 
 
@@ -13,8 +12,8 @@ class LOPickUpTheButterAndPlaceItInTheBasket(PutObjectInBasket):
     removable_fixtures = enable_fixtures
     EXCLUDE_LAYOUTS: list = [63, 64]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP))
         self.bbq_sauce = self.register_fixture_ref("bbq_sauce", dict(id=FixtureType.BBQ_SOURCE))
         self.chocolate_pudding = "chocolate_pudding"
@@ -100,26 +99,23 @@ class LOPickUpTheButterAndPlaceItInTheBasket(PutObjectInBasket):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the butter is placed in the basket.
         '''
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.butter)
-        object_in_basket = OU.check_obj_in_receptacle(self.env, self.butter, self.basket)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.butter)
+        object_in_basket = OU.check_obj_in_receptacle(env, self.butter, self.basket)
         return object_in_basket & is_gripper_obj_far
 
 
-class L90L2PickUpTheButterAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
+class L90L2PickUpTheButterAndPutItInTheBasket(LwLabTaskBase):
     task_name: str = f"L90L2PickUpTheButterAndPutItInTheBasket"
     enable_fixtures = ["ketchup"]
     removable_fixtures = enable_fixtures
 
-    def __post_init__(self):
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.obj_name = []
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
         self.dining_table = self.register_fixture_ref(
             "dining_table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
@@ -247,28 +243,28 @@ class L90L2PickUpTheButterAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the butter is placed in the basket.
         '''
 
-        far_from_objects = self._gripper_obj_farfrom_objects()
+        far_from_objects = self._gripper_obj_farfrom_objects(env)
 
-        obj_pos = torch.mean(self.env.scene.rigid_objects["butter"].data.body_com_pos_w, dim=1)  # (num_envs, 3)
-        basket_pos = torch.mean(self.env.scene.rigid_objects["basket"].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        obj_pos = torch.mean(env.scene.rigid_objects["butter"].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        basket_pos = torch.mean(env.scene.rigid_objects["basket"].data.body_com_pos_w, dim=1)  # (num_envs, 3)
 
         xy_dist = torch.norm(obj_pos[:, :2] - basket_pos[:, :2], dim=-1)  # (num_envs,)
         object_in_basket_xy = xy_dist < 0.5
 
-        object_stable = OU.check_object_stable(self.env, "butter", threshold=0.01)
+        object_stable = OU.check_object_stable(env, "butter", threshold=0.01)
 
         z_diff = obj_pos[:, 2] - basket_pos[:, 2]
         height_check = (z_diff > -0.05) & (z_diff < 0.02)
 
         return object_in_basket_xy & far_from_objects & object_stable & height_check
 
-    def _gripper_obj_farfrom_objects(self):
-        gripper_far_tensor = torch.tensor([True], device=self.env.device).repeat(self.env.num_envs)
+    def _gripper_obj_farfrom_objects(self, env):
+        gripper_far_tensor = torch.tensor([True], device=env.device).repeat(env.num_envs)
         for obj_name in self.obj_name:
-            gripper_far_tensor = gripper_far_tensor & OU.gripper_obj_far(self.env, obj_name)
+            gripper_far_tensor = gripper_far_tensor & OU.gripper_obj_far(env, obj_name)
         return gripper_far_tensor

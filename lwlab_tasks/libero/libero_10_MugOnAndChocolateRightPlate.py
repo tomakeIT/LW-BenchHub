@@ -1,25 +1,20 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
+class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LwLabTaskBase):
     """
     L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate: put the white mug on the plate and put the chocolate pudding to the right of the plate
     """
 
     task_name: str = "L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate"
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
         self.place_success = {}
@@ -29,11 +24,11 @@ class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LiberoEnvCfg, Ba
         self.red_coffee_mug = "red_coffee_mug"
         self.white_yellow_mug = "white_yellow_mug"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -97,9 +92,9 @@ class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LiberoEnvCfg, Ba
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success_porcelain_mug = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.porcelain_mug,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -108,7 +103,7 @@ class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LiberoEnvCfg, Ba
             gipper_th=0.35
         )
         success_chocolate_pudding = OU.check_place_obj1_side_by_obj2(
-            self.env,
+            env,
             self.chocolate_pudding,
             self.plate,
             check_states={

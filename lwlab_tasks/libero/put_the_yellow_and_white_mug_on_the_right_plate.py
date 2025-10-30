@@ -1,16 +1,14 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class L90L5PutTheYellowAndWhiteMugOnTheRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90L5PutTheYellowAndWhiteMugOnTheRightPlate(LwLabTaskBase):
     task_name: str = "L90L5PutTheYellowAndWhiteMugOnTheRightPlate"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
@@ -23,11 +21,11 @@ class L90L5PutTheYellowAndWhiteMugOnTheRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = "pick up the yellow and white mug and place it to the right of the caddy."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -115,17 +113,16 @@ class L90L5PutTheYellowAndWhiteMugOnTheRightPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
-        success_ret = OU.check_place_obj1_on_obj2(self.env, "white_yellow_mug", "plate")
+    def _check_success(self, env):
+        success_ret = OU.check_place_obj1_on_obj2(env, "white_yellow_mug", "plate")
         return success_ret
 
 
-class L90L5PutTheWhiteMugOnTheLeftPlate(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90L5PutTheWhiteMugOnTheLeftPlate(LwLabTaskBase):
     task_name: str = "L90L5PutTheWhiteMugOnTheLeftPlate"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
@@ -138,11 +135,11 @@ class L90L5PutTheWhiteMugOnTheLeftPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = "put the white mug on the left plate."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -230,21 +227,21 @@ class L90L5PutTheWhiteMugOnTheLeftPlate(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
-        ret = OU.check_place_obj1_on_obj2(self.env, "porcelain_mug", "plate_left")
-        ret2 = OU.check_place_obj1_on_obj2(self.env, "porcelain_mug", "plate")
+    def _check_success(self, env):
+        ret = OU.check_place_obj1_on_obj2(env, "porcelain_mug", "plate_left")
+        ret2 = OU.check_place_obj1_on_obj2(env, "porcelain_mug", "plate")
         return ret | ret2
 
 
 class L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate(L90L5PutTheWhiteMugOnTheLeftPlate):
     task_name: str = "L10L5PutWhiteMugOnLeftPlateAndPutYellowAndWhiteMugOnRightPlate"
 
-    def _check_success(self):
-        ret = OU.check_place_obj1_on_obj2(self.env, "porcelain_mug", "plate_left")
-        ret1 = OU.check_place_obj1_on_obj2(self.env, "porcelain_mug", "plate")
+    def _check_success(self, env):
+        ret = OU.check_place_obj1_on_obj2(env, "porcelain_mug", "plate_left")
+        ret1 = OU.check_place_obj1_on_obj2(env, "porcelain_mug", "plate")
         porcelain_mug_success = ret | ret1
 
-        ret_right = OU.check_place_obj1_on_obj2(self.env, "white_yellow_mug", "plate")
-        ret_right2 = OU.check_place_obj1_on_obj2(self.env, "white_yellow_mug", "plate_left")
+        ret_right = OU.check_place_obj1_on_obj2(env, "white_yellow_mug", "plate")
+        ret_right2 = OU.check_place_obj1_on_obj2(env, "white_yellow_mug", "plate_left")
         white_yellow_mug_success = ret_right | ret_right2
         return porcelain_mug_success & white_yellow_mug_success

@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.counter import Counter
@@ -8,14 +7,9 @@ import numpy as np
 import copy
 
 
-class L90K9PutTheWhiteBowlOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K9PutTheWhiteBowlOnTopOfTheCabinet(LwLabTaskBase):
     task_name: str = "L90K9PutTheWhiteBowlOnTopOfTheCabinet"
     enable_fixtures = ["stove"]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -24,8 +18,8 @@ class L90K9PutTheWhiteBowlOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"Put the black bowl on the plate."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
         self.init_robot_base_ref = self.dining_table
@@ -33,11 +27,11 @@ class L90K9PutTheWhiteBowlOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         self.frying_pan = "frying_pan"
         self.bowl = "bowl"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -98,6 +92,6 @@ class L90K9PutTheWhiteBowlOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
 
         return cfgs
 
-    def _check_success(self):
-        ret = OU.check_place_obj1_on_obj2(self.env, self.bowl, self.shelf)
+    def _check_success(self, env):
+        ret = OU.check_place_obj1_on_obj2(env, self.bowl, self.shelf)
         return ret

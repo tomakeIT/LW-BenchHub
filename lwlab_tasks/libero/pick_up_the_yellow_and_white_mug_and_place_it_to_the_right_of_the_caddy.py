@@ -1,18 +1,16 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 import numpy as np
 
 
-class L90S1PickUpTheYellowAndWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90S1PickUpTheYellowAndWhiteMugAndPlaceItToTheRightOfTheCaddy(LwLabTaskBase):
     task_name: str = "L90S1PickUpTheYellowAndWhiteMugAndPlaceItToTheRightOfTheCaddy"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
@@ -25,11 +23,11 @@ class L90S1PickUpTheYellowAndWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg
         ] = "pick up the yellow and white mug and place it to the right of the caddy."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -86,9 +84,9 @@ class L90S1PickUpTheYellowAndWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success_mug_caddy = OU.check_place_obj1_side_by_obj2(
-            self.env,
+            env,
             "white_yellow_mug",
             "desk_caddy",
             check_states={

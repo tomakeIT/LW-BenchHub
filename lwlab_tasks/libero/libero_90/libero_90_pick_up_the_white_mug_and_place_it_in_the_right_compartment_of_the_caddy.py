@@ -1,19 +1,13 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L90S3PickUpTheWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90S3PickUpTheWhiteMugAndPlaceItToTheRightOfTheCaddy(LwLabTaskBase):
     task_name: str = 'L90S3PickUpTheWhiteMugAndPlaceItToTheRightOfTheCaddy'
     EXCLUDE_LAYOUTS: list = [63, 64]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -22,8 +16,8 @@ class L90S3PickUpTheWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg, BaseTas
         ] = f"Pick up the white mug and place it to the right compartment of the caddy."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.init_robot_base_ref = self.dining_table
         self.desk_caddy = "desk_caddy"
@@ -31,11 +25,11 @@ class L90S3PickUpTheWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg, BaseTas
         self.white_mug = "white_mug"
         self.red_mug = "red_mug"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -112,9 +106,9 @@ class L90S3PickUpTheWhiteMugAndPlaceItToTheRightOfTheCaddy(LiberoEnvCfg, BaseTas
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_side_by_obj2(
-            self.env,
+            env,
             self.white_mug,
             self.desk_caddy,
             {

@@ -1,19 +1,13 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L90S1PickUpTheBookAndPlaceItInTheFrontCompartmentOfTheCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90S1PickUpTheBookAndPlaceItInTheFrontCompartmentOfTheCaddy(LwLabTaskBase):
     task_name: str = 'L90S1PickUpTheBookAndPlaceItInTheFrontCompartmentOfTheCaddy'
     EXCLUDE_LAYOUTS: list = [63, 64]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -22,19 +16,19 @@ class L90S1PickUpTheBookAndPlaceItInTheFrontCompartmentOfTheCaddy(LiberoEnvCfg, 
         ] = f"Pick up the book and place it in the front compartment of the caddy."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.init_robot_base_ref = self.dining_table
         self.desk_caddy = "desk_caddy"
         self.book = "book"
         self.mug = "mug"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -94,10 +88,10 @@ class L90S1PickUpTheBookAndPlaceItInTheFrontCompartmentOfTheCaddy(LiberoEnvCfg, 
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
 
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.book)
-        object_on_caddy = OU.check_obj_in_receptacle(self.env, self.book, self.desk_caddy)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.book)
+        object_on_caddy = OU.check_obj_in_receptacle(env, self.book, self.desk_caddy)
         return is_gripper_obj_far & object_on_caddy
 
 

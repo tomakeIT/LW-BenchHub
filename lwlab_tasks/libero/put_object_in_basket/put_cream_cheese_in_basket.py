@@ -1,4 +1,5 @@
 from .put_object_in_basket import PutObjectInBasket
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
@@ -9,8 +10,8 @@ class LOPutCreamCheeseInBasket(PutObjectInBasket):
     # enable_fixtures: list[str] = [""]
     EXCLUDE_LAYOUTS: list = [63, 64]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.alphabet_soup = "alphabet_soup"
         self.butter = "butter"
         self.milk_drink = "milk_drink"
@@ -133,10 +134,10 @@ class LOPutCreamCheeseInBasket(PutObjectInBasket):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the cream cheese is placed in the basket.
         '''
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.cream_cheese_stick)
-        object_in_basket = OU.check_obj_in_receptacle(self.env, self.cream_cheese_stick, self.basket)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.cream_cheese_stick)
+        object_in_basket = OU.check_obj_in_receptacle(env, self.cream_cheese_stick, self.basket)
         return object_in_basket & is_gripper_obj_far

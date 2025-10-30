@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.counter import Counter
@@ -8,22 +7,16 @@ import numpy as np
 import copy
 
 
-class L90L1PickUpTheAlphabetSoupAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90L1PickUpTheAlphabetSoupAndPutItInTheBasket(LwLabTaskBase):
     task_name: str = "L90L1PickUpTheAlphabetSoupAndPutItInTheBasket"
 
-    def __post_init__(self):
-        self.init_dish_rack_pos = None
-        self.obj_name = []
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref(
             "dining_table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
         )
-
+        self.obj_name = []
         self.init_robot_base_ref = self.dining_table
 
     def _load_model(self):
@@ -133,7 +126,7 @@ class L90L1PickUpTheAlphabetSoupAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg
         )
         return cfgs
 
-    def _check_success(self):
-        th = self.env.cfg.isaac_arena_env.task.objects["basket"].horizontal_radius
-        soup_in_tray = OU.check_obj_in_receptacle(self.env, "alphabet_soup", "basket", th)
-        return soup_in_tray & OU.gripper_obj_far(self.env, "alphabet_soup")
+    def _check_success(self, env):
+        th = env.cfg.isaac_arena_env.task.objects["basket"].horizontal_radius
+        soup_in_tray = OU.check_obj_in_receptacle(env, "alphabet_soup", "basket", th)
+        return soup_in_tray & OU.gripper_obj_far(env, "alphabet_soup")

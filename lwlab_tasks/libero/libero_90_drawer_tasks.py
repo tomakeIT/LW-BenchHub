@@ -1,11 +1,10 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class LiberoDrawerTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
+class LiberoDrawerTasksBase(LwLabTaskBase):
     """
     LiberoDrawerTasksBase: base class for all libero drawer tasks
     """
@@ -14,11 +13,13 @@ class LiberoDrawerTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
     enable_fixtures = ["storage_furniture", "winerack"]
     removable_fixtures = ["winerack"]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
+        self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE, ref=self.table))
+
         self.init_robot_base_ref = self.table
         # Define object names for drawer tasks
         self.akita_black_bowl = "akita_black_bowl"
@@ -29,19 +30,15 @@ class LiberoDrawerTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
         self.chocolate_pudding = "chocolate_pudding"
         self.ketchup = "ketchup"
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE, ref=self.table))
-
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the top drawer joint name (first joint)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
-            self.drawer.set_joint_state(0.9, 1.0, self.env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.9, 1.0, env, [self.top_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.top_drawer_joint_name = "drawer_joint_1"
@@ -50,8 +47,8 @@ class LiberoDrawerTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs = []
         return cfgs
 
-    def _check_success(self):
-        return torch.tensor([False], device=self.env.device)
+    def _check_success(self, env):
+        return torch.tensor([False], device=env.device)
 
 
 class L90K5PutTheBlackBowlInTheTopDrawerOfTheCabinet(LiberoDrawerTasksBase):
@@ -121,9 +118,9 @@ class L90K5PutTheBlackBowlInTheTopDrawerOfTheCabinet(LiberoDrawerTasksBase):
 
         return cfgs
 
-    def _check_success(self):
-        bowl_in_drawer = OU.obj_inside_of(self.env, self.akita_black_bowl, self.drawer)
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+    def _check_success(self, env):
+        bowl_in_drawer = OU.obj_inside_of(env, self.akita_black_bowl, self.drawer)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
         return bowl_in_drawer & gripper_far
 
 
@@ -145,14 +142,14 @@ class L90K1OpenTheTopDrawerOfTheCabinetAndPutTheBowlInIt(LiberoDrawerTasksBase):
         ep_meta["lang"] = "Open the top drawer of the cabinet and put the bowl in it."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
-            self.drawer.set_joint_state(0.0, 0.0, self.env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.0, 0.0, env, [self.top_drawer_joint_name])
         else:
             self.top_drawer_joint_name = "drawer_joint_1"
 
@@ -201,9 +198,9 @@ class L90K1OpenTheTopDrawerOfTheCabinetAndPutTheBowlInIt(LiberoDrawerTasksBase):
 
         return cfgs
 
-    def _check_success(self):
-        bowl_in_drawer = OU.obj_inside_of(self.env, self.akita_black_bowl, self.drawer)
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+    def _check_success(self, env):
+        bowl_in_drawer = OU.obj_inside_of(env, self.akita_black_bowl, self.drawer)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
         return bowl_in_drawer & gripper_far
 
 
@@ -269,8 +266,8 @@ class L90K5CloseTheTopDrawerOfTheCabinet(LiberoDrawerTasksBase):
 
         return cfgs
 
-    def _check_success(self):
-        cabinet_closed = self.drawer.is_closed(self.env, [self.top_drawer_joint_name])
+    def _check_success(self, env):
+        cabinet_closed = self.drawer.is_closed(env, [self.top_drawer_joint_name])
         return cabinet_closed
 
 
@@ -336,8 +333,8 @@ class L90K10CloseTheTopDrawerOfTheCabinet(LiberoDrawerTasksBase):
 
         return cfgs
 
-    def _check_success(self):
-        cabinet_closed = self.drawer.is_closed(self.env, [self.top_drawer_joint_name])
+    def _check_success(self, env):
+        cabinet_closed = self.drawer.is_closed(env, [self.top_drawer_joint_name])
         return cabinet_closed
 
 
@@ -409,24 +406,24 @@ class L90K4CloseTheBottomDrawerOfTheCabinet(LiberoDrawerTasksBase):
 
         return cfgs
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             joint_names = list(self.drawer._joint_infos.keys())
             self.bottom_drawer_joint_name = joint_names[-1]
             self.top_drawer_joint_name = joint_names[0]
-            self.drawer.set_joint_state(0, 0, self.env, [self.top_drawer_joint_name])
-            self.drawer.set_joint_state(0.8, 0.9, self.env, [self.bottom_drawer_joint_name])
+            self.drawer.set_joint_state(0, 0, env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.8, 0.9, env, [self.bottom_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.bottom_drawer_joint_name = "drawer_joint_2"
 
-    def _check_success(self):
-        cabinet_closed = self.drawer.is_closed(self.env, [self.bottom_drawer_joint_name])
-        return cabinet_closed & OU.gripper_obj_far(self.env, self.drawer.name)
+    def _check_success(self, env):
+        cabinet_closed = self.drawer.is_closed(env, [self.bottom_drawer_joint_name])
+        return cabinet_closed & OU.gripper_obj_far(env, self.drawer.name)
 
 
 class L90K4CloseTheBottomDrawerOfTheCabinetAndOpenTheTopDrawer(L90K4CloseTheBottomDrawerOfTheCabinet):
@@ -437,10 +434,10 @@ class L90K4CloseTheBottomDrawerOfTheCabinetAndOpenTheTopDrawer(L90K4CloseTheBott
         ep_meta["lang"] = "Close the bottom drawer of the cabinet and open the top drawer."
         return ep_meta
 
-    def _check_success(self):
-        cabinet_closed = self.drawer.is_closed(self.env, [self.bottom_drawer_joint_name])
-        top_open = self.drawer.is_open(self.env, [self.top_drawer_joint_name], th=0.9)
-        return cabinet_closed & top_open & OU.gripper_obj_far(self.env, self.drawer.name)
+    def _check_success(self, env):
+        cabinet_closed = self.drawer.is_closed(env, [self.bottom_drawer_joint_name])
+        top_open = self.drawer.is_open(env, [self.top_drawer_joint_name], th=0.9)
+        return cabinet_closed & top_open & OU.gripper_obj_far(env, self.drawer.name)
 
 
 class L90K4PutTheBlackBowlInTheBottomDrawerOfTheCabinet(L90K4CloseTheBottomDrawerOfTheCabinet):
@@ -451,9 +448,9 @@ class L90K4PutTheBlackBowlInTheBottomDrawerOfTheCabinet(L90K4CloseTheBottomDrawe
         ep_meta["lang"] = "Put the black bowl in the bottom drawer of the cabinet."
         return ep_meta
 
-    def _check_success(self):
-        bowl_success = OU.obj_inside_of(self.env, "akita_black_bowl", self.drawer)
-        return bowl_success & OU.gripper_obj_far(self.env, "akita_black_bowl")
+    def _check_success(self, env):
+        bowl_success = OU.obj_inside_of(env, "akita_black_bowl", self.drawer)
+        return bowl_success & OU.gripper_obj_far(env, "akita_black_bowl")
 
 
 class L10K4PutTheBlackBowlInTheBottomDrawerOfTheCabinetAndCloseIt(L90K4CloseTheBottomDrawerOfTheCabinet):
@@ -464,9 +461,9 @@ class L10K4PutTheBlackBowlInTheBottomDrawerOfTheCabinetAndCloseIt(L90K4CloseTheB
         ep_meta["lang"] = "Put the black bowl in the bottom drawer of the cabinet and close it."
         return ep_meta
 
-    def _check_success(self):
-        bowl_success = OU.obj_inside_of(self.env, "akita_black_bowl", self.drawer)
-        return bowl_success & OU.gripper_obj_far(self.env, "akita_black_bowl") & self.drawer.is_closed(self.env, [self.bottom_drawer_joint_name])
+    def _check_success(self, env):
+        bowl_success = OU.obj_inside_of(env, "akita_black_bowl", self.drawer)
+        return bowl_success & OU.gripper_obj_far(env, "akita_black_bowl") & self.drawer.is_closed(env, [self.bottom_drawer_joint_name])
 
 
 class L90K4PutTheBlackBowlOnTopOfTheCabinet(L90K4CloseTheBottomDrawerOfTheCabinet):
@@ -477,12 +474,12 @@ class L90K4PutTheBlackBowlOnTopOfTheCabinet(L90K4CloseTheBottomDrawerOfTheCabine
         ep_meta["lang"] = "Put the black bowl on top of the cabinet."
         return ep_meta
 
-    def _check_success(self):
-        bowl_success = OU.obj_inside_of(self.env, self.akita_black_bowl, self.drawer)
-        return bowl_success & OU.gripper_obj_far(self.env, self.akita_black_bowl)
+    def _check_success(self, env):
+        bowl_success = OU.obj_inside_of(env, self.akita_black_bowl, self.drawer)
+        return bowl_success & OU.gripper_obj_far(env, self.akita_black_bowl)
 
 
-class Libero90PutBowlONCabinetTopDrawer(L90K4CloseTheBottomDrawerOfTheCabinet):
+class Libero90PutBowlONCabinetTopDrawer(LwLabTaskBase):
     task_name: str = "Libero90PutBowlONCabinetTopDrawer"
 
     def get_ep_meta(self):
@@ -490,9 +487,9 @@ class Libero90PutBowlONCabinetTopDrawer(L90K4CloseTheBottomDrawerOfTheCabinet):
         ep_meta["lang"] = "Put the black bowl on top of the cabinet."
         return ep_meta
 
-    def _check_success(self):
-        bowl_success = OU.obj_inside_of(self.env, "akita_black_bowl", self.drawer, partial_check=True)
-        return bowl_success & OU.gripper_obj_far(self.env, "akita_black_bowl")
+    def _check_success(self, env):
+        bowl_success = OU.obj_inside_of(env, "akita_black_bowl", self.drawer, partial_check=True)
+        return bowl_success & OU.gripper_obj_far(env, "akita_black_bowl")
 
 
 class L90K4PutTheWineBottleInTheBottomDrawerOfTheCabinet(L90K4CloseTheBottomDrawerOfTheCabinet):
@@ -555,10 +552,10 @@ class L90K4PutTheWineBottleInTheBottomDrawerOfTheCabinet(L90K4CloseTheBottomDraw
 
         return cfgs
 
-    def _check_success(self):
-        bottle_success = OU.check_obj_fixture_contact(self.env, "wine_bottle", self.drawer)
-        bottle_stable = OU.check_object_stable(self.env, "wine_bottle")
-        bottle_gripper_far = OU.gripper_obj_far(self.env, "wine_bottle")
+    def _check_success(self, env):
+        bottle_success = OU.check_obj_fixture_contact(env, "wine_bottle", self.drawer)
+        bottle_stable = OU.check_object_stable(env, "wine_bottle")
+        bottle_gripper_far = OU.gripper_obj_far(env, "wine_bottle")
         return bottle_success & bottle_stable & bottle_gripper_far
 
 
@@ -626,36 +623,36 @@ class L90K10CloseTheTopDrawerOfTheCabinetAndPutTheBlackBowlOnTopOfIt(LiberoDrawe
 
         return cfgs
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the top drawer joint name (first joint)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
             # Set the top drawer to semi-open state
-            self.drawer.set_joint_state(0.1, 0.2, self.env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.1, 0.2, env, [self.top_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.top_drawer_joint_name = "drawer_joint_1"
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the top drawer is closed
-        drawer_closed = self.drawer.is_closed(self.env, [self.top_drawer_joint_name])
+        drawer_closed = self.drawer.is_closed(env, [self.top_drawer_joint_name])
 
         # Check if the black bowl is on top of the drawer
         # Get bowl position and check if it's on the drawer
-        bowl_pos = self.env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
+        bowl_pos = env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
         bowl_on_drawer = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
-        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
+        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device=env.device).repeat(env.num_envs)
         # Check if gripper is far from the bowl
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
 
         return drawer_closed & bowl_on_drawer_tensor & gripper_far
 
 
-class _BaseDrawerTasksWithoutWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
+class _BaseDrawerTasksWithoutWineRack(LwLabTaskBase):
     """
     Base class for drawer tasks that don't need wine_rack
     """
@@ -664,11 +661,13 @@ class _BaseDrawerTasksWithoutWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
     enable_fixtures = ["storage_furniture"]
     # removable_fixtures = enable_fixtures
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
+        self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE, ref=self.table))
+
         self.init_robot_base_ref = self.table
         # Define object names for drawer tasks
         self.akita_black_bowl = "akita_black_bowl"
@@ -676,19 +675,15 @@ class _BaseDrawerTasksWithoutWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
         self.butter_2 = "butter_2"
         self.chocolate_pudding = "chocolate_pudding"
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE, ref=self.table))
-
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the top drawer joint name (first joint)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
-            self.drawer.set_joint_state(0.45, 0.5, self.env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.45, 0.5, env, [self.top_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.top_drawer_joint_name = "drawer_joint_1"
@@ -697,8 +692,8 @@ class _BaseDrawerTasksWithoutWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs = []
         return cfgs
 
-    def _check_success(self):
-        return torch.tensor([False], device=self.env.device)
+    def _check_success(self, env):
+        return torch.tensor([False], device=env.device)
 
 
 class L90K10PutTheBlackBowlInTheTopDrawerOfTheCabinet(_BaseDrawerTasksWithoutWineRack):
@@ -770,9 +765,9 @@ class L90K10PutTheBlackBowlInTheTopDrawerOfTheCabinet(_BaseDrawerTasksWithoutWin
                 mjcf_path="/objects/lightwheel/chocolate_pudding/ChocolatePudding001/model.xml")
         return cfgs
 
-    def _check_success(self):
-        bowl_in_drawer = OU.obj_inside_of(self.env, self.akita_black_bowl, self.drawer)
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+    def _check_success(self, env):
+        bowl_in_drawer = OU.obj_inside_of(env, self.akita_black_bowl, self.drawer)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
         return bowl_in_drawer & gripper_far
 
 
@@ -845,18 +840,18 @@ class L90K10PutTheButterAtTheFrontInTheTopDrawerOfTheCabinetAndCloseIt(_BaseDraw
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if at least one butter is inside the drawer
-        # butter_1_in_drawer = OU.obj_inside_of(self.env, self.butter_1, self.drawer)
-        butter_2_in_drawer = OU.obj_inside_of(self.env, self.butter_2, self.drawer)
+        # butter_1_in_drawer = OU.obj_inside_of(env, self.butter_1, self.drawer)
+        butter_2_in_drawer = OU.obj_inside_of(env, self.butter_2, self.drawer)
         # any_butter_in_drawer = butter_1_in_drawer or butter_2_in_drawer
 
         # Check if the top drawer is closed
-        drawer_closed = self.drawer.is_closed(self.env, [self.top_drawer_joint_name])
+        drawer_closed = self.drawer.is_closed(env, [self.top_drawer_joint_name])
 
         # Check if gripper is far from both butters
-        # gripper_far_1 = OU.gripper_obj_far(self.env, self.butter_1)
-        gripper_far_2 = OU.gripper_obj_far(self.env, self.butter_2)
+        # gripper_far_1 = OU.gripper_obj_far(env, self.butter_1)
+        gripper_far_2 = OU.gripper_obj_far(env, self.butter_2)
         # gripper_far = gripper_far_1 and gripper_far_2
 
         # Convert to boolean and combine results
@@ -934,14 +929,14 @@ class L90K10PutTheChocolatePuddingInTheTopDrawerOfTheCabinetAndCloseIt    (_Base
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the chocolate pudding is inside the drawer
-        chocolate_pudding_in_drawer = OU.obj_inside_of(self.env, self.chocolate_pudding, self.drawer)
+        chocolate_pudding_in_drawer = OU.obj_inside_of(env, self.chocolate_pudding, self.drawer)
 
         # Check if the top drawer is closed
-        drawer_closed = self.drawer.is_closed(self.env, [self.top_drawer_joint_name])
+        drawer_closed = self.drawer.is_closed(env, [self.top_drawer_joint_name])
 
         # Check if gripper is far from the chocolate pudding
-        gripper_far = OU.gripper_obj_far(self.env, self.chocolate_pudding)
+        gripper_far = OU.gripper_obj_far(env, self.chocolate_pudding)
 
         return chocolate_pudding_in_drawer & drawer_closed & gripper_far

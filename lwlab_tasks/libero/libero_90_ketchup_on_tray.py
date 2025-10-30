@@ -1,13 +1,12 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from .libero_90_tomoto_sauce_on_tray import L90L3PickUpTheTomatoSauceAndPutItInTheTray
 
 
-class L90L3PickUpTheKetchupAndPutItInTheTray    (L90L3PickUpTheTomatoSauceAndPutItInTheTray):
+class L90L3PickUpTheKetchupAndPutItInTheTray(L90L3PickUpTheTomatoSauceAndPutItInTheTray):
     """
     L90L3PickUpTheKetchupAndPutItInTheTray    : pick up the ketchup and put it in the wooden_tray
 
@@ -26,11 +25,11 @@ class L90L3PickUpTheKetchupAndPutItInTheTray    (L90L3PickUpTheTomatoSauceAndPut
         ] = f"Pick up the ketchup, and put it in the wooden_tray."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         if self.is_replay_mode:
             self._get_obj_cfgs()
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.ketchup,
             self.wooden_tray,
             th_z_axis_cos=0,  # verticality

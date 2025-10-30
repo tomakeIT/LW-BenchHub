@@ -1,20 +1,14 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K9PutTheFryingPanUnderTheCabinetShelf(LwLabTaskBase):
     task_name: str = 'L90K9PutTheFryingPanUnderTheCabinetShelf'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["stovetop"]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -23,8 +17,8 @@ class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"Put the frying pan under the cabinet shelf."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
         self.init_robot_base_ref = self.dining_table
@@ -32,11 +26,11 @@ class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
         self.frying_pan = "frying_pan"
         self.bowl = "bowl"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -95,18 +89,18 @@ class L90K9PutTheFryingPanUnderTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
                     margin=0.01,      # Reduce margin requirement for faster placement
                 ),
                 info=dict(
-                    mjcf_path="/objects/lightwheel/bowl/Bowl009/model.xml",
+                    mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml",
                 ),
             )
         )
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
 
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.frying_pan, th=0.4)
-        pot_on_shelf = OU.check_obj_in_receptacle_no_contact(self.env, self.frying_pan, self.shelf)
-        pot_is_stable = OU.check_object_stable(self.env, self.frying_pan)
-        pan_z = self.env.scene.rigid_objects[self.frying_pan].data.body_com_pos_w[0, 0, 2]
-        shelf_z = self.env.scene.rigid_objects[self.shelf].data.body_com_pos_w[0, 0, 2]
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.frying_pan, th=0.4)
+        pot_on_shelf = OU.check_obj_in_receptacle_no_contact(env, self.frying_pan, self.shelf)
+        pot_is_stable = OU.check_object_stable(env, self.frying_pan)
+        pan_z = env.scene.rigid_objects[self.frying_pan].data.body_com_pos_w[0, 0, 2]
+        shelf_z = env.scene.rigid_objects[self.shelf].data.body_com_pos_w[0, 0, 2]
         return is_gripper_obj_far & pot_on_shelf & pot_is_stable & (pan_z < shelf_z)

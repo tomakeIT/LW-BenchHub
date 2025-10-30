@@ -1,20 +1,14 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L90K9PutTheFryingPanOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K9PutTheFryingPanOnTopOfTheCabinet(LwLabTaskBase):
     task_name: str = 'L90K9PutTheFryingPanOnTopOfTheCabinet'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["stovetop"]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -23,8 +17,8 @@ class L90K9PutTheFryingPanOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"put the frying pan on top of the cabinet."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
         self.init_robot_base_ref = self.dining_table
@@ -32,11 +26,11 @@ class L90K9PutTheFryingPanOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
         self.frying_pan = "frying_pan"
         self.bowl = "bowl"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -97,7 +91,7 @@ class L90K9PutTheFryingPanOnTopOfTheCabinet(LiberoEnvCfg, BaseTaskEnvCfg):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
 
-        success_state = OU.check_place_obj1_on_obj2(self.env, self.frying_pan, self.shelf)
-        return success_state & OU.gripper_obj_far(self.env, self.frying_pan, th=0.4)
+        success_state = OU.check_place_obj1_on_obj2(env, self.frying_pan, self.shelf)
+        return success_state & OU.gripper_obj_far(env, self.frying_pan, th=0.4)

@@ -1,7 +1,6 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from .libero_10_put_in_basket import Libero10PutInBasket
@@ -19,8 +18,8 @@ class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
 
     task_name: str = "L90L3PickUpTheTomatoSauceAndPutItInTheTray"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         # Define wooden_tray early so it's available in _check_success
         self.wooden_tray = "wooden_tray"
 
@@ -47,11 +46,11 @@ class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         if self.is_replay_mode:
             self._get_obj_cfgs()
         success_tomato_sauce = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.tomato_sauce,
             self.wooden_tray,
             th_z_axis_cos=0.8,  # verticality

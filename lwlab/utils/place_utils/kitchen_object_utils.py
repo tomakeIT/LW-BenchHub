@@ -274,7 +274,10 @@ def recreate_object(orchestrator, failed_obj_name):
             return False
 
         orchestrator.task.objects.pop(failed_obj_name, None)
-        obj_cfg.pop("info", None)
+        if "obj_path" in obj_cfg["info"]:
+            obj_cfg["info"] = {"obj_path": obj_cfg["info"]["obj_path"]}
+        else:
+            obj_cfg.pop("info", None)
 
         model, info = EnvUtils.create_obj(orchestrator.task, obj_cfg, ignore_cache=True)
         obj_cfg["info"] = info

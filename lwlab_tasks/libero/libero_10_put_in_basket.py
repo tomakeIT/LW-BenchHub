@@ -1,12 +1,11 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class Libero10PutInBasket(LiberoEnvCfg, BaseTaskEnvCfg):
+class Libero10PutInBasket(LwLabTaskBase):
     """
     Libero10PutInBasket: base class for all libero 10 put in basket tasks
     """
@@ -16,14 +15,11 @@ class Libero10PutInBasket(LiberoEnvCfg, BaseTaskEnvCfg):
     enable_fixtures = ['ketchup']
     removable_fixtures = enable_fixtures
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        super().__post_init__()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
+        self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP, ref=self.counter))
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
-        self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
         self.place_success = {}
         self.alphabet_soup = "alphabet_soup"
@@ -34,11 +30,11 @@ class Libero10PutInBasket(LiberoEnvCfg, BaseTaskEnvCfg):
         self.orange_juice = "orange_juice"
         self.tomato_sauce = "tomato_sauce"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -130,9 +126,9 @@ class L10L2PutBothTheCreamCheeseBoxAndTheButterInTheBasket(Libero10PutInBasket):
         ] = f"Pick up the cream cheese box and the butter, and put them in the basket."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success_cream_cheese = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.cream_cheese,
             self.basket,
             th_z_axis_cos=0.0,  # verticality
@@ -140,7 +136,7 @@ class L10L2PutBothTheCreamCheeseBoxAndTheButterInTheBasket(Libero10PutInBasket):
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
         success_butter = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.butter,
             self.basket,
             th_z_axis_cos=0.0,  # verticality
@@ -174,9 +170,9 @@ class L10L2PutBothTheAlphabetSoupAndTheTomatoSauceInTheBasket(Libero10PutInBaske
         ] = f"Pick up the alphabet soup and the tomato sauce, and put them in the basket."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success_alphabet_soup = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.alphabet_soup,
             self.basket,
             th_z_axis_cos=0,  # verticality
@@ -184,7 +180,7 @@ class L10L2PutBothTheAlphabetSoupAndTheTomatoSauceInTheBasket(Libero10PutInBaske
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
         success_tomato_sauce = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.tomato_sauce,
             self.basket,
             th_z_axis_cos=0,  # verticality
@@ -229,9 +225,9 @@ class L10L1PutBothTheAlphabetSoupAndTheCreamCheeseBoxInTheBasket(Libero10PutInBa
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success_cream_cheese = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.cream_cheese,
             self.basket,
             th_z_axis_cos=0.0,  # verticality
@@ -239,7 +235,7 @@ class L10L1PutBothTheAlphabetSoupAndTheCreamCheeseBoxInTheBasket(Libero10PutInBa
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
         success_alphabet_soup = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.alphabet_soup,
             self.basket,
             th_z_axis_cos=0.0,  # verticality

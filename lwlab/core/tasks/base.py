@@ -177,7 +177,7 @@ class TerminationsCfg:
 
 
 class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
-    task_name: str
+    task_name: str = None
     task_type: str = "teleop"
     resample_objects_placement_on_reset: bool = True
     resample_robot_placement_on_reset: bool = True
@@ -267,6 +267,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.checkers = get_checkers_from_cfg(self.checkers_cfg)
         self.checker_results = form_checker_result(self.checkers_cfg)
         self.fix_object_pose_cfg = None
+        self.is_replay_mode = False
         self.contact_queues = [ContactQueue() for _ in range(self.context.num_envs)]
 
         # Initialize retry counts
@@ -808,14 +809,33 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     def _init_ref_fixtures(self):
         for fixtr in self.fixture_refs.values():
             if isinstance(fixtr, Fixture):
-                self.add_asset(
-                    ObjectReference(
-                        name=fixtr.name,
-                        object_type=ObjectType.ARTICULATION,
-                        prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
-                        parent_asset=self.scene_assets[self.scene_type],
+                if fixtr.is_articulation_root:
+                    self.add_asset(
+                        ObjectReference(
+                            name=fixtr.name,
+                            object_type=ObjectType.ARTICULATION,
+                            prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
+                            parent_asset=self.scene_assets[self.scene_type],
+                        )
                     )
-                )
+                elif fixtr.is_rigidbody:
+                    self.add_asset(
+                        ObjectReference(
+                            name=fixtr.name,
+                            object_type=ObjectType.RIGID,
+                            prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
+                            parent_asset=self.scene_assets[self.scene_type],
+                        )
+                    )
+                else:
+                    self.add_asset(
+                        ObjectReference(
+                            name=fixtr.name,
+                            object_type=ObjectType.BASE,
+                            prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
+                            parent_asset=self.scene_assets[self.scene_type],
+                        )
+                    )
         for fixtr in self.fixture_refs.values():
             if isinstance(fixtr, Fixture):
                 fixtr.setup_cfg(self)
@@ -831,6 +851,9 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.scene_assets = orchestrator.scene.assets
         self.scene_type = orchestrator.scene.scene_type
         self.fixtures = orchestrator.scene.fixtures
+        self.scene_retry_count = 0
+        self.object_retry_count = 0
+        self.is_replay_mode = orchestrator.scene.is_replay_mode
         self._setup_kitchen_references(orchestrator.scene)
         self._init_ref_fixtures()
         self._get_obj_cfgs()

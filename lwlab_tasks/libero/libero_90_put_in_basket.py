@@ -1,7 +1,6 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from .libero_10_put_in_basket import Libero10PutInBasket
@@ -37,9 +36,9 @@ class L90L1PickUpTheKetchupAndPutItInTheBasket(Libero10PutInBasket):
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.ketchup,
             self.basket,
             th_z_axis_cos=0,  # verticality
@@ -67,9 +66,9 @@ class L90L1PickUpTheCreamCheeseBoxAndPutItInTheBasket(L90L1PickUpTheKetchupAndPu
         ] = f"Pick up the cream cheese box, and put it in the basket."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.cream_cheese,
             self.basket,
             th_z_axis_cos=0.0,  # verticality
@@ -106,9 +105,9 @@ class L90L2PickUpTheTomatoSauceAndPutItInTheBasket(Libero10PutInBasket):
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.tomato_sauce,
             self.basket,
             th_z_axis_cos=0.0,
@@ -145,9 +144,9 @@ class L90L2PickUpTheAlphabetSoupAndPutItInTheBasket(Libero10PutInBasket):
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.alphabet_soup,
             self.basket,
             th_z_axis_cos=0.0,
@@ -184,9 +183,9 @@ class L90L2PickUpTheOrangeJuiceAndPutItInTheBasket(Libero10PutInBasket):
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.orange_juice,
             self.basket,
             th_z_axis_cos=0.0,
@@ -224,9 +223,9 @@ class L90L1PickUpTheTomatoSauceAndPutItInTheBasket(Libero10PutInBasket):
                 cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success_tomato_sauce = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.tomato_sauce,
             self.basket,
             th_z_axis_cos=0.0,

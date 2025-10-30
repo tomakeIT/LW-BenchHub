@@ -1,4 +1,5 @@
 from .put_object_in_basket import PutObjectInBasket
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
@@ -10,14 +11,11 @@ class LOPickUpTheKetchupAndPlaceItInTheBasket(PutObjectInBasket):
     EXCLUDE_LAYOUTS: list = [63, 64]
     removable_fixtures: list[str] = ["saladdressing", "ketchup", "bbq_sauce"]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.alphabet_soup = "alphabet_soup"
         self.cream_cheese_stick = "cream_cheese_stick"
         self.milk_drink = "milk_drink"
-
-    def __post_init__(self):
-        super().__post_init__()
         self.salad_dressing = self.register_fixture_ref("saladdressing", dict(id=FixtureType.SALAD_DRESSING))
         self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP))
         self.bbq_sauce = self.register_fixture_ref("bbq_sauce", dict(id=FixtureType.BBQ_SOURCE))
@@ -86,10 +84,10 @@ class LOPickUpTheKetchupAndPlaceItInTheBasket(PutObjectInBasket):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the ketchup is placed in the basket.
         '''
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.ketchup.name)
-        fixture_in_basket = OU.check_fixture_in_receptacle(self.env, "ketchup", self.ketchup.name, self.basket)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.ketchup.name)
+        fixture_in_basket = OU.check_fixture_in_receptacle(env, "ketchup", self.ketchup.name, self.basket)
         return fixture_in_basket & is_gripper_obj_far

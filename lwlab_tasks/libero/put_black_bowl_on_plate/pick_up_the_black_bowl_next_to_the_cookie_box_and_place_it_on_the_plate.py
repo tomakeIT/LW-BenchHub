@@ -1,5 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from .put_black_bowl_on_plate import PutBlackBowlOnPlate
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
@@ -17,8 +17,8 @@ class LSPickUpTheBlackBowlNextToTheCookieBoxAndPlaceItOnThePlate(PutBlackBowlOnP
         ] = f"Pick the akita black bowl next to the cookies box and place it on the plate."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.bowl = "bowl"
         self.bowl_target = "bowl_target"
 
@@ -63,14 +63,14 @@ class LSPickUpTheBlackBowlNextToTheCookieBoxAndPlaceItOnThePlate(PutBlackBowlOnP
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the bowl is placed on the plate.
         '''
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.bowl_target)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.bowl_target)
 
-        bowl_pos = torch.mean(self.env.scene.rigid_objects[self.bowl_target].data.body_com_pos_w, dim=1)  # (num_envs, 3)
-        plate_pos = torch.mean(self.env.scene.rigid_objects[self.plate].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        bowl_pos = torch.mean(env.scene.rigid_objects[self.bowl_target].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        plate_pos = torch.mean(env.scene.rigid_objects[self.plate].data.body_com_pos_w, dim=1)  # (num_envs, 3)
 
         xy_distance = torch.norm(bowl_pos[:, :2] - plate_pos[:, :2], dim=1)
         bowl_centered = xy_distance < 0.08
@@ -78,7 +78,7 @@ class LSPickUpTheBlackBowlNextToTheCookieBoxAndPlaceItOnThePlate(PutBlackBowlOnP
         z_diff = bowl_pos[:, 2] - plate_pos[:, 2]
         bowl_on_plate_height = (z_diff > 0.01) & (z_diff < 0.15)
 
-        bowl_vel = torch.mean(self.env.scene.rigid_objects[self.bowl_target].data.body_com_vel_w, dim=1)  # (num_envs, 3)
+        bowl_vel = torch.mean(env.scene.rigid_objects[self.bowl_target].data.body_com_vel_w, dim=1)  # (num_envs, 3)
         bowl_speed = torch.norm(bowl_vel, dim=1)
 
         bowl_stable = bowl_speed < 0.05

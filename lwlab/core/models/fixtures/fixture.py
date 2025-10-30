@@ -508,6 +508,14 @@ class Fixture:
         h = reg_pz[2] - reg_p0[2]
         return h
 
+    @cached_property
+    def is_articulation_root(self) -> bool:
+        return usd.is_articulation_root(self.prim)
+
+    @cached_property
+    def is_rigidbody(self) -> bool:
+        return usd.is_rigidbody(self.prim)
+
     @property
     def rot(self) -> float:
         return self._rot[2] if hasattr(self, "_rot") else 0

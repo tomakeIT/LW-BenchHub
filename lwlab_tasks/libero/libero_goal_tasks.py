@@ -1,12 +1,12 @@
 import torch
+from lwlab.core.tasks.base import LwLabTaskBase
 import numpy as np
-from lwlab.core.tasks.base import BaseTaskEnvCfg
 from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class LiberoGoalTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
+class LiberoGoalTasksBase(LwLabTaskBase):
     """
     LiberoGoalTasksBase: base class for all libero goal tasks
     """
@@ -15,8 +15,8 @@ class LiberoGoalTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
     enable_fixtures = ["storage_furniture", "stovetop", "winerack"]
     # removable_fixtures = ["winerack"]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
@@ -32,14 +32,11 @@ class LiberoGoalTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
         self.plate = "plate"
         self.wine_bottle = "wine_bottle"
 
-    def __post_init__(self):
-        super().__post_init__()
-
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the top drawer joint name (first joint)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
@@ -51,8 +48,8 @@ class LiberoGoalTasksBase(LiberoEnvCfg, BaseTaskEnvCfg):
         cfgs = []
         return cfgs
 
-    def _check_success(self):
-        return torch.tensor([False], device=self.env.device)
+    def _check_success(self, env):
+        return torch.tensor([False], device=env.device)
 
 
 class LGOpenTheMiddleDrawerOfTheCabinet(LiberoGoalTasksBase):
@@ -124,24 +121,24 @@ class LGOpenTheMiddleDrawerOfTheCabinet(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the middle drawer joint name (second joint if available, else first)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             joint_names = list(self.drawer._joint_infos.keys())
             self.middle_drawer_joint_name = joint_names[1]  # Second joint is middle drawer
-            self.drawer.set_joint_state(0.0, 0.0, self.env, [self.middle_drawer_joint_name])
+            self.drawer.set_joint_state(0.0, 0.0, env, [self.middle_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.middle_drawer_joint_name = "drawer_joint_2"
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the middle drawer is open
-        drawer_open = self.drawer.is_open(self.env, [self.middle_drawer_joint_name], th=0.6)
-        return drawer_open & OU.gripper_obj_far(self.env, self.drawer.name, th=0.4)
+        drawer_open = self.drawer.is_open(env, [self.middle_drawer_joint_name], th=0.6)
+        return drawer_open & OU.gripper_obj_far(env, self.drawer.name, th=0.4)
 
 
 class LGPutTheBowlOnTopOfTheCabinet(LiberoGoalTasksBase):
@@ -213,14 +210,14 @@ class LGPutTheBowlOnTopOfTheCabinet(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the bowl is on top of the drawer
         # Get bowl position and check if it's on the drawer
-        bowl_pos = self.env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
+        bowl_pos = env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
         bowl_on_drawer = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
-        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
+        bowl_on_drawer_tensor = torch.tensor(bowl_on_drawer, dtype=torch.bool, device=env.device).repeat(env.num_envs)
         # Check if gripper is far from the bowl
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
 
         return bowl_on_drawer_tensor & gripper_far
 
@@ -235,7 +232,6 @@ class LiberoGoalOpenTopDrawerOfCabinet(LiberoGoalTasksBase):
     """
 
     task_name: str = "LiberoGoalOpenTopDrawerOfCabinet"
-    # EXCLUDE_LAYOUTS: list = LiberoEnvCfg.DINING_COUNTER_EXCLUDED_LAYOUTS
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -294,23 +290,23 @@ class LiberoGoalOpenTopDrawerOfCabinet(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the top drawer joint name (first joint)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
             # Set the top drawer to closed state initially
-            self.drawer.set_joint_state(0.0, 0.0, self.env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.0, 0.0, env, [self.top_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.top_drawer_joint_name = "drawer_joint_1"
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the top drawer is open
-        drawer_open = self.drawer.is_open(self.env, [self.top_drawer_joint_name], th=0.3)
+        drawer_open = self.drawer.is_open(env, [self.top_drawer_joint_name], th=0.3)
         return drawer_open
 
 
@@ -383,14 +379,14 @@ class LGPutTheWineBottleOnTopOfTheCabinet(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the wine bottle is on top of the drawer
         # Get wine bottle position and check if it's on the drawer
-        wine_bottle_pos = self.env.scene.rigid_objects[self.wine_bottle].data.root_pos_w[0, :].cpu().numpy()
+        wine_bottle_pos = env.scene.rigid_objects[self.wine_bottle].data.root_pos_w[0, :].cpu().numpy()
         bottle_on_drawer = OU.point_in_fixture(wine_bottle_pos, self.drawer, only_2d=True)
-        bottle_on_drawer_tensor = torch.tensor(bottle_on_drawer, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
+        bottle_on_drawer_tensor = torch.tensor(bottle_on_drawer, dtype=torch.bool, device=env.device).repeat(env.num_envs)
         # Check if gripper is far from the wine bottle
-        gripper_far = OU.gripper_obj_far(self.env, self.wine_bottle)
+        gripper_far = OU.gripper_obj_far(env, self.wine_bottle)
 
         return bottle_on_drawer_tensor & gripper_far
 
@@ -465,29 +461,29 @@ class LGOpenTheTopDrawerAndPutTheBowlInside(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         # Get the top drawer joint name (first joint)
         if hasattr(self.drawer, '_joint_infos') and self.drawer._joint_infos:
             self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
             # Set the top drawer to closed state initially
-            self.drawer.set_joint_state(0.0, 0.0, self.env, [self.top_drawer_joint_name])
+            self.drawer.set_joint_state(0.0, 0.0, env, [self.top_drawer_joint_name])
         else:
             # Use default joint name if joint info is not available
             self.top_drawer_joint_name = "drawer_joint_1"
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the top drawer is open
-        drawer_open = self.drawer.is_open(self.env, [self.top_drawer_joint_name], th=0.3)
+        drawer_open = self.drawer.is_open(env, [self.top_drawer_joint_name], th=0.3)
 
         # Check if the black bowl is inside the drawer
-        bowl_in_drawer = OU.obj_inside_of(self.env, self.akita_black_bowl, "storage_furniture")
+        bowl_in_drawer = OU.obj_inside_of(env, self.akita_black_bowl, "storage_furniture")
 
         # Check if gripper is far from the bowl
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
 
         # Convert to boolean and combine results
         return drawer_open & bowl_in_drawer & gripper_far
@@ -564,9 +560,9 @@ class LGPutTheBowlOnThePlate(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -649,9 +645,9 @@ class LGPutTheCreamCheeseInTheBowl(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.cream_cheese,
             self.akita_black_bowl,
             th_z_axis_cos=0,  # verticality
@@ -732,15 +728,15 @@ class LGPushThePlateToTheFrontOfTheStove(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         stove_pos = self.stove.pos
-        plate_poses = OU.get_object_pos(self.env, self.plate)
-        plate_success_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        plate_poses = OU.get_object_pos(env, self.plate)
+        plate_success_tensor = torch.tensor([False] * env.num_envs, device=env.device)
         for i, plate_pos in enumerate(plate_poses):
             x_dist = plate_pos[0] - stove_pos[0]
             success = stove_pos[1] - plate_pos[1] > 0.3 and x_dist < self.stove.size[0] / 2.0
             plate_success_tensor[i] = success
-        return plate_success_tensor & OU.gripper_obj_far(self.env, self.plate, th=0.35)
+        return plate_success_tensor & OU.gripper_obj_far(env, self.plate, th=0.35)
 
 
 class LGPutTheBowlOnTheStove(LiberoGoalTasksBase):
@@ -812,14 +808,14 @@ class LGPutTheBowlOnTheStove(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the bowl is on the stove
         # Get bowl position and check if it's on the stove
-        bowl_pos = self.env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
+        bowl_pos = env.scene.rigid_objects[self.akita_black_bowl].data.root_pos_w[0, :].cpu().numpy()
         bowl_on_stove = OU.point_in_fixture(bowl_pos, self.stove, only_2d=True)
-        bowl_on_stove_tensor = torch.tensor(bowl_on_stove, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
+        bowl_on_stove_tensor = torch.tensor(bowl_on_stove, dtype=torch.bool, device=env.device).repeat(env.num_envs)
         # Check if gripper is far from the bowl
-        gripper_far = OU.gripper_obj_far(self.env, self.akita_black_bowl)
+        gripper_far = OU.gripper_obj_far(env, self.akita_black_bowl)
 
         # Convert to boolean and combine results
         return bowl_on_stove_tensor & gripper_far
@@ -894,14 +890,14 @@ class LGPutTheWineBottleOnTheRack(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the wine bottle is on the rack
         # Get wine bottle position and check if it's on the rack
-        wine_bottle_pos = self.env.scene.rigid_objects[self.wine_bottle].data.root_pos_w[0, :].cpu().numpy()
+        wine_bottle_pos = env.scene.rigid_objects[self.wine_bottle].data.root_pos_w[0, :].cpu().numpy()
         bottle_on_rack = OU.point_in_fixture(wine_bottle_pos, self.winerack, only_2d=True)
-        bottle_on_rack_tensor = torch.tensor(bottle_on_rack, dtype=torch.bool, device=self.env.device).repeat(self.env.num_envs)
+        bottle_on_rack_tensor = torch.tensor(bottle_on_rack, dtype=torch.bool, device=env.device).repeat(env.num_envs)
         # Check if gripper is far from the wine bottle
-        gripper_far = OU.gripper_obj_far(self.env, self.wine_bottle)
+        gripper_far = OU.gripper_obj_far(env, self.wine_bottle)
 
         # Convert to boolean and combine results
 
@@ -977,12 +973,12 @@ class LGTurnOnTheStove(LiberoGoalTasksBase):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if the stove is turned on
         # Get the stove fixture and check if any knob is turned on
-        knobs_state = self.stove.get_knobs_state(self.env)
+        knobs_state = self.stove.get_knobs_state(env)
 
-        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+        knob_success = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for knob_name, knob_value in knobs_state.items():
             abs_knob = torch.abs(knob_value)
             lower, upper = 0.35, 2 * np.pi - 0.35
@@ -990,6 +986,6 @@ class LGTurnOnTheStove(LiberoGoalTasksBase):
             knob_success = knob_success | knob_on
         # Check if gripper is far from the stove (not interacting with it)
         # Use the utility function to check gripper distance from stove
-        gripper_far_from_stove = OU.gripper_obj_far(self.env, self.stove.name, th=0.3)
+        gripper_far_from_stove = OU.gripper_obj_far(env, self.stove.name, th=0.3)
 
         return knob_success & gripper_far_from_stove

@@ -1,20 +1,14 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 
 
-class PutBlackBowlOnPlate(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class PutBlackBowlOnPlate(LwLabTaskBase):
     task_name: str = f"PutBlackBowlOnPlate"
     enable_fixtures: list[str] = ["storage_furniture", "stovetop"]
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE))
         self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
         self.storage_furniture = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE))
@@ -57,13 +51,13 @@ class PutBlackBowlOnPlate(LiberoEnvCfg, BaseTaskEnvCfg):
             ),
         }
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         self.top_joint_name = list(self.storage_furniture._joint_infos.keys())[0]
-        self.storage_furniture.set_joint_state(0.1, 0.2, self.env, [self.top_joint_name])
+        self.storage_furniture.set_joint_state(0.1, 0.2, env, [self.top_joint_name])
 
     def _get_obj_cfgs(self):
         cfgs = []

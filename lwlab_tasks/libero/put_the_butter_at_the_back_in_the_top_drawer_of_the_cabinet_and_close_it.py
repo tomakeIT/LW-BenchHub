@@ -1,25 +1,21 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class L90K10PutTheButterAtTheBackInTheTopDrawerOfTheCabinetAndCloseIt(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K10PutTheButterAtTheBackInTheTopDrawerOfTheCabinetAndCloseIt(LwLabTaskBase):
     task_name: str = "L90K10PutTheButterAtTheBackInTheTopDrawerOfTheCabinetAndCloseIt"
     enable_fixtures = ["storage_furniture"]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
-        self.init_robot_base_ref = self.table
-
-    def __post_init__(self):
-        super().__post_init__()
         self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE, ref=self.table))
+
+        self.init_robot_base_ref = self.table
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -28,13 +24,13 @@ class L90K10PutTheButterAtTheBackInTheTopDrawerOfTheCabinetAndCloseIt(LiberoEnvC
         ] = "put the butter at the back in the top drawer of the cabinet and close it."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
-        self.drawer.set_joint_state(0.1, 0.2, self.env, [self.top_drawer_joint_name])
+        self.drawer.set_joint_state(0.1, 0.2, env, [self.top_drawer_joint_name])
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -87,8 +83,8 @@ class L90K10PutTheButterAtTheBackInTheTopDrawerOfTheCabinetAndCloseIt(LiberoEnvC
         )
         return cfgs
 
-    def _check_success(self):
-        gipper_success = OU.gripper_obj_far(self.env, "butter")
-        butter_in_drawer = OU.obj_inside_of(self.env, "butter", self.drawer, partial_check=True)
-        cabinet_closed = self.drawer.is_closed(self.env, [self.top_drawer_joint_name])
+    def _check_success(self, env):
+        gipper_success = OU.gripper_obj_far(env, "butter")
+        butter_in_drawer = OU.obj_inside_of(env, "butter", self.drawer, partial_check=True)
+        cabinet_closed = self.drawer.is_closed(env, [self.top_drawer_joint_name])
         return cabinet_closed & gipper_success & butter_in_drawer

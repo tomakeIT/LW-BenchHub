@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.counter import Counter
@@ -8,22 +7,19 @@ import numpy as np
 import copy
 
 
-class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LiberoEnvCfg, BaseTaskEnvCfg):
+class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LwLabTaskBase):
 
     task_name: str = "L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle"
     enable_fixtures = ["storage_furniture"]
 
-    def __post_init__(self):
-        self.obj_name = []
-        super().__post_init__()
-        self.drawer = self.register_fixture_ref("singlecabinet", dict(id=FixtureType.STORAGE_FURNITURE))
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref(
             "dining_table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.6)),
         )
+        self.obj_name = []
+        self.drawer = self.register_fixture_ref("singlecabinet", dict(id=FixtureType.STORAGE_FURNITURE))
 
         self.init_robot_base_ref = self.dining_table
 
@@ -47,15 +43,16 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LiberoEnvCfg, Ba
                 obj_groups=["bowl"],
                 graspable=True,
                 washable=True,
+                object_scale=0.8,
                 info=dict(
                     mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
                 ),
                 init_robot_here=True,
                 placement=dict(
                     fixture=self.dining_table,
-                    size=(0.50, 0.35),
+                    size=(0.50, 0.25),
                     margin=0.02,
-                    pos=(0.0, -0.6),
+                    pos=(0.0, -0.4),
                 ),
             )
         )
@@ -65,6 +62,7 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LiberoEnvCfg, Ba
                 obj_groups=["bowl"],
                 graspable=True,
                 washable=True,
+                object_scale=0.8,
                 info=dict(
                     mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
                 ),
@@ -82,6 +80,7 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LiberoEnvCfg, Ba
                 obj_groups=["bowl"],
                 graspable=True,
                 washable=True,
+                object_scale=0.8,
                 info=dict(
                     mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
                 ),
@@ -113,11 +112,11 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LiberoEnvCfg, Ba
         )
         return cfgs
 
-    def _check_success(self):
-        ret = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl_front", "akita_black_bowl")
-        ret1 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl_front", "akita_black_bowl_back")
-        ret2 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl_back", "akita_black_bowl_front")
-        ret3 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl_back", "akita_black_bowl")
-        ret4 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl", "akita_black_bowl_front")
-        ret5 = OU.check_place_obj1_on_obj2(self.env, "akita_black_bowl", "akita_black_bowl_back")
+    def _check_success(self, env):
+        ret = OU.check_place_obj1_on_obj2(env, "akita_black_bowl_front", "akita_black_bowl")
+        ret1 = OU.check_place_obj1_on_obj2(env, "akita_black_bowl_front", "akita_black_bowl_back")
+        ret2 = OU.check_place_obj1_on_obj2(env, "akita_black_bowl_back", "akita_black_bowl_front")
+        ret3 = OU.check_place_obj1_on_obj2(env, "akita_black_bowl_back", "akita_black_bowl")
+        ret4 = OU.check_place_obj1_on_obj2(env, "akita_black_bowl", "akita_black_bowl_front")
+        ret5 = OU.check_place_obj1_on_obj2(env, "akita_black_bowl", "akita_black_bowl_back")
         return ret | ret1 | ret2 | ret3 | ret4 | ret5

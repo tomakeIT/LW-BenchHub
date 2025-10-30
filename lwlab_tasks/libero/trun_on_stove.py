@@ -1,26 +1,22 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L90K3TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K3TurnOnTheStove(LwLabTaskBase):
     task_name: str = "L90K3TurnOnTheStove"
 
     enable_fixtures = ["stove", "mokapot_1"]
     removable_fixtures = ["mokapot_1"]
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.stove = self.get_fixture(FixtureType.STOVE)
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("island", dict(id=FixtureType.TABLE))
         self.mokapot = self.register_fixture_ref("mokapot", dict(id=FixtureType.MOKA_POT))
+        self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
+
         self.init_robot_base_ref = self.counter
 
     def get_ep_meta(self):
@@ -30,11 +26,11 @@ class L90K3TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"Turn on the stove."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -60,30 +56,27 @@ class L90K3TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
-        knobs_state = self.stove.get_knobs_state(env=self.env)
-        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+    def _check_success(self, env):
+        knobs_state = self.stove.get_knobs_state(env=env)
+        knob_success = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for knob_name, knob_value in knobs_state.items():
             abs_knob = torch.abs(knob_value)
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        return knob_success & OU.gripper_obj_far(self.env, self.stove.name, th=0.4)
+        return knob_success & OU.gripper_obj_far(env, self.stove.name, th=0.4)
 
 
-class L90K9TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K9TurnOnTheStove(LwLabTaskBase):
     task_name: str = "L90K9TurnOnTheStove"
 
     enable_fixtures = ["stove"]
 
-    def __post_init__(self):
-        super().__post_init__()
-        self.stove = self.get_fixture(FixtureType.STOVE)
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("island", dict(id=FixtureType.TABLE))
+        self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
+
         self.init_robot_base_ref = self.counter
 
     def get_ep_meta(self):
@@ -93,11 +86,11 @@ class L90K9TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"Turn on the stove."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -158,15 +151,15 @@ class L90K9TurnOnTheStove(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
-        knobs_state = self.stove.get_knobs_state(env=self.env)
-        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+    def _check_success(self, env):
+        knobs_state = self.stove.get_knobs_state(env=env)
+        knob_success = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for knob_name, knob_value in knobs_state.items():
             abs_knob = torch.abs(knob_value)
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        return knob_success & OU.gripper_obj_far(self.env, self.stove.name, th=0.4)
+        return knob_success & OU.gripper_obj_far(env, self.stove.name, th=0.4)
 
 
 class L90K3TurnOnTheStoveAndPutTheFryingPanOnIt(L90K3TurnOnTheStove):
@@ -200,22 +193,22 @@ class L90K3TurnOnTheStoveAndPutTheFryingPanOnIt(L90K3TurnOnTheStove):
         )
         return cfgs
 
-    def _check_success(self):
-        knobs_state = self.stove.get_knobs_state(env=self.env)
-        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+    def _check_success(self, env):
+        knobs_state = self.stove.get_knobs_state(env=env)
+        knob_success = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for knob_name, knob_value in knobs_state.items():
             abs_knob = torch.abs(knob_value)
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        pot_success = torch.tensor([False] * self.env.num_envs, device=self.env.device)
-        for i in range(self.env.num_envs):
+        pot_success = torch.tensor([False] * env.num_envs, device=env.device)
+        for i in range(env.num_envs):
             pot_success[i] = torch.as_tensor(
-                OU.point_in_fixture(OU.get_object_pos(self.env, "chefmate_8_frypan")[i], self.stove, only_2d=True),
+                OU.point_in_fixture(OU.get_object_pos(env, "chefmate_8_frypan")[i], self.stove, only_2d=True),
                 dtype=torch.bool,
-                device=self.env.device,
+                device=env.device,
             )
-        return knob_success & pot_success & OU.gripper_obj_far(self.env, "chefmate_8_frypan", 0.35)
+        return knob_success & pot_success & OU.gripper_obj_far(env, "chefmate_8_frypan", 0.35)
 
 
 class L10K3TurnOnTheStoveAndPutTheMokaPotOnIt(L90K3TurnOnTheStove):
@@ -228,29 +221,24 @@ class L10K3TurnOnTheStoveAndPutTheMokaPotOnIt(L90K3TurnOnTheStove):
         ] = f"Turn on the stove and put the moka pot on it."
         return ep_meta
 
-    def _check_success(self):
-        knobs_state = self.stove.get_knobs_state(env=self.env)
-        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+    def _check_success(self, env):
+        knobs_state = self.stove.get_knobs_state(env=env)
+        knob_success = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for knob_name, knob_value in knobs_state.items():
             abs_knob = torch.abs(knob_value)
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        mokapot_pos = self.env.scene.articulations[self.mokapot.name].data.root_pos_w[0, :].cpu().numpy()
+        mokapot_pos = env.scene.articulations[self.mokapot.name].data.root_pos_w[0, :].cpu().numpy()
         moka_success = OU.point_in_fixture(mokapot_pos, self.stove, only_2d=True)
-        moka_success = torch.tensor([moka_success], device=self.env.device).repeat(self.env.num_envs)
-        return knob_success & moka_success & OU.gripper_obj_far(self.env, "mokapot_1_front_group_1", 0.35)
+        moka_success = torch.tensor([moka_success], device=env.device).repeat(env.num_envs)
+        return knob_success & moka_success & OU.gripper_obj_far(env, "mokapot_1_front_group_1", 0.35)
 
 
-class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LwLabTaskBase):
     task_name: str = 'L90K9TurnOnTheStoveAndPutTheFryingPanOnIt'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["stovetop"]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -259,8 +247,8 @@ class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"put the frying pan on top of the cabinet."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.stove = self.register_fixture_ref("stove", dict(id=FixtureType.STOVE))
         self.init_robot_base_ref = self.dining_table
@@ -268,11 +256,11 @@ class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LiberoEnvCfg, BaseTaskEnvCfg):
         self.frying_pan = "frying_pan"
         self.bowl = "bowl"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -333,19 +321,19 @@ class L90K9TurnOnTheStoveAndPutTheFryingPanOnIt(LiberoEnvCfg, BaseTaskEnvCfg):
 
         return cfgs
 
-    def _check_success(self):
-        knobs_state = self.stove.get_knobs_state(env=self.env)
-        knob_success = torch.tensor([False], device=self.env.device).repeat(self.env.num_envs)
+    def _check_success(self, env):
+        knobs_state = self.stove.get_knobs_state(env=env)
+        knob_success = torch.tensor([False], device=env.device).repeat(env.num_envs)
         for knob_name, knob_value in knobs_state.items():
             abs_knob = torch.abs(knob_value)
             lower, upper = 0.35, 2 * np.pi - 0.35
             knob_on = (abs_knob >= lower) & (abs_knob <= upper)
             knob_success = knob_success | knob_on
-        pot_success = torch.tensor([False] * self.env.num_envs, device=self.env.device)
-        for i in range(self.env.num_envs):
+        pot_success = torch.tensor([False] * env.num_envs, device=env.device)
+        for i in range(env.num_envs):
             pot_success[i] = torch.as_tensor(
-                OU.point_in_fixture(OU.get_object_pos(self.env, self.frying_pan)[i], self.stove, only_2d=True),
+                OU.point_in_fixture(OU.get_object_pos(env, self.frying_pan)[i], self.stove, only_2d=True),
                 dtype=torch.bool,
-                device=self.env.device,
+                device=env.device,
             )
-        return knob_success & pot_success & OU.gripper_obj_far(self.env, self.frying_pan, 0.35)
+        return knob_success & pot_success & OU.gripper_obj_far(env, self.frying_pan, 0.35)

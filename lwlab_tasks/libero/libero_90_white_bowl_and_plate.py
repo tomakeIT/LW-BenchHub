@@ -1,12 +1,11 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class L90K7PutTheWhiteBowlOnThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
+class L90K7PutTheWhiteBowlOnThePlate(LwLabTaskBase):
     """
     L90K7PutTheWhiteBowlOnThePlate: put the white bowl on the plate
     """
@@ -14,23 +13,19 @@ class L90K7PutTheWhiteBowlOnThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
     task_name: str = "L90K7PutTheWhiteBowlOnThePlate"
     enable_fixtures = ['microwave']
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.microwave = self.register_fixture_ref("microwave", dict(id=FixtureType.MICROWAVE))
         self.init_robot_base_ref = self.counter
         self.plate = "plate"
         self.white_bowl = "white_bowl"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _load_model(self):
         super()._load_model()
@@ -93,9 +88,9 @@ class L90K7PutTheWhiteBowlOnThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"Pick up the white bowl and put it on the plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.white_bowl,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -116,9 +111,9 @@ class L90K7PutTheWhiteBowlToTheRightOfThePlate(L90K7PutTheWhiteBowlOnThePlate):
         ] = f"Put the white bowl to the right of the plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_side_by_obj2(
-            self.env,
+            env,
             self.white_bowl,
             self.plate,
             {
@@ -144,5 +139,5 @@ class L90K7OpenTheMicrowave(L90K7PutTheWhiteBowlToTheRightOfThePlate):
         ] = f"Open the microwave."
         return ep_meta
 
-    def _check_success(self):
-        return self.microwave.is_open(self.env, th=0.6) & OU.gripper_obj_far(self.env, self.microwave.name)
+    def _check_success(self, env):
+        return self.microwave.is_open(env, th=0.6) & OU.gripper_obj_far(env, self.microwave.name)

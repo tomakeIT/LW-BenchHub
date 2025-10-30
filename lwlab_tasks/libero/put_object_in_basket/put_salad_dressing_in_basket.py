@@ -1,4 +1,5 @@
 from .put_object_in_basket import PutObjectInBasket
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
@@ -10,8 +11,8 @@ class LOPickUpTheSaladDressingAndPlaceItInTheBasket(PutObjectInBasket):
     EXCLUDE_LAYOUTS: list = [63, 64]
     removable_fixtures: list[str] = ["saladdressing", "ketchup"]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.salad_dressing = self.register_fixture_ref("saladdressing", dict(id=FixtureType.SALAD_DRESSING))
         self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP))
         self.alphabet_soup = "alphabet_soup"
@@ -100,7 +101,7 @@ class LOPickUpTheSaladDressingAndPlaceItInTheBasket(PutObjectInBasket):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the salad dressing is placed in the basket.
         Only use position-based checks, not contact detection.
@@ -108,20 +109,20 @@ class LOPickUpTheSaladDressingAndPlaceItInTheBasket(PutObjectInBasket):
         import torch
 
         # Check 1: Gripper must be far from salad dressing
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.salad_dressing.name, th=0.35)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.salad_dressing.name, th=0.35)
 
         # Get positions
         salad_pos = torch.tensor(
-            self.env.scene.articulations[self.salad_dressing.name].data.root_link_pos_w,
-            device=self.env.device
+            env.scene.articulations[self.salad_dressing.name].data.root_link_pos_w,
+            device=env.device
         )
         basket_pos = torch.mean(
-            self.env.scene.rigid_objects[self.basket].data.body_com_pos_w,
+            env.scene.rigid_objects[self.basket].data.body_com_pos_w,
             dim=1
         )
 
         # Check 2: Horizontal (XY) position check - must be within basket's horizontal radius
-        basket_radius = self.env.cfg.objects[self.basket].horizontal_radius
+        basket_radius = env.cfg.isaac_arena_env.task.objects[self.basket].horizontal_radius
         xy_distance = torch.norm(salad_pos[:, :2] - basket_pos[:, :2], dim=-1)
         is_inside_horizontally = xy_distance < basket_radius * 0.7
 
@@ -131,7 +132,7 @@ class LOPickUpTheSaladDressingAndPlaceItInTheBasket(PutObjectInBasket):
         is_inside_vertically = (z_diff > -0.10) & (z_diff < 0.05)
 
         # Check 4: Salad dressing should be stable (not moving)
-        salad_vel = self.env.scene.articulations[self.salad_dressing.name].data.root_lin_vel_w
+        salad_vel = env.scene.articulations[self.salad_dressing.name].data.root_lin_vel_w
         salad_vel_norm = torch.norm(salad_vel, dim=-1)
         is_stable = salad_vel_norm < 0.15
 

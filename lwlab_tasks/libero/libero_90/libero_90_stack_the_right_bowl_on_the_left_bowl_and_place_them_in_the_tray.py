@@ -1,20 +1,14 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray(LwLabTaskBase):
     task_name: str = 'L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["saladdressing"]
     removable_fixtures: list[str] = ["saladdressing"]
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -23,8 +17,8 @@ class L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray(LiberoEnvCfg, Bas
         ] = f"Stack the right bowl on the left bowl and place them in the tray."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.init_robot_base_ref = self.dining_table
         self.chocolate_pudding = "chocolate_pudding"
@@ -32,11 +26,11 @@ class L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray(LiberoEnvCfg, Bas
         self.bowl_left = "bowl_left"
         self.bowl_right = "bowl_right"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -115,9 +109,9 @@ class L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray(LiberoEnvCfg, Bas
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
 
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.bowl_right)
-        bowl_on_bowl = OU.check_obj_in_receptacle_no_contact(self.env, self.bowl_right, self.bowl_left)
-        bowl_on_plate = OU.check_obj_in_receptacle_no_contact(self.env, self.bowl_left, self.tray)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.bowl_right)
+        bowl_on_bowl = OU.check_obj_in_receptacle_no_contact(env, self.bowl_right, self.bowl_left)
+        bowl_on_plate = OU.check_obj_in_receptacle_no_contact(env, self.bowl_left, self.tray)
         return bowl_on_plate & bowl_on_bowl & is_gripper_obj_far

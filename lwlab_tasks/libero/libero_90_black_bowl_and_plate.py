@@ -1,12 +1,11 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class LiberoBlackBowlAndPlateBase(LiberoEnvCfg, BaseTaskEnvCfg):
+class LiberoBlackBowlAndPlateBase(LwLabTaskBase):
     """
     LiberoBlackBowlAndPlateBase: base class for all libero black bowl and plate tasks
     """
@@ -15,12 +14,8 @@ class LiberoBlackBowlAndPlateBase(LiberoEnvCfg, BaseTaskEnvCfg):
     enable_fixtures = ['storage_furniture']
     fix_object_pose_cfg: dict = None
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.drawer = self.register_fixture_ref("storage_furniture", dict(id=FixtureType.STORAGE_FURNITURE))
         self.init_robot_base_ref = self.counter
@@ -29,11 +24,11 @@ class LiberoBlackBowlAndPlateBase(LiberoEnvCfg, BaseTaskEnvCfg):
         self.akita_black_bowl_back = "akita_black_bowl_back"
         self.plate = "plate"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         self.top_joint_name = list(self.drawer._joint_infos.keys())[0]
 
     def _reset_internal(self, env_ids):
@@ -141,9 +136,9 @@ class L90K2PutTheMiddleBlackBowlOnThePlate(LiberoBlackBowlAndPlateBase):
         ] = f"Put the black bowl in the middle on the plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl_middle,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -173,9 +168,9 @@ class L90K2PutTheBlackBowlAtTheFrontOnThePlate(LiberoBlackBowlAndPlateBase):
         ] = f"Pick up the black bowl and put it in the front on the plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl_front,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -196,9 +191,9 @@ class L90K2PutTheBlackBowlAtTheBackOnThePlate(LiberoBlackBowlAndPlateBase):
         ] = f"Put the black bowl at the front on the plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl_front,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -207,7 +202,7 @@ class L90K2PutTheBlackBowlAtTheBackOnThePlate(LiberoBlackBowlAndPlateBase):
         )
         print(f"success state: {success}")
         success1 = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl_back,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -216,7 +211,7 @@ class L90K2PutTheBlackBowlAtTheBackOnThePlate(LiberoBlackBowlAndPlateBase):
         )
         print(f"success1 state: {success1}")
         success2 = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl_middle,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -237,8 +232,8 @@ class L90K2OpenTheTopDrawerOfTheCabinet(L90K2PutTheBlackBowlAtTheBackOnThePlate)
         ] = f"Open the top drawer of the cabinet."
         return ep_meta
 
-    def _check_success(self):
-        return self.drawer.is_open(self.env, [self.top_joint_name], th=0.5) & OU.gripper_obj_far(self.env, self.drawer.name, th=0.4)
+    def _check_success(self, env):
+        return self.drawer.is_open(env, [self.top_joint_name], th=0.5) & OU.gripper_obj_far(env, self.drawer.name, th=0.4)
 
 
 class L90K2StackTheMiddleBlackBowlOnTheBackBlackBowl(LiberoBlackBowlAndPlateBase):
@@ -260,10 +255,10 @@ class L90K2StackTheMiddleBlackBowlOnTheBackBlackBowl(LiberoBlackBowlAndPlateBase
         ] = f"Stack the black bowl in the middle on the black bowl at the front."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
 
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl_middle,
             self.akita_black_bowl_front,
             th_z_axis_cos=0.5,   # verticality - allows up to 60 degree tilt
@@ -285,20 +280,20 @@ class L90K5PutTheBlackBowlOnThePlate(LiberoBlackBowlAndPlateBase):
 
     task_name: str = "L90K5PutTheBlackBowlOnThePlate"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         # names used in success checks
         self.akita_black_bowl = "akita_black_bowl"
         self.plate = "plate"
         self.ketchup = "ketchup"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
         self.top_drawer_joint_name = list(self.drawer._joint_infos.keys())[0]
-        self.drawer.set_joint_state(0.8, 1.0, self.env, [self.top_drawer_joint_name])
+        self.drawer.set_joint_state(0.8, 1.0, env, [self.top_drawer_joint_name])
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -352,9 +347,9 @@ class L90K5PutTheBlackBowlOnThePlate(LiberoBlackBowlAndPlateBase):
         ep_meta["lang"] = "Put the black bowl on the plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.akita_black_bowl,
             self.plate,
             th_z_axis_cos=0.95,
@@ -372,15 +367,15 @@ class L90K5PutTheBlackBowlOnTopOfTheCabinet(L90K5PutTheBlackBowlOnThePlate):
         ep_meta["lang"] = "Put the black bowl on top of the cabinet."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         import torch
-        bowl_poses = OU.get_object_pos(self.env, self.akita_black_bowl)
-        bowl_success_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+        bowl_poses = OU.get_object_pos(env, self.akita_black_bowl)
+        bowl_success_tensor = torch.tensor([False] * env.num_envs, device=env.device)
         for i, bowl_pos in enumerate(bowl_poses):
             bowl_success = OU.point_in_fixture(bowl_pos, self.drawer, only_2d=True)
-            bowl_success_tensor[i] = torch.as_tensor(bowl_success, dtype=torch.bool, device=self.env.device)
+            bowl_success_tensor[i] = torch.as_tensor(bowl_success, dtype=torch.bool, device=env.device)
 
-        result = bowl_success_tensor & OU.gripper_obj_far(self.env, self.akita_black_bowl)
+        result = bowl_success_tensor & OU.gripper_obj_far(env, self.akita_black_bowl)
         return result
 
 
@@ -392,6 +387,6 @@ class L90K5PutTheKetchupInTheTopDrawerOfTheCabinet(L90K5PutTheBlackBowlOnThePlat
         ep_meta["lang"] = "Put the ketchup in the top drawer of the cabinet."
         return ep_meta
 
-    def _check_success(self):
-        ketchup_success = OU.obj_inside_of(self.env, self.ketchup, self.drawer)
-        return ketchup_success & OU.gripper_obj_far(self.env, self.ketchup)
+    def _check_success(self, env):
+        ketchup_success = OU.obj_inside_of(env, self.ketchup, self.drawer)
+        return ketchup_success & OU.gripper_obj_far(env, self.ketchup)

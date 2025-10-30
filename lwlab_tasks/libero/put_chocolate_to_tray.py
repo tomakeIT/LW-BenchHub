@@ -1,23 +1,18 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import copy
 
 
-class L90L4PickUpTheChocolatePuddingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90L4PickUpTheChocolatePuddingAndPutItInTheTray(LwLabTaskBase):
     task_name: str = "L90L4PickUpTheChocolatePuddingAndPutItInTheTray"
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures = ["salad_dressing"]
     removable_fixtures = enable_fixtures
 
-    def __post_init__(self):
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref(
             "counter", dict(id=FixtureType.TABLE, size=(0.6, 0.6))
         )
@@ -30,11 +25,11 @@ class L90L4PickUpTheChocolatePuddingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvC
         ] = f"pick up the chocolate pudding and put it in the tray."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -88,7 +83,7 @@ class L90L4PickUpTheChocolatePuddingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvC
         )
         return cfgs
 
-    def _check_success(self):
-        bowl_success = OU.check_obj_in_receptacle(self.env, "chocolate_pudding", "wooden_tray")
-        gipper_success = OU.gripper_obj_far(self.env, "chocolate_pudding")
+    def _check_success(self, env):
+        bowl_success = OU.check_obj_in_receptacle(env, "chocolate_pudding", "wooden_tray")
+        gipper_success = OU.gripper_obj_far(env, "chocolate_pudding")
         return bowl_success & gipper_success

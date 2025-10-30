@@ -1,31 +1,25 @@
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 import torch
 
 
-class _BasePutOnStove(LiberoEnvCfg, BaseTaskEnvCfg):
+class _BasePutOnStove(LwLabTaskBase):
     task_name: str = "_BasePutOnStove"
 
     enable_fixtures = ['mokapot_1', 'stovetop']
     removable_fixtures = ['mokapot_1']
 
 
-class _BasePutRightMokaPotOnStove(LiberoEnvCfg, BaseTaskEnvCfg):
+class _BasePutRightMokaPotOnStove(LwLabTaskBase):
     task_name: str = "_BasePutRightMokaPotOnStove"
 
     enable_fixtures = ['mokapot_1', 'mokapot_2', 'stovetop']
     removable_fixtures = ['mokapot_1', 'mokapot_2']
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        # Avoid enabling fixtures by USD prefix to prevent KeyError in get_fixture_placements
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.stove = self.register_fixture_ref("stovetop", dict(id=FixtureType.STOVE))
         self.mokapot_1 = self.register_fixture_ref("mokapot_1", dict(id="mokapot_1"))
@@ -74,8 +68,8 @@ class L90K3PutTheFryingPanOnTheStove(_BasePutOnStove):
         ep_meta["lang"] = "Put the frying pan on the stove."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.mokapot = self.register_fixture_ref("mokapot_1", dict(id=FixtureType.MOKA_POT))
         self.stove = self.register_fixture_ref("stovetop", dict(id=FixtureType.STOVE))
@@ -114,17 +108,17 @@ class L90K3PutTheFryingPanOnTheStove(_BasePutOnStove):
 
         return cfgs
 
-    def _check_success(self):
-        pan_on_stove = OU.check_obj_fixture_contact(self.env, self.frying_pan, self.stove)
-        gripper_far = OU.gripper_obj_far(self.env, self.frying_pan, th=0.4)
+    def _check_success(self, env):
+        pan_on_stove = OU.check_obj_fixture_contact(env, self.frying_pan, self.stove)
+        gripper_far = OU.gripper_obj_far(env, self.frying_pan, th=0.4)
         return pan_on_stove & gripper_far
 
 
 class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
     task_name: str = "L90K3PutTheMokaPotOnTheStove"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.mokapot = self.register_fixture_ref("mokapot_1", dict(id=FixtureType.MOKA_POT))
         self.stove = self.register_fixture_ref("stovetop", dict(id=FixtureType.STOVE))
@@ -168,8 +162,8 @@ class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
 
         return cfgs
 
-    def _check_success(self):
-        success = OU.check_place_obj1_on_obj2(self.env, self.mokapot, self.stove)
+    def _check_success(self, env):
+        success = OU.check_place_obj1_on_obj2(env, self.mokapot, self.stove)
 
         return success
 
@@ -185,7 +179,7 @@ class L90K8PutTheRightMokaPotOnTheStove(_BasePutRightMokaPotOnStove):
     def _get_obj_cfgs(self):
         return []
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if at least one moka pot is on the stove
-        mokapot_2_on_stove = OU.check_place_obj1_on_obj2(self.env, self.mokapot_2, self.stove)
+        mokapot_2_on_stove = OU.check_place_obj1_on_obj2(env, self.mokapot_2, self.stove)
         return mokapot_2_on_stove

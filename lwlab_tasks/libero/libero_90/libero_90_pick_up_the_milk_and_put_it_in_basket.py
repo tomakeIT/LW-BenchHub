@@ -1,18 +1,14 @@
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
-
-
-class L90L2PickUpTheMilkAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
-
+from lwlab.core.tasks.base import LwLabTaskBase
+class L90L2PickUpTheMilkAndPutItInTheBasket(LwLabTaskBase):
     task_name: str = f"L90L2PickUpTheMilkAndPutItInTheBasket"
     enable_fixtures: list[str] = ["ketchup"]
     removable_fixtures = enable_fixtures
     EXCLUDE_LAYOUTS: list = [63, 64]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
         self.init_robot_base_ref = self.dining_table
         self.basket = "basket"
@@ -22,11 +18,11 @@ class L90L2PickUpTheMilkAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
         self.ketchup = "ketchup"
         self.milk_drink = "milk_drink"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -143,10 +139,10 @@ class L90L2PickUpTheMilkAndPutItInTheBasket(LiberoEnvCfg, BaseTaskEnvCfg):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the milk is placed in the basket.
         '''
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.milk_drink)
-        object_in_basket = OU.check_obj_in_receptacle(self.env, self.milk_drink, self.basket)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.milk_drink)
+        object_in_basket = OU.check_obj_in_receptacle(env, self.milk_drink, self.basket)
         return object_in_basket & is_gripper_obj_far

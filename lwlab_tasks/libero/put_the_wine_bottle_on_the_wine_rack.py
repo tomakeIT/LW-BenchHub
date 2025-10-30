@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.counter import Counter
@@ -8,17 +7,12 @@ import numpy as np
 import copy
 
 
-class L90K4PutTheWineBottleOnTheWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K4PutTheWineBottleOnTheWineRack(LwLabTaskBase):
     task_name: str = "L90K4PutTheWineBottleOnTheWineRack"
     enable_fixtures = ["winerack", "storage_furniture"]
 
-    def __post_init__(self):
-        self.obj_name = []
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref(
             "dining_table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
@@ -27,6 +21,7 @@ class L90K4PutTheWineBottleOnTheWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
             "winerack",
             dict(id=FixtureType.WINE_RACK),
         )
+        self.obj_name = []
         self.init_robot_base_ref = self.dining_table
 
     def _load_model(self):
@@ -82,21 +77,21 @@ class L90K4PutTheWineBottleOnTheWineRack(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
-        wine_bottle_pos = OU.get_object_pos(self.env, "wine_bottle")
-        gripper_far = OU.gripper_obj_far(self.env, "wine_bottle", th=0.3)
+    def _check_success(self, env):
+        wine_bottle_pos = OU.get_object_pos(env, "wine_bottle")
+        gripper_far = OU.gripper_obj_far(env, "wine_bottle", th=0.3)
 
         # Check if wine bottle is stable (not moving) - more relaxed threshold
-        bottle_stable = OU.check_object_stable(self.env, "wine_bottle", threshold=0.3)
+        bottle_stable = OU.check_object_stable(env, "wine_bottle", threshold=0.3)
 
-        result_tensor = torch.zeros(self.env.num_envs, dtype=torch.bool, device=self.env.device)
+        result_tensor = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
 
-        for i in range(self.env.num_envs):
+        for i in range(env.num_envs):
             # Check 1: Wine bottle is in wine rack area (xy check)
             in_rack = OU.point_in_fixture(wine_bottle_pos[i], self.winerack, only_2d=True)
 
             # All conditions must be met - convert numpy bool to tensor bool
-            in_rack_tensor = torch.tensor(bool(in_rack), dtype=torch.bool, device=self.env.device)
+            in_rack_tensor = torch.tensor(bool(in_rack), dtype=torch.bool, device=env.device)
             result_tensor[i] = in_rack_tensor & gripper_far[i] & bottle_stable[i]
 
         return result_tensor

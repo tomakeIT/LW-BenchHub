@@ -1,4 +1,5 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
@@ -68,9 +69,9 @@ class L90L6PutTheRedMugOnThePlate(L10L6PutWhiteMugOnPlateAndPutChocolatePuddingT
         ] = f"Pick up the red mug and put it on the plate"
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.red_coffee_mug,
             self.plate,
             th_z_axis_cos=0.95,  # verticality
@@ -105,9 +106,9 @@ class L90L5PutTheRedMugOnTheRightPlate(L10L6PutWhiteMugOnPlateAndPutChocolatePud
             cfg_index += 1
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.red_coffee_mug,
             self.plate,
             th_z_axis_cos=0.95,  # verticality

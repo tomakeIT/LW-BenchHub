@@ -1,21 +1,14 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class L90L3PickUpTheButterAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90L3PickUpTheButterAndPutItInTheTray(LwLabTaskBase):
     task_name: str = 'L90L3PickUpTheButterAndPutItInTheTray'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["ketchup"]
     removable_fixtures = enable_fixtures
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        super().__post_init__()
-        self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP))
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
@@ -24,9 +17,11 @@ class L90L3PickUpTheButterAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
         ] = f"Pick up the butter and put it in the tray."
         return ep_meta
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref("dining_table", dict(id=FixtureType.TABLE, size=(1.0, 0.35)),)
+        self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP))
+
         self.init_robot_base_ref = self.dining_table
         self.tray = "tray"
         self.butter = "butter"
@@ -34,11 +29,11 @@ class L90L3PickUpTheButterAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
         self.ketchup = "ketchup"
         self.alphabet_soup = "alphabet_soup"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -133,8 +128,8 @@ class L90L3PickUpTheButterAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
 
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.butter)
-        object_on_tray = OU.check_obj_in_receptacle(self.env, self.butter, self.tray)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.butter)
+        object_on_tray = OU.check_obj_in_receptacle(env, self.butter, self.tray)
         return object_on_tray & is_gripper_obj_far

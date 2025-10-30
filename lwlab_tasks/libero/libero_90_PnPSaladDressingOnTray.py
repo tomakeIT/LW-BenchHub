@@ -1,12 +1,11 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
 
-class L90L4PickUpTheSaladDressingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg):
+class L90L4PickUpTheSaladDressingAndPutItInTheTray(LwLabTaskBase):
     """
     L90L4PickUpTheSaladDressingAndPutItInTheTray: pick up the salad dressing and put it in the tray
     """
@@ -16,12 +15,8 @@ class L90L4PickUpTheSaladDressingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg)
     enable_fixtures = ["saladdressing"]
     removable_fixtures = enable_fixtures
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.salad_dressing = self.register_fixture_ref("saladdressing", dict(id=FixtureType.SALAD_DRESSING))
         self.init_robot_base_ref = self.counter
@@ -29,11 +24,11 @@ class L90L4PickUpTheSaladDressingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg)
         self.chocolate_pudding = "chocolate_pudding"
         self.wooden_tray = "wooden_tray"
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -86,9 +81,9 @@ class L90L4PickUpTheSaladDressingAndPutItInTheTray(LiberoEnvCfg, BaseTaskEnvCfg)
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         return OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.salad_dressing,
             self.wooden_tray,
             th_z_axis_cos=0,  # verticality

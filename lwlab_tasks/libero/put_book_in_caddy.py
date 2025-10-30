@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import copy
@@ -10,18 +9,11 @@ from time import time
 import numpy as np
 
 
-class L90S3PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90S3PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy(LwLabTaskBase):
     task_name: str = "L90S3PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy"
 
-    # counter_id: FixtureType = FixtureType.TABLE
-
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
 
@@ -32,11 +24,11 @@ class L90S3PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy(LiberoEnvCfg, 
         ] = f"Pick up the book and place it in the right compartment of the caddy."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -106,9 +98,9 @@ class L90S3PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy(LiberoEnvCfg, 
         )
         return cfgs
 
-    def _check_success(self):
-        book_success = OU.check_obj_in_receptacle(self.env, "black_book", "desk_caddy")
-        gipper_far_success = OU.gripper_obj_far(self.env, "black_book", 0.35)
+    def _check_success(self, env):
+        book_success = OU.check_obj_in_receptacle(env, "black_book", "desk_caddy")
+        gipper_far_success = OU.gripper_obj_far(env, "black_book", 0.35)
         return book_success & gipper_far_success
 
 
@@ -116,17 +108,13 @@ class L90S2PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy(L90S3PickUpThe
 
     task_name: str = "L90S2PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy"
 
-    def __post_init__(self):
-        self.init_dish_rack_pos = None
-        self.obj_name = []
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref(
             "table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
         )
+        self.obj_name = []
         self.init_robot_base_ref = self.dining_table
 
     def _load_model(self):
@@ -211,15 +199,11 @@ class L90S3PickUpTheBookAndPlaceItInTheLeftCompartmentOfTheCaddy(L90S2PickUpTheB
 
 # --- Libero90 variants consolidated from libero_90_put_black_book_in_caddy_compartments.py ---
 
-class _BaseBookInCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
+class _BaseBookInCaddy(LwLabTaskBase):
     task_name: str = "_BaseBookInCaddy"
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
         self.black_book = "black_book"
@@ -261,9 +245,9 @@ class _BaseBookInCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
 
         return cfgs
 
-    def _success_common(self):
-        in_caddy = OU.check_obj_in_receptacle(self.env, self.black_book, self.desk_caddy)
-        gripper_far_success = OU.gripper_obj_far(self.env, self.black_book, 0.35)
+    def _success_common(self, env):
+        in_caddy = OU.check_obj_in_receptacle(env, self.black_book, self.desk_caddy)
+        gripper_far_success = OU.gripper_obj_far(env, self.black_book, 0.35)
         return in_caddy & gripper_far_success
 
 
@@ -275,9 +259,9 @@ class L90S2PickUpTheBookAndPlaceItInTheLeftCompartmentOfTheCaddy(_BaseBookInCadd
         ep_meta["lang"] = "Pick up the book and place it in the left compartment of the caddy."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # TODO: add compartment-level check (left half of caddy) when utility is available
-        return self._success_common()
+        return self._success_common(env)
 
 
 class L90S2PickUpTheBookAndPlaceItInTheBackCompartmentOfTheCaddy(_BaseBookInCaddy):
@@ -288,9 +272,9 @@ class L90S2PickUpTheBookAndPlaceItInTheBackCompartmentOfTheCaddy(_BaseBookInCadd
         ep_meta["lang"] = "Pick up the book and place it in the back compartment of the caddy."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # TODO: add compartment-level check (back half of caddy) when utility is available
-        return self._success_common()
+        return self._success_common(env)
 
 
 class L10S1PickUpTheBookAndPlaceItInTheBackCompartmentOfTheCaddy(L90S3PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy):
@@ -355,16 +339,12 @@ class L10S1PickUpTheBookAndPlaceItInTheBackCompartmentOfTheCaddy(L90S3PickUpTheB
 
 # --- Study Scene 4 Book Tasks ---
 
-class _BaseStudyScene4(LiberoEnvCfg, BaseTaskEnvCfg):
+class _BaseStudyScene4(LwLabTaskBase):
     """Base class for Study Scene 4 tasks with books and shelves"""
     task_name: str = "_BaseStudyScene4"
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
         self.black_book = "black_book"
@@ -417,10 +397,10 @@ class L90S4PickUpTheBookOnTheLeftAndPlaceItOnTopOfTheShelf(_BaseStudyScene4):
         ep_meta["lang"] = "Pick up the book on the left and place it on top of the shelf."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if black book (left book) is placed on top of the desk_caddy (shelf)
         book_on_shelf_result = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.black_book,
             self.shelf,
             th_z_axis_cos=0.0,  # 不检查Z轴角度
@@ -438,10 +418,10 @@ class L90S4PickUpTheBookOnTheRightAndPlaceItOnTheCabinetShelf(_BaseStudyScene4):
         ep_meta["lang"] = "Pick up the book on the right and place it on the cabinet shelf."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # Check if yellow book (right book) is placed on top of the desk_caddy (cabinet shelf)
         book_on_shelf_result = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             self.yellow_book,
             self.shelf,
             th_z_axis_cos=0.0,

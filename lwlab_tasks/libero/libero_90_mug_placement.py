@@ -1,6 +1,6 @@
 import copy
+from lwlab.core.tasks.base import LwLabTaskBase
 import re
-from lwlab.core.tasks.base import BaseTaskEnvCfg
 from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
@@ -8,28 +8,23 @@ import numpy as np
 import torch
 
 
-class LiberoMugPlacementBase(LiberoEnvCfg, BaseTaskEnvCfg):
+class LiberoMugPlacementBase(LwLabTaskBase):
     """
     LiberoMugPlacementBase: base class for all libero mug placement tasks
     """
 
     task_name: str = "LiberoMugPlacementBase"
-    # EXCLUDE_LAYOUTS: list = LiberoEnvCfg.DINING_COUNTER_EXCLUDED_LAYOUTS
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _reset_internal(self, env_ids):
         super()._reset_internal(env_ids)
@@ -84,15 +79,15 @@ class L90K6PutTheYellowAndWhiteMugToTheFrontOfTheWhiteMug(LiberoMugPlacementBase
     # EXCLUDE_LAYOUTS: list = LiberoEnvCfg.DINING_COUNTER_EXCLUDED_LAYOUTS
     enable_fixtures = ['microwave']
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.white_yellow_mug = "white_yellow_mug"
         self.porcelain_mug = "porcelain_mug"
         self.microwave = self.register_fixture_ref("microwave", dict(id=FixtureType.MICROWAVE))
 
-    def _setup_scene(self, env_ids=None):
-        super()._setup_scene(env_ids)
-        self.microwave.set_joint_state(0.9, 1.0, self.env, self.microwave.door_joint_names)
+    def _setup_scene(self, env, env_ids=None):
+        super()._setup_scene(env, env_ids)
+        self.microwave.set_joint_state(0.9, 1.0, env, self.microwave.door_joint_names)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -146,10 +141,10 @@ class L90K6PutTheYellowAndWhiteMugToTheFrontOfTheWhiteMug(LiberoMugPlacementBase
         ep_meta["lang"] = "Put the yellow and white mug to the front of the white mug."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # 检查黄白色马克杯是否在白色马克杯前面
         return OU.check_place_obj1_side_by_obj2(
-            self.env,
+            env,
             self.white_yellow_mug,
             self.porcelain_mug,
             {
@@ -171,8 +166,8 @@ class L90K6CloseTheMicrowave(L90K6PutTheYellowAndWhiteMugToTheFrontOfTheWhiteMug
         ep_meta["lang"] = "Close the microwave."
         return ep_meta
 
-    def _check_success(self):
-        return self.microwave.is_closed(self.env) & OU.gripper_obj_far(self.env, self.microwave.name, th=0.4)
+    def _check_success(self, env):
+        return self.microwave.is_closed(env) & OU.gripper_obj_far(env, self.microwave.name, th=0.4)
 
 
 class L10K6PutTheYellowAndWhiteMugInTheMicrowaveAndCloseIt(L90K6PutTheYellowAndWhiteMugToTheFrontOfTheWhiteMug):
@@ -183,13 +178,13 @@ class L10K6PutTheYellowAndWhiteMugInTheMicrowaveAndCloseIt(L90K6PutTheYellowAndW
         ep_meta["lang"] = "Put the yellow and white mug in the microwave and close it."
         return ep_meta
 
-    def _check_success(self):
-        mug_poses = OU.get_object_pos(self.env, self.white_yellow_mug)
-        mug_success_tensor = torch.tensor([False] * self.env.num_envs, device=self.env.device)
+    def _check_success(self, env):
+        mug_poses = OU.get_object_pos(env, self.white_yellow_mug)
+        mug_success_tensor = torch.tensor([False] * env.num_envs, device=env.device)
         for i, mug_pos in enumerate(mug_poses):
             mug_success = OU.point_in_fixture(mug_pos, self.microwave)
-            mug_success_tensor[i] = torch.as_tensor(mug_success, dtype=torch.bool, device=self.env.device)
-        return mug_success_tensor & self.microwave.is_closed(self.env) & OU.gripper_obj_far(self.env, self.microwave.name, th=0.4)
+            mug_success_tensor[i] = torch.as_tensor(mug_success, dtype=torch.bool, device=env.device)
+        return mug_success_tensor & self.microwave.is_closed(env) & OU.gripper_obj_far(env, self.microwave.name, th=0.4)
 
 
 class L90L5PutTheRedMugOnTheLeftPlate(LiberoMugPlacementBase):
@@ -205,8 +200,8 @@ class L90L5PutTheRedMugOnTheLeftPlate(LiberoMugPlacementBase):
     task_name: str = "L90L5PutTheRedMugOnTheLeftPlate"
     # EXCLUDE_LAYOUTS: list = LiberoEnvCfg.DINING_COUNTER_EXCLUDED_LAYOUTS
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.red_coffee_mug = "red_coffee_mug"
         self.plate_left = "plate_left"
         self.plate_right = "plate_right"
@@ -273,10 +268,10 @@ class L90L5PutTheRedMugOnTheLeftPlate(LiberoMugPlacementBase):
         ep_meta["lang"] = "Put the red mug on the left plate."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # 检查红色马克杯是否在左边盘子上
         success = OU.check_place_obj1_on_obj2(
-            self.env,
+            env,
             'red_coffee_mug',
             'plate_left'
         )

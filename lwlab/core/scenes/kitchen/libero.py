@@ -14,7 +14,7 @@
 
 import os
 
-from .kitchen import RobocasaKitchenEnvCfg
+from .kitchen import LwLabScene
 
 
 LIBRO_SCENE_ROBOT_STATE = {
@@ -52,7 +52,7 @@ LIBRO_SCENE_ROBOT_STATE = {
 }
 
 
-class LiberoEnvCfg(RobocasaKitchenEnvCfg):
+class LiberoEnvCfg(LwLabScene):
     """Configuration for the libero task environment."""
 
     def sample_robot_base(self, env, env_ids=None):

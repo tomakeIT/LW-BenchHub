@@ -1,17 +1,15 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 import numpy as np
 
 
-class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LwLabTaskBase):
     task_name: str = "L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf"
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.table = self.register_fixture_ref(
             "table", dict(id=FixtureType.TABLE)
         )
@@ -24,11 +22,11 @@ class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LiberoEnvCfg, Bas
         ] = "pick up the book in the middle and place it on the cabinet shelf."
         return ep_meta
 
-    def _setup_scene(self, env_ids=None):
+    def _setup_scene(self, env, env_ids=None):
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
+        super()._setup_scene(env, env_ids)
 
     def _get_obj_cfgs(self):
         cfgs = []
@@ -99,12 +97,12 @@ class L90S4PickUpTheBookInTheMiddleAndPlaceItOnTheCabinetShelf(LiberoEnvCfg, Bas
         )
         return cfgs
 
-    def _check_success(self):
-        book1 = OU.check_obj_in_receptacle_no_contact(self.env, "black_book", "wooden_two_layer_shelf", th=0.2)
-        book2 = OU.check_obj_in_receptacle_no_contact(self.env, "yellow_book", "wooden_two_layer_shelf", th=0.2)
-        book3 = OU.check_obj_in_receptacle_no_contact(self.env, "yellow_book1", "wooden_two_layer_shelf", th=0.2)
+    def _check_success(self, env):
+        book1 = OU.check_obj_in_receptacle_no_contact(env, "black_book", "wooden_two_layer_shelf", th=0.2)
+        book2 = OU.check_obj_in_receptacle_no_contact(env, "yellow_book", "wooden_two_layer_shelf", th=0.2)
+        book3 = OU.check_obj_in_receptacle_no_contact(env, "yellow_book1", "wooden_two_layer_shelf", th=0.2)
         book_success = book1 | book2 | book3
-        gipper_success = OU.gripper_obj_far(self.env, "black_book") & OU.gripper_obj_far(self.env, "yellow_book") & OU.gripper_obj_far(self.env, "yellow_book1", th=0.4)
+        gipper_success = OU.gripper_obj_far(env, "black_book") & OU.gripper_obj_far(env, "yellow_book") & OU.gripper_obj_far(env, "yellow_book1", th=0.4)
         return book_success & gipper_success
 
 

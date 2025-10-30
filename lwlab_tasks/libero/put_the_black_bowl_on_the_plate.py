@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.counter import Counter
@@ -8,21 +7,16 @@ import numpy as np
 import copy
 
 
-class L90K1PutTheBlackBowlOnThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class L90K1PutTheBlackBowlOnThePlate(LwLabTaskBase):
     task_name: str = "L90K1PutTheBlackBowlOnThePlate"
 
-    def __post_init__(self):
-        self.init_dish_rack_pos = None
-        self.obj_name = []
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref(
             "dining_table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.35)),
         )
+        self.obj_name = []
         self.init_robot_base_ref = self.dining_table
 
     def _load_model(self):
@@ -77,14 +71,14 @@ class L90K1PutTheBlackBowlOnThePlate(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
-        th = self.env.cfg.isaac_arena_env.task.objects["plate"].horizontal_radius
-        bowl_in_plate = OU.check_obj_in_receptacle_no_contact(self.env, "akita_black_bowl", "plate", th)
-        far_from_objects = self._gripper_obj_farfrom_objects()
+    def _check_success(self, env):
+        th = env.cfg.isaac_arena_env.task.objects["plate"].horizontal_radius
+        bowl_in_plate = OU.check_obj_in_receptacle_no_contact(env, "akita_black_bowl", "plate", th)
+        far_from_objects = self._gripper_obj_farfrom_objects(env)
         return bowl_in_plate & far_from_objects
 
-    def _gripper_obj_farfrom_objects(self):
-        gripper_far_tensor = torch.tensor([True], device=self.env.device).repeat(self.env.num_envs)
+    def _gripper_obj_farfrom_objects(self, env):
+        gripper_far_tensor = torch.tensor([True], device=env.device).repeat(env.num_envs)
         for obj_name in self.obj_name:
-            gripper_far_tensor = gripper_far_tensor & OU.gripper_obj_far(self.env, obj_name)
+            gripper_far_tensor = gripper_far_tensor & OU.gripper_obj_far(env, obj_name)
         return gripper_far_tensor

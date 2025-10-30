@@ -1,4 +1,5 @@
 from .put_object_in_basket import PutObjectInBasket
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 
@@ -10,8 +11,8 @@ class LOPickUpTheAlphabetSoupAndPlaceItInTheBasket(PutObjectInBasket):
     removable_fixtures = enable_fixtures
     EXCLUDE_LAYOUTS: list = [63, 64]
 
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.salad_dressing = self.register_fixture_ref("salad_dressing", dict(id=FixtureType.SALAD_DRESSING))
         self.butter = "butter"
         self.cream_cheese_stick = "cream_cheese_stick"
@@ -116,10 +117,10 @@ class LOPickUpTheAlphabetSoupAndPlaceItInTheBasket(PutObjectInBasket):
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         '''
         Check if the alphabetsoup is placed in the basket.
         '''
-        is_gripper_obj_far = OU.gripper_obj_far(self.env, self.alphabet_soup)
-        object_in_basket = OU.check_obj_in_receptacle(self.env, self.alphabet_soup, self.basket)
+        is_gripper_obj_far = OU.gripper_obj_far(env, self.alphabet_soup)
+        object_in_basket = OU.check_obj_in_receptacle(env, self.alphabet_soup, self.basket)
         return object_in_basket & is_gripper_obj_far

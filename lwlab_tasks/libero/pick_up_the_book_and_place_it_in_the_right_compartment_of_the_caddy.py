@@ -1,6 +1,5 @@
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
 from lwlab.core.models.fixtures.counter import Counter
@@ -8,22 +7,16 @@ import numpy as np
 import copy
 
 
-class PubBookInCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
-
+class PubBookInCaddy(LwLabTaskBase):
     task_name: str = "PubBookInCaddy"
 
-    def __post_init__(self):
-        self.init_dish_rack_pos = None
-        self.obj_name = []
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.dining_table = self.register_fixture_ref(
             "table",
             dict(id=FixtureType.TABLE, size=(1.0, 0.6)),
         )
-
+        self.obj_name = []
         self.init_robot_base_ref = self.dining_table
 
     def _load_model(self):
@@ -76,7 +69,7 @@ class PubBookInCaddy(LiberoEnvCfg, BaseTaskEnvCfg):
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         # 打开柜子底部抽屉
         return False
 
@@ -228,9 +221,9 @@ class L90S3PickUpTheRedMugAndPlaceItToTheRightOfTheCaddy(PubBookInCaddy):
         )
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         success = OU.check_place_obj1_side_by_obj2(
-            self.env,
+            env,
             "red_coffee_mug",
             "desk_caddy",
             {

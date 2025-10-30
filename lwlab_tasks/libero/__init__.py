@@ -1,4 +1,5 @@
 import gymnasium as gym
+from lwlab.core.tasks.base import LwLabTaskBase
 
 gym.register(
     id="Robocasa-Task-L90K3PutTheFryingPanOnTheStove",

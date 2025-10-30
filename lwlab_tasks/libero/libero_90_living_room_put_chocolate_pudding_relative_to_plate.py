@@ -1,11 +1,10 @@
 import lwlab.utils.object_utils as OU
+from lwlab.core.tasks.base import LwLabTaskBase
 import torch
-from lwlab.core.tasks.base import BaseTaskEnvCfg
-from lwlab.core.scenes.kitchen.libero import LiberoEnvCfg
 from lwlab.core.models.fixtures import FixtureType
 
 
-class RelativePlacementBase(LiberoEnvCfg, BaseTaskEnvCfg):
+class RelativePlacementBase(LwLabTaskBase):
     task_name: str = "RelativePlacementBase"
 
     obj_name: str = "obj"
@@ -19,12 +18,8 @@ class RelativePlacementBase(LiberoEnvCfg, BaseTaskEnvCfg):
     lateral_tol: float = 0.20
     stable_vel_th: float = 0.5
 
-    def __post_init__(self):
-        self.activate_contact_sensors = False
-        return super().__post_init__()
-
-    def _setup_kitchen_references(self):
-        super()._setup_kitchen_references()
+    def _setup_kitchen_references(self, scene):
+        super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.init_robot_base_ref = self.counter
         # additional object names for consistency with other tasks
@@ -57,9 +52,9 @@ class RelativePlacementBase(LiberoEnvCfg, BaseTaskEnvCfg):
         ep_meta["lang"] = f"Place the {self.obj_name.replace('_', ' ')} {self.relation} of the {self.ref_name.replace('_', ' ')}."
         return ep_meta
 
-    def _check_success(self):
+    def _check_success(self, env):
         # use check_place_obj1_side_by_obj2 for side-by-side placement check (no angle requirement)
-        return OU.check_place_obj1_side_by_obj2(self.env, self.obj_name, self.ref_name, {
+        return OU.check_place_obj1_side_by_obj2(env, self.obj_name, self.ref_name, {
             "gripper_far": True,   # obj1 and obj2 should be far from the gripper
             "contact": False,   # obj1 should not be in contact with obj2
             "side": self.relation,    # relative position of obj1 to obj2
@@ -137,8 +132,8 @@ class L90L6PutTheChocolatePuddingToTheLeftOfThePlate(RelativePlacementBase):
 
         return cfgs
 
-    def _check_success(self):
-        return OU.check_place_obj1_side_by_obj2(self.env, self.obj_name, self.ref_name, {
+    def _check_success(self, env):
+        return OU.check_place_obj1_side_by_obj2(env, self.obj_name, self.ref_name, {
             "gripper_far": True,   # obj1 and obj2 should be far from the gripper
             "contact": False,   # obj1 should not be in contact with obj2
             "side": 'left',    # relative position of obj1 to obj2
@@ -213,8 +208,8 @@ class L90L6PutTheChocolatePuddingToTheRightOfThePlate(RelativePlacementBase):
 
         return cfgs
 
-    def _check_success(self):
-        return OU.check_place_obj1_side_by_obj2(self.env, self.obj_name, self.ref_name, {
+    def _check_success(self, env):
+        return OU.check_place_obj1_side_by_obj2(env, self.obj_name, self.ref_name, {
             "gripper_far": True,   # obj1 and obj2 should be far from the gripper
             "contact": False,   # obj1 should not be in contact with obj2
             "side": 'right',    # relative position of obj1 to obj2
