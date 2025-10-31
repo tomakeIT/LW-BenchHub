@@ -139,9 +139,11 @@ class LwLabEmbodimentBase(EmbodimentBase):
         self.observation_config = None
         self.event_config = None
         self.mimic_env = None
+        self.offset_config = None
         self.robot_spawn_deviation_pos_x = 0.15
         self.robot_spawn_deviation_pos_y = 0.05
         self.robot_spawn_deviation_rot = 0.0
+        self.robot_to_fixture_dist = 0.20
         self.reward_gripper_joint_names = []
         self.reward_arm_joint_names = []
 
