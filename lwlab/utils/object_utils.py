@@ -401,6 +401,17 @@ def check_fxtr_upright(env, fixture_name, th=15):
     return is_upright
 
 
+def check_obj_upright(env, obj_name, th=15):
+    """
+    Check if the object is upright based on its rotation.
+    """
+    obj_quat = env.scene[obj_name].data.root_quat_w
+    roll, pitch, y = euler_xyz_from_quat(obj_quat)
+    is_upright = (torch.abs(roll) < th) & (torch.abs(pitch) < th)
+
+    return is_upright
+
+
 def check_obj_scrubbed(env, sponge_name, obj_name):
     """
     Determine if the sponge is scrubbing the object by checking contact and movement.

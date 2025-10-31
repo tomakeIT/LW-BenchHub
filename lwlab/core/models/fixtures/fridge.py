@@ -58,7 +58,7 @@ class Fridge(Fixture):
             joint_names = self._freezer_door_joint_names
         return super().is_closed(env, joint_names, th)
 
-    def check_rack_contact(self, env, object_name, rack_index=None, compartment="fridge", reg_type="shelf",):
+    def check_rack_contact(self, env, object_name, rack_index=None, compartment="fridge", reg_type="shelf", partial_check=False, th=0.05):
         """
         Check if an object is in contact with a specific shelf or drawer in the fridge.
 
@@ -107,7 +107,7 @@ class Fridge(Fixture):
                 return {rn: sites[rn] for rn in filtered_region_names}
 
             self.get_int_sites = get_int_sites_filtered
-            inside[i] = OU.obj_inside_of(env, object_name, self.name, partial_check=False)[i]
+            inside[i] = OU.obj_inside_of(env, object_name, self.name, partial_check=partial_check, th=th)[i]
             self.get_int_sites = orig_get_int
         return inside
 

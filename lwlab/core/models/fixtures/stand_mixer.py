@@ -103,8 +103,9 @@ class StandMixer(Fixture):
         all_in = np.array([True]).repeat(env.num_envs)
         for env_id in range(env.num_envs):
             if partial_check:
-                pts = torch.norm(env.scene.rigid_objects[obj.task_name].data.body_com_pos_w, dim=1)[env_id].cpu().numpy()  # (3, )
-                tol = 0.0
+                pts = torch.mean(env.scene.rigid_objects[obj.task_name].data.body_com_pos_w, dim=1)[env_id].cpu().numpy()  # (3, )
+                pts = pts.reshape(1, 3)
+                tol = 0.015
             else:
                 pos = env.scene.rigid_objects[obj.task_name].data.body_com_pos_w[env_id, 0, :]  # (3, )
                 pos = (pos + env.scene.env_origins[env_id]).cpu().numpy()
@@ -112,7 +113,7 @@ class StandMixer(Fixture):
                 quat = T.convert_quat(quat, to="xyzw").cpu().numpy()
                 pts = obj.get_bbox_points(trans=pos, rot=quat)
                 pts = np.stack(pts, axis=0)
-                tol = 1e-2
+                tol = 0.02
             for (_, int_sites) in sites.items():
                 for site in int_sites:
                     site += env.scene.env_origins[env_id].cpu().numpy()
