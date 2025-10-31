@@ -127,7 +127,7 @@ class USDObject():
     @property
     def horizontal_radius(self):
         _horizontal_radius = self._regions[self.bounded_region_name]["reg_halfsize"][
-            0:2
+            0: 2
         ]
         return np.linalg.norm(_horizontal_radius)
 
