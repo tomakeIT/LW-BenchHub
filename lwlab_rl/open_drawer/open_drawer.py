@@ -13,7 +13,6 @@
 # limitations under the License.
 
 import torch
-from lwlab.core.scenes.kitchen.kitchen import RobocasaKitchenEnvCfg
 
 from lwlab.core.models.fixtures import FixtureType
 from isaaclab.managers import EventTermCfg as EventTerm
@@ -28,7 +27,7 @@ from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 from dataclasses import MISSING
 from lwlab_tasks.single_stage.kitchen_drawer import OpenDrawer
-from lwlab.core.rl.base import BaseRLEnvCfg
+from lwlab.core.rl.base import LwLabRLTaskBase
 from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
 # from lwlab.core.robots.compositional.pandaomron import PandaOmronRLEnvCfg
 from lwlab.utils.usd_utils import OpenUsdWrapper as Usd
@@ -208,8 +207,8 @@ class RewardsCfg:
         self.target_qpos_reward.params["target_qpos"] = target_qpos
 
 
-class BaseOpenDrawerRlCfg(BaseRLEnvCfg, OpenDrawer):
-    # a BaseRLEnvCfg has to inherit from BaseRLEnvCfg and the robot and task cfg.
+class BaseOpenDrawerRlCfg(LwLabRLTaskBase, OpenDrawer):
+    # a LwLabRLTaskBase has to inherit from LwLabRLTaskBase and the robot and task cfg.
     """
     Class encapsulating the open drawer task.
     The robot is a G1.

@@ -77,14 +77,13 @@ def main(args):
             task_name=args_cli.task,
             robot_name=args_cli.robot,
             scene_name=args_cli.layout,
+            rl_name=args_cli.rl,
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.TRAIN,
             usd_simplify=args_cli.usd_simplify,
-            for_rl=True,
-            rl_variant=args_cli.variant,
             seed=args_cli.seed,
             sources=args_cli.sources,
             object_projects=args_cli.object_projects,
@@ -100,7 +99,6 @@ def main(args):
             disable_env_checker=True,
         )
 
-    env_cfg.observations.policy.concatenate_terms = False
     # modify configuration
     env_cfg.terminations.time_out = None
     # create environment

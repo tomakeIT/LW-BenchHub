@@ -144,9 +144,8 @@ def parse_env_cfg(
     task_name: str,
     robot_scale: float,
     execute_mode: ExecuteMode,
-    for_rl: bool = False,
-    rl_variant: str = None,
     device: str = "cuda:0",
+    rl_name: str | None = None,
     num_envs: int | None = None,
     use_fabric: bool | None = None,
     replay_cfgs: dict | None = None,
@@ -186,6 +185,7 @@ def parse_env_cfg(
     # Import all configs in this package
     from lwlab.core.context import get_context
     from lwlab.core.orchestrate.orchestrate import LwLabBaseOrchestrator
+    from lwlab.core.env_builder.env_builder import LwLabEnvBuilder
     context = get_context()
     context.scene_name = scene_name
     context.robot_name = robot_name
@@ -213,25 +213,30 @@ def parse_env_cfg(
         context.ep_meta = replay_cfgs["ep_meta"]
     discover_and_import_lwlab_modules()
 
-    from isaac_arena.environments.isaac_arena_environment import IsaacArenaEnvironment
+    from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
     if scene_name.endswith(".usd"):
         scene_type = "USD"
     else:
         scene_type, *_ = scene_name.split("-", 1)
+
+    # scene config settings
     scene = load_cfg_cls_from_registry("scene", "Robocasakitchen", "env_cfg_entry_point")
 
-    if not for_rl:
-        if scene_type == "USD":
-            task = load_cfg_cls_from_registry("task", "Usd", "env_cfg_entry_point")
-        else:
-            task = load_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point")
-        robot = load_cfg_cls_from_registry("robot", robot_name, "env_cfg_entry_point")
+    # robot config settings
+    robot = load_cfg_cls_from_registry("robot", robot_name, "env_cfg_entry_point")
+
+    # task config settings
+    if scene_type == "USD":
+        task = load_cfg_cls_from_registry("task", "Usd", "env_cfg_entry_point")
     else:
-        # TODO: how to handle rl_variant? not robot here
-        if rl_variant:
-            task_name = f"{task_name}-{rl_variant}"
-        task = load_cfg_cls_from_registry("rl", f"{robot_name}-{task_name}", "env_cfg_entry_point")
+        task = load_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point")
+
+    # rl config settings
+    if rl_name:
+        rl = load_cfg_cls_from_registry("rl", rl_name, "env_cfg_entry_point")
+    else:
+        rl = None
 
     # TODO: how to handle teleop_device, remove it in main?
     # if teleop_device is not None:
@@ -240,7 +245,7 @@ def parse_env_cfg(
     #     teleop_device = None
     teleop_device = None
 
-    isaac_arena_environment = IsaacArenaEnvironment(
+    isaaclab_arena_environment = IsaacLabArenaEnvironment(
         name=task_name,
         embodiment=robot(enable_cameras=enable_cameras),
         scene=scene(),
@@ -255,8 +260,7 @@ def parse_env_cfg(
     args = {"device": device, "num_envs": num_envs, "disable_fabric": use_fabric, 'mimic': False}
     args = argparse.Namespace(**args)
 
-    from isaac_arena.environments.compile_env import ArenaEnvBuilder
-    arena_builder = ArenaEnvBuilder(isaac_arena_environment, args)
+    arena_builder = LwLabEnvBuilder(isaaclab_arena_environment, args, rl() if rl else rl)
     env_name, cfg = arena_builder.build_registered()
 
     # check that it is not a dict

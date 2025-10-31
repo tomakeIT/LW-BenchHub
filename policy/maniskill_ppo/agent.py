@@ -375,10 +375,11 @@ class PPO():
 
             next_done = torch.logical_or(terminations, truncations).to(torch.float32)
             self.rewards[step] = reward.view(-1) * self.args.reward_scale
-            self.logger.add_scalar("Reward/reaching_reward", infos['log']['Episode_Reward/reaching_reward'].cpu().numpy(), self.global_step)
-            self.logger.add_scalar("Reward/grasp_reward", infos['log']['Episode_Reward/grasp_reward'].cpu().numpy(), self.global_step)
-            self.logger.add_scalar("Reward/place_reward", infos['log']['Episode_Reward/place_reward'].cpu().numpy(), self.global_step)
-            self.logger.add_scalar("Reward/touching_table", infos['log']['Episode_Reward/touching_table'].cpu().numpy(), self.global_step)
+            # TODO: if use lerobot visual observations, uncomment the following lines
+            # self.logger.add_scalar("Reward/reaching_reward", infos['log']['Episode_Reward/reaching_reward'].cpu().numpy(), self.global_step)
+            # self.logger.add_scalar("Reward/grasp_reward", infos['log']['Episode_Reward/grasp_reward'].cpu().numpy(), self.global_step)
+            # self.logger.add_scalar("Reward/place_reward", infos['log']['Episode_Reward/place_reward'].cpu().numpy(), self.global_step)
+            # self.logger.add_scalar("Reward/touching_table", infos['log']['Episode_Reward/touching_table'].cpu().numpy(), self.global_step)
             if next_done.any():
                 final_obs = observation(common.torch_clone_dict(infos['final_obs'])['policy'])
                 done_mask = next_done.clone().bool()

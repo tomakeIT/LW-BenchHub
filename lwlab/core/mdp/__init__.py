@@ -25,6 +25,6 @@ _reset_scene_to_default = reset_scene_to_default  # noqa: F405
 
 def reset_scene_to_default(env, env_ids):
     _reset_scene_to_default(env, env_ids)
-    env.cfg.isaac_arena_env.orchestrator._reset_internal(env, env_ids)
-    if hasattr(env.cfg.isaac_arena_env.embodiment, 'reset_robot_cfg_state'):
-        env.cfg.isaac_arena_env.embodiment.reset_robot_cfg_state()
+    env.cfg.isaaclab_arena_env.orchestrator._reset_internal(env, env_ids)
+    if hasattr(env.cfg.isaaclab_arena_env.embodiment, 'reset_robot_cfg_state'):
+        env.cfg.isaaclab_arena_env.embodiment.reset_robot_cfg_state()

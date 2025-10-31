@@ -460,7 +460,7 @@ def main():
 
     def save_metrics(env):
         """Save metrics data to JSON file"""
-        metrics_data = env.cfg.isaac_arena_env.task.get_checker_results()
+        metrics_data = env.cfg.isaaclab_arena_env.task.get_checker_results()
 
         # Save metrics to JSON file
         if metrics_data:
@@ -491,7 +491,7 @@ def main():
             "B": lambda: quick_rewind(teleop_interface.env, 10),
         }
 
-        if hasattr(env_cfg.isaac_arena_env.embodiment, "teleop_devices") and args_cli.teleop_device in env_cfg.isaac_arena_env.embodiment.teleop_devices.devices:
+        if hasattr(env_cfg.isaaclab_arena_env.embodiment, "teleop_devices") and args_cli.teleop_device in env_cfg.isaaclab_arena_env.embodiment.teleop_devices.devices:
             teleoperation_active = True
             teleop_interface = create_teleop_device(
                 env, args_cli.teleop_device, env_cfg.teleop_devices.devices, teleoperation_callbacks
@@ -665,15 +665,15 @@ def main():
         object_cfgs = None
         scene_name = None
         if keep_placement:
-            if "robocasalibero" in env.cfg.isaac_arena_env.scene.usd_path:
+            if "robocasalibero" in env.cfg.isaaclab_arena_env.scene.usd_path:
                 scene_name = "robocasalibero"
             else:
                 scene_name = "robocasakitchen"
-            scene_name = f"{scene_name}-{env.cfg.isaac_arena_env.scene.layout_id}-{env.cfg.isaac_arena_env.scene.style_id}"
-            object_cfgs = copy.deepcopy(env.cfg.isaac_arena_env.task.object_cfgs)
+            scene_name = f"{scene_name}-{env.cfg.isaaclab_arena_env.scene.layout_id}-{env.cfg.isaaclab_arena_env.scene.style_id}"
+            object_cfgs = copy.deepcopy(env.cfg.isaaclab_arena_env.task.object_cfgs)
             cache_usd_version = {
-                "floorplan_version": env.cfg.isaac_arena_env.scene.floorplan_version,
-                "objects_version": env.cfg.isaac_arena_env.task.objects_version
+                "floorplan_version": env.cfg.isaaclab_arena_env.scene.floorplan_version,
+                "objects_version": env.cfg.isaaclab_arena_env.task.objects_version
             }
             cache_usd_version["keep_placement"] = True
             from lwlab.utils.robocasa_utils import convert_fixture_to_name
@@ -703,7 +703,7 @@ def main():
         return new_env, teleop_interface, viewports, overlay_window
 
     def setup_env_config_with_args(env, viewports=None):
-        isaac_arena_env = env.cfg.isaac_arena_env
+        isaaclab_arena_env = env.cfg.isaaclab_arena_env
         if not args_cli.headless and args_cli.enable_cameras and args_cli.enable_multiple_viewports:
             viewports = setup_cameras(env, viewports)
             for key, v_p in viewports.items():
@@ -714,7 +714,7 @@ def main():
                 res_new = v_p.viewport_api.get_texture_resolution()
                 print(f"Viewport {key} resolution: {res}, scale: {sca}, new resolution: {res_new}")
         if not args_cli.headless:
-            overlay_window = setup_task_description_ui(isaac_arena_env, env)
+            overlay_window = setup_task_description_ui(isaaclab_arena_env, env)
         return viewports, overlay_window
 
     def run_simulation(env, teleop_interface):
@@ -746,7 +746,7 @@ def main():
         if not args_cli.headless:
             viewports, overlay_window = setup_env_config_with_args(env)
 
-        print(colored(env_cfg.isaac_arena_env.orchestrator.get_ep_meta()["lang"], "green"))
+        print(colored(env_cfg.isaaclab_arena_env.orchestrator.get_ep_meta()["lang"], "green"))
 
         current_recorded_demo_count = 0
         success_step_count = 0
@@ -839,7 +839,7 @@ def main():
                     should_reset_recording_instance = False
 
                 if not args_cli.headless:
-                    update_task_desc(env, env_cfg.isaac_arena_env)
+                    update_task_desc(env, env_cfg.isaaclab_arena_env)
 
                 frame_count = 0
                 # Reset demo counter for new session
@@ -895,7 +895,7 @@ def main():
                 step_time = time.time() - step_start
                 frame_analyzer.record_stage('env_step', step_time)
 
-                update_checkers_status(env, env_cfg.isaac_arena_env.task.get_warning_text())
+                update_checkers_status(env, env_cfg.isaaclab_arena_env.task.get_warning_text())
 
                 # Recorded
                 if args_cli.enable_cameras and start_record_state and video_recorder is not None:

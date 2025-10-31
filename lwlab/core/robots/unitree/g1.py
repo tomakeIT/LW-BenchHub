@@ -30,8 +30,8 @@ from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 import lwlab.core.mdp as mdp_isaac_lab
 from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase
-from isaac_arena.utils.pose import Pose
-from isaac_arena.environments.isaac_arena_manager_based_env import IsaacArenaManagerBasedRLEnvCfg
+from isaaclab_arena.utils.pose import Pose
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 from isaaclab_tasks.manager_based.manipulation.stack.mdp.observations import ee_frame_pos, ee_frame_quat, gripper_pos
 ##
 # Pre-defined configs
@@ -245,14 +245,14 @@ class UnitreeG1EnvCfg(LwLabEmbodimentBase):
         self.scene_config = G1SceneCfg()
         self.robot_scale = self.context.robot_scale
         self.scene_config.robot.spawn.scale = (self.robot_scale, self.robot_scale, self.robot_scale)
-        self.left_gripper_contact = ContactSensorCfg(
+        self.scene_config.left_gripper_contact = ContactSensorCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Robot/{self.gripper_cfg.left_contact_body_name}",
             update_period=0.0,
             history_length=1,
             debug_vis=False,
             filter_prim_paths_expr=[],
         )
-        self.right_gripper_contact = ContactSensorCfg(
+        self.scene_config.right_gripper_contact = ContactSensorCfg(
             prim_path=f"{{ENV_REGEX_NS}}/Robot/{self.gripper_cfg.right_contact_body_name}",
             update_period=0.0,
             history_length=1,
@@ -934,6 +934,7 @@ class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
         super().__init__(enable_cameras, initial_pose)
         self.name = "G1-RL"
         self.hand_action_mode = "rl"
+        self.eef_link_name = "right_wrist_yaw_link"
         self.scene_config = G1HandRLSceneCfg()
         self.action_config = G1RLActionsCfg()
         self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
@@ -1005,7 +1006,7 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
         self.init_waist_pitch = 0.0
         self.init_waist_roll = 0.0
 
-    def modify_env_cfg(self, env_cfg: IsaacArenaManagerBasedRLEnvCfg) -> IsaacArenaManagerBasedRLEnvCfg:
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg) -> IsaacLabArenaManagerBasedRLEnvCfg:
         return super().modify_env_cfg(env_cfg)
         env_cfg.sim.dt = 1 / 200  # physics frequency: 100Hz
         env_cfg.decimation = 4  # action frequency: 50Hz

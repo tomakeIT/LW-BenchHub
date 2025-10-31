@@ -72,10 +72,10 @@ def patch_reset():
         if self.cfg.wait_for_textures and self.sim.has_rtx_sensors():
             while SimulationManager.assets_loading():
                 self.sim.render()
-        if hasattr(self.cfg.isaac_arena_env.task, "foreground_semantic_id_mapping"):
-            self.cfg.isaac_arena_env.task.foreground_semantic_id_mapping
+        if hasattr(self.cfg.isaaclab_arena_env.task, "foreground_semantic_id_mapping"):
+            self.cfg.isaaclab_arena_env.task.foreground_semantic_id_mapping
             # self.cfg.setup_camera_and_foreground(self.scene)
-            self.cfg.isaac_arena_env.task.record_semantic_id_mapping(self.scene)
+            self.cfg.isaaclab_arena_env.task.record_semantic_id_mapping(self.scene)
         # return observations
         return self.obs_buf, self.extras
     ManagerBasedRLEnv.reset = reset
@@ -134,7 +134,7 @@ def patch_recorder_manager_ep_meta():
     from isaaclab.managers.recorder_manager import RecorderManager
 
     def get_ep_meta(mgr: RecorderManager):
-        ep_meta = mgr._env.cfg.isaac_arena_env.orchestrator.get_ep_meta()
+        ep_meta = mgr._env.cfg.isaaclab_arena_env.orchestrator.get_ep_meta()
         for obj in ep_meta["object_cfgs"]:
             obj["placement"] = convert_fixture_to_name(obj["placement"])
         return ep_meta

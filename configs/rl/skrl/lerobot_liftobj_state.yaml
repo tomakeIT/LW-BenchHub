@@ -3,7 +3,7 @@ _base_:
 task: LiftObj                # Task name
 robot: LeRobot-RL                 # Robot type
 layout: robocasakitchen-9-8  # Scene layout
+rl: LeRobotLiftObjStateRL
 num_envs: 512
 usd_simplify: true # USD simplify enable
-variant: State
 enable_cameras: false

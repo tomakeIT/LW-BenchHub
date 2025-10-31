@@ -31,8 +31,8 @@ def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_
     whether an object (another mujoco object) is inside of fixture. applies for most fixtures
     """
 
-    obj = env.cfg.isaac_arena_env.task.objects[obj_name]
-    fixture = env.cfg.isaac_arena_env.task.get_fixture(fixture_id)
+    obj = env.cfg.isaaclab_arena_env.task.objects[obj_name]
+    fixture = env.cfg.isaaclab_arena_env.task.get_fixture(fixture_id)
 
     # step 1: calculate fxiture points
     fixtr_int_regions = fixture.get_int_sites(relative=False)
@@ -359,19 +359,19 @@ def check_obj_in_receptacle(env: ManagerBasedEnv, obj_name: str, receptacle_name
     """
     check if object is in receptacle object based on threshold
     """
-    obj = env.cfg.isaac_arena_env.task.objects[obj_name]
-    recep = env.cfg.isaac_arena_env.task.objects[receptacle_name]
+    obj = env.cfg.isaaclab_arena_env.task.objects[obj_name]
+    recep = env.cfg.isaaclab_arena_env.task.objects[receptacle_name]
     obj_contact_path = env.scene.sensors[f"{obj_name}_contact"].contact_physx_view.sensor_paths
     recep_contact_path = env.scene.sensors[f"{receptacle_name}_contact"].contact_physx_view.sensor_paths
     if env.common_step_counter > 1:
-        contact_views = [env.cfg.isaac_arena_env.task.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
+        contact_views = [env.cfg.isaaclab_arena_env.task.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
         is_contact = torch.tensor(
             [max(abs(view.get_contact_data(env.physics_dt)[0])) > 0 for view in contact_views],
             device=env.device,
         )  # (env_num, )
     else:
         for env_id in range(env.scene.num_envs):
-            env.cfg.isaac_arena_env.task.contact_queues[env_id].add(
+            env.cfg.isaaclab_arena_env.task.contact_queues[env_id].add(
                 env.sim.physics_sim_view.create_rigid_contact_view(
                     obj_contact_path[env_id],
                     [recep_contact_path[env_id]],
@@ -428,7 +428,7 @@ def check_obj_in_receptacle_no_contact(env: ManagerBasedEnv, obj_name: str, rece
     """
     check if object is in receptacle object based on threshold
     """
-    recep = env.cfg.isaac_arena_env.task.objects[receptacle_name]
+    recep = env.cfg.isaaclab_arena_env.task.objects[receptacle_name]
 
     obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
     recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
@@ -442,8 +442,8 @@ def check_obj_fixture_contact(env: ManagerBasedEnv, obj_name: str, fixture_name:
     """
     check if object is in contact with fixture
     """
-    obj = env.cfg.isaac_arena_env.task.objects[obj_name]
-    fixture = env.cfg.isaac_arena_env.task.get_fixture(fixture_name)
+    obj = env.cfg.isaaclab_arena_env.task.objects[obj_name]
+    fixture = env.cfg.isaaclab_arena_env.task.get_fixture(fixture_name)
     return check_contact(env, obj, fixture)
 
 
@@ -465,7 +465,7 @@ def check_fixture_in_receptacle(env: ManagerBasedEnv, fixture_name: str, fixture
     """
     is_contact = check_obj_fixture_contact(env, receptacle_name, fixture_name)
 
-    recep = env.cfg.isaac_arena_env.task.objects[receptacle_name]
+    recep = env.cfg.isaaclab_arena_env.task.objects[receptacle_name]
 
     fix_pos = torch.tensor(env.scene.articulations[fixture_object].data.root_link_pos_w[..., 0:2])
     recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
@@ -493,22 +493,9 @@ def check_obj_grasped(env, obj_name, threshold=0.035):
 
 def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None, force_th=0.1) -> torch.Tensor:
     """
-    Check if gripper is far from object based on distance and contact force.
-    For articulation objects, checks distance to all body parts (root + all joints).
-    Also checks contact force sensors to ensure no physical contact.
-
-    Args:
-        env: Environment object
-        obj_name: Name of the object to check distance from
-        th: Distance threshold (meters)
-        eef_name: Specific end-effector name to check (if None, checks all)
-        force_th: Force threshold (N) - contact force must be below this
-
-    Returns:
-        Boolean tensor (num_envs,) - True if gripper is far from object
+    check if gripper is far from object based on distance defined by threshold
     """
-    if obj_name in env.cfg.objects:
-        # Rigid object: use all body centers of mass
+    if obj_name in env.cfg.isaaclab_arena_env.task.objects:
         obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w  # (num_envs, num_bodies, 3)
     else:
         # Articulation object: use all body centers of mass
@@ -746,8 +733,8 @@ def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_ax
     import torch
 
     # Get object positions - use torch.mean for multi-body objects like check_obj_in_receptacle
-    if obj1 in env.cfg.isaac_arena_env.task.objects:
-        obj1_obj = env.cfg.isaac_arena_env.task.objects[obj1]
+    if obj1 in env.cfg.isaaclab_arena_env.task.objects:
+        obj1_obj = env.cfg.isaaclab_arena_env.task.objects[obj1]
         obj1_pos = torch.mean(env.scene.rigid_objects[obj1].data.body_com_pos_w, dim=1)  # (num_envs, 3)
         obj1_vel = torch.mean(env.scene.rigid_objects[obj1].data.body_com_vel_w, dim=1)  # (num_envs, 3)
         obj1_quat = torch.mean(env.scene.rigid_objects[obj1].data.body_com_quat_w, dim=1)  # (num_envs, 4)
@@ -759,8 +746,8 @@ def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_ax
         obj1_rot_mat = matrix_from_quat(obj1_quat)  # (num_envs, 3, 3)
         obj1_vel = env.scene.state['articulation'][obj1_name]['root_velocity'][:, :3]  # (num_envs, 3)
 
-    if obj2 in env.cfg.isaac_arena_env.task.objects:
-        obj2_obj = env.cfg.isaac_arena_env.task.objects[obj2]
+    if obj2 in env.cfg.isaaclab_arena_env.task.objects:
+        obj2_obj = env.cfg.isaaclab_arena_env.task.objects[obj2]
         obj2_pos = torch.mean(env.scene.rigid_objects[obj2].data.body_com_pos_w, dim=1)  # (num_envs, 3)
     else:
         obj2_obj = obj2
@@ -828,8 +815,8 @@ def check_place_obj1_side_by_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, ch
     import torch
 
     # Get object positions - use torch.mean for multi-body objects like check_place_obj1_on_obj2
-    if obj1 in env.cfg.isaac_arena_env.task.objects:
-        obj1_obj = env.cfg.isaac_arena_env.task.objects[obj1]
+    if obj1 in env.cfg.isaaclab_arena_env.task.objects:
+        obj1_obj = env.cfg.isaaclab_arena_env.task.objects[obj1]
         obj1_pos = torch.mean(env.scene.rigid_objects[obj1].data.body_com_pos_w, dim=1)  # (num_envs, 3)
         obj1_vel = torch.mean(env.scene.rigid_objects[obj1].data.body_com_vel_w, dim=1)  # (num_envs, 3)
         obj1_quat = torch.mean(env.scene.rigid_objects[obj1].data.body_com_quat_w, dim=1)  # (num_envs, 4)
@@ -842,8 +829,8 @@ def check_place_obj1_side_by_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, ch
         obj1_rot_mat = matrix_from_quat(obj1_quat)  # (num_envs, 3, 3)
         obj1_vel = env.scene.state['articulation'][obj1_name]['root_velocity'][:, :3]  # (num_envs, 3)
 
-    if obj2 in env.cfg.isaac_arena_env.task.objects:
-        obj2_obj = env.cfg.isaac_arena_env.task.objects[obj2]
+    if obj2 in env.cfg.isaaclab_arena_env.task.objects:
+        obj2_obj = env.cfg.isaaclab_arena_env.task.objects[obj2]
         obj2_pos = torch.mean(env.scene.rigid_objects[obj2].data.body_com_pos_w, dim=1)  # (num_envs, 3)
     else:
         obj2_obj = obj2
@@ -1010,7 +997,7 @@ def obj_fixture_bbox_min_dist(env: ManagerBasedEnv, obj_name: str, fixture: Fixt
             env.scene.rigid_objects[obj_name].data.body_com_quat_w[i, 0, :].cpu().numpy(), to="xyzw"
         )
 
-        obj = env.cfg.isaac_arena_env.task.objects[obj_name]
+        obj = env.cfg.isaaclab_arena_env.task.objects[obj_name]
         obj_pts = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
         obj_coords = np.array(obj_pts)
         obj_min = obj_coords.min(axis=0)
@@ -1056,7 +1043,7 @@ def check_contact(env: ManagerBasedEnv, geoms_1: str | USDObject | Fixture, geom
                 filter_prim_paths_expr = [re.sub(r'env_\d+', f'env_{env_id}', geoms_2_sensor_path)]
             else:
                 filter_prim_paths_expr = geoms_2_sensor_path[env_id]
-            env.cfg.isaac_arena_env.task.contact_queues[env_id].add(
+            env.cfg.isaaclab_arena_env.task.contact_queues[env_id].add(
                 env.sim.physics_sim_view.create_rigid_contact_view(
                     geoms_1_contact_paths[env_id],
                     filter_patterns=filter_prim_paths_expr,
@@ -1064,7 +1051,7 @@ def check_contact(env: ManagerBasedEnv, geoms_1: str | USDObject | Fixture, geom
                 )
             )
     elif env.common_step_counter:
-        contact_views = [env.cfg.isaac_arena_env.task.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
+        contact_views = [env.cfg.isaaclab_arena_env.task.contact_queues[env_id].pop() for env_id in range(env.num_envs)]
         return torch.tensor(
             [max(abs(view.get_contact_data(env.physics_dt)[0])) > 0 for view in contact_views],
             device=env.device,

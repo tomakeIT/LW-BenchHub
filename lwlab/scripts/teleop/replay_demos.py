@@ -184,7 +184,7 @@ def main():
     replayed_episode_count = 0
 
     # calculate the shape of the video recorder
-    num_cameras = sum(env.cfg.isaac_arena_env.task.task_type in c["tags"] for c in env.cfg.isaac_arena_env.embodiment.observation_cameras.values())
+    num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
     if num_cameras > 4:
         # two rows layout: height is twice the original, width is the maximum width of each row
         cameras_per_row = (num_cameras + 1) // 2
@@ -257,7 +257,7 @@ def main():
                 ee_poses.append(obs['policy']['ee_pose'].cpu().numpy())
                 if app_launcher._enable_cameras and video_processor:
                     # Add frame to video processing queue
-                    camera_names = [n for n, c in env.cfg.isaac_arena_env.embodiment.observation_cameras.items() if env.cfg.isaac_arena_env.task.task_type in c["tags"]]
+                    camera_names = [n for n, c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.items() if env.cfg.isaaclab_arena_env.task.task_type in c["tags"]]
                     video_processor.add_frame(obs, camera_names)
 
             if ee_poses:

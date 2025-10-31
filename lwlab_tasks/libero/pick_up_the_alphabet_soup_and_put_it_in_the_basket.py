@@ -127,6 +127,6 @@ class L90L1PickUpTheAlphabetSoupAndPutItInTheBasket(LwLabTaskBase):
         return cfgs
 
     def _check_success(self, env):
-        th = env.cfg.isaac_arena_env.task.objects["basket"].horizontal_radius
+        th = env.cfg.isaaclab_arena_env.task.objects["basket"].horizontal_radius
         soup_in_tray = OU.check_obj_in_receptacle(env, "alphabet_soup", "basket", th)
         return soup_in_tray & OU.gripper_obj_far(env, "alphabet_soup")

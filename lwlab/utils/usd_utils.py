@@ -109,9 +109,29 @@ class OpenUsd:
         return stage
 
     @staticmethod
+    def has_articulation_root(prim):
+        """Recursively check if prim or any of its descendants has ArticulationRootAPI"""
+        if prim.HasAPI(UsdPhysics.ArticulationRootAPI):
+            return True
+        for child in prim.GetAllChildren():
+            if OpenUsd.has_articulation_root(child):
+                return True
+        return False
+
+    @staticmethod
     def is_articulation_root(prim):
         """Check if prim is articulation root"""
         return prim.HasAPI(UsdPhysics.ArticulationRootAPI)
+
+    @staticmethod
+    def has_rigidbody_api(prim):
+        """Recursively check if prim or any of its descendants has RigidBodyAPI"""
+        if prim.HasAPI(UsdPhysics.RigidBodyAPI):
+            return True
+        for child in prim.GetAllChildren():
+            if OpenUsd.has_rigidbody_api(child):
+                return True
+        return False
 
     @staticmethod
     def is_rigidbody(prim):

@@ -18,7 +18,7 @@ import numpy as np
 from dataclasses import MISSING
 from typing import List, Optional
 
-from isaac_arena.environments.isaac_arena_manager_based_env import IsaacArenaManagerBasedRLEnvCfg
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 from isaaclab.envs import ManagerBasedEnv
 from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
@@ -104,7 +104,7 @@ class PrePhysicsStepJointTargetsRecorder(RecorderTerm):
         return None, None
 
     def record_pre_reset(self, env_ids):
-        for env_id, success in zip(env_ids, (self._env.cfg.isaac_arena_env.scene.success_cache >= self._env.cfg.isaac_arena_env.scene.success_count)[env_ids]):
+        for env_id, success in zip(env_ids, (self._env.cfg.isaaclab_arena_env.scene.success_cache >= self._env.cfg.isaaclab_arena_env.scene.success_count)[env_ids]):
             if not success.item():
                 self._env.recorder_manager._episodes[env_id] = EpisodeData()
         return None, None
@@ -121,8 +121,8 @@ class RecorderManagerCfg(ActionStateRecorderManagerCfg):
     record_pre_step_joint_targets = PrePhysicsStepJointTargetsRecorderCfg()
 
 
-from isaac_arena.embodiments.embodiment_base import EmbodimentBase
-from isaac_arena.utils.pose import Pose
+from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
+from isaaclab_arena.utils.pose import Pose
 from typing import Dict, Any, Callable
 
 
@@ -210,7 +210,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
 
         return action
 
-    def modify_env_cfg(self, env_cfg: IsaacArenaManagerBasedRLEnvCfg) -> IsaacArenaManagerBasedRLEnvCfg:
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg) -> IsaacLabArenaManagerBasedRLEnvCfg:
         env_cfg = super().modify_env_cfg(env_cfg)
         if self.context.execute_mode == ExecuteMode.REPLAY_JOINT_TARGETS:
             self.set_replay_joint_targets_action(env_cfg)

@@ -26,7 +26,7 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaac_arena.tasks.task_base import TaskBase
+from isaaclab_arena.tasks.task_base import TaskBase
 
 from lwlab.core.context import get_context
 import lwlab.core.mdp as mdp
@@ -38,55 +38,27 @@ from lwlab.core.checks.checker_factory import get_checkers_from_cfg, form_checke
 from lwlab.utils.place_utils.usd_object import USDObject
 import lwlab.utils.place_utils.env_utils as EnvUtils
 import numpy as np
-from isaac_arena.utils.configclass import make_configclass
-from isaac_arena.assets.object_base import ObjectType
+from isaaclab_arena.utils.configclass import make_configclass
+from isaaclab_arena.assets.object_base import ObjectType
 import lwlab.utils.object_utils as OU
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 import lwlab.utils.math_utils.transform_utils.torch_impl as Tt
 from lwlab.utils.log_utils import copy_dict_for_json
 from lightwheel_sdk.loader import ENDPOINT
-from lwlab.core.models.objects.LwLabObject import LwLabObject
+from lwlab.core.models.assets.LwLabObject import LwLabObject
 from isaaclab.sensors import ContactSensorCfg
 from lwlab.core.models.fixtures import Fixture, FixtureType, fixture_is_type
 import lwlab.utils.fixture_utils as FixtureUtils
-from isaac_arena.assets.object_reference import ObjectReference
-from isaac_arena.assets.asset import Asset
-from isaac_arena.utils.pose import Pose
-from isaac_arena.environments.isaac_arena_manager_based_env import IsaacArenaManagerBasedRLEnvCfg
+from isaaclab_arena.assets.object_reference import ObjectReference
+from isaaclab_arena.assets.asset import Asset
+from isaaclab_arena.utils.pose import Pose
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
+from lwlab.utils.usd_utils import OpenUsd as usd
 
 
 @configclass
 class ObservationsCfg:
     """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
-
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        joint_vel = ObsTerm(func=mdp.joint_vel)
-        joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
-        ee_pose = ObsTerm(func=mdp.ee_pose)
-
-        # cabinet_joint_pos = ObsTerm(
-        #     func=mdp.joint_pos_rel,
-        #     params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["corpus_to_drawer_0_0"])},
-        # )
-        # cabinet_joint_vel = ObsTerm(
-        #     func=mdp.joint_vel_rel,
-        #     params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["corpus_to_drawer_0_0"])},
-        # )
-        # rel_ee_drawer_distance = ObsTerm(func=mdp.rel_ee_drawer_distance)
-
-        actions = ObsTerm(func=mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = False
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
 
 
 @configclass
@@ -261,6 +233,10 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.termination_cfg = TerminationsCfg(
             success=DoneTerm(func=self.check_success_caller)
         )
+        self.observation_cfg = ObservationsCfg()
+        self.commands_cfg = None
+        self.curriculum_cfg = None
+        self.rewards_cfg = None
         self.assets = {}
         self.contact_sensors = {}
         self.init_checkers_cfg()
@@ -277,7 +253,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self._success_cache: torch.Tensor = torch.tensor([0], device=self.context.device, dtype=torch.int32).repeat(self.context.num_envs)
         self._success_flag: torch.Tensor = torch.tensor([False], device=self.context.device, dtype=torch.bool).repeat(self.context.num_envs)
 
-    def modify_env_cfg(self, env_cfg: IsaacArenaManagerBasedRLEnvCfg) -> IsaacArenaManagerBasedRLEnvCfg:
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg) -> IsaacLabArenaManagerBasedRLEnvCfg:
         if self.context.execute_mode == ExecuteMode.TELEOP:
             self._success_count = int(1 / env_cfg.sim.dt / 2)
         else:
@@ -305,11 +281,23 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     def get_events_cfg(self):
         return self.events_cfg
 
+    def get_observation_cfg(self):
+        return self.observation_cfg
+
+    def get_commands_cfg(self):
+        return self.commands_cfg
+
+    def get_curriculum_cfg(self):
+        return self.curriculum_cfg
+
+    def get_rewards_cfg(self):
+        return self.rewards_cfg
+
     def _check_success(self, env):
         return torch.tensor([False], device=env.device).repeat(env.num_envs)
 
     def check_success_caller(self, env):
-        arena_env = env.cfg.isaac_arena_env
+        arena_env = env.cfg.isaaclab_arena_env
         arena_env.orchestrator.update_state(env)
 
         for checker in arena_env.task.checkers:
@@ -808,34 +796,20 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def _init_ref_fixtures(self):
         for fixtr in self.fixture_refs.values():
-            if isinstance(fixtr, Fixture):
-                if fixtr.is_articulation_root:
-                    self.add_asset(
-                        ObjectReference(
-                            name=fixtr.name,
-                            object_type=ObjectType.ARTICULATION,
-                            prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
-                            parent_asset=self.scene_assets[self.scene_type],
-                        )
-                    )
-                elif fixtr.is_rigidbody:
-                    self.add_asset(
-                        ObjectReference(
-                            name=fixtr.name,
-                            object_type=ObjectType.RIGID,
-                            prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
-                            parent_asset=self.scene_assets[self.scene_type],
-                        )
-                    )
-                else:
-                    self.add_asset(
-                        ObjectReference(
-                            name=fixtr.name,
-                            object_type=ObjectType.BASE,
-                            prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
-                            parent_asset=self.scene_assets[self.scene_type],
-                        )
-                    )
+            if usd.has_articulation_root(fixtr.prim):
+                object_type = ObjectType.ARTICULATION
+            elif usd.has_rigidbody_api(fixtr.prim):
+                object_type = ObjectType.RIGID
+            else:
+                object_type = ObjectType.BASE
+            self.add_asset(
+                ObjectReference(
+                    name=fixtr.name,
+                    object_type=object_type,
+                    prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
+                    parent_asset=self.scene_assets[self.scene_type],
+                )
+            )
         for fixtr in self.fixture_refs.values():
             if isinstance(fixtr, Fixture):
                 fixtr.setup_cfg(self)
@@ -904,7 +878,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
             return
         if self.task_type != "teleop" or self.context.execute_mode == ExecuteMode.TELEOP:
             return
-        for name, camera_infos in env_cfg.isaac_arena_env.embodiment.observation_cameras.items():
+        for name, camera_infos in env_cfg.isaaclab_arena_env.embodiment.observation_cameras.items():
             if self.task_type not in camera_infos["tags"]:
                 continue
             setattr(

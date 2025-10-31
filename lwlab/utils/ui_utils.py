@@ -1,19 +1,19 @@
 from lwlab.core.checks.checker_factory import get_checkers_from_cfg
 
 
-def get_task_desc(isaac_arena_env):
+def get_task_desc(isaaclab_arena_env):
     """
     Get the task description from the environment configuration.
     """
     base_desc = ""
-    if hasattr(isaac_arena_env.task, 'task_name') and hasattr(isaac_arena_env.scene, 'layout_id') and hasattr(isaac_arena_env.scene, 'style_id') and hasattr(isaac_arena_env.orchestrator, 'get_ep_meta'):
-        base_desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(isaac_arena_env.task.task_name, isaac_arena_env.scene.layout_id, isaac_arena_env.scene.style_id, isaac_arena_env.orchestrator.get_ep_meta()["lang"])
-    elif hasattr(isaac_arena_env.task, 'task_name') and hasattr(isaac_arena_env.scene, 'usd_path') and hasattr(isaac_arena_env.orchestrator, 'get_ep_meta'):
-        base_desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(isaac_arena_env.scene.task_name, isaac_arena_env.scene.usd_path, isaac_arena_env.orchestrator.get_ep_meta()["lang"])
+    if hasattr(isaaclab_arena_env.task, 'task_name') and hasattr(isaaclab_arena_env.scene, 'layout_id') and hasattr(isaaclab_arena_env.scene, 'style_id') and hasattr(isaaclab_arena_env.orchestrator, 'get_ep_meta'):
+        base_desc = "Task name: {}\nLayout id: {}\nStyle id: {}\nDesc: {}".format(isaaclab_arena_env.task.task_name, isaaclab_arena_env.scene.layout_id, isaaclab_arena_env.scene.style_id, isaaclab_arena_env.orchestrator.get_ep_meta()["lang"])
+    elif hasattr(isaaclab_arena_env.task, 'task_name') and hasattr(isaaclab_arena_env.scene, 'usd_path') and hasattr(isaaclab_arena_env.orchestrator, 'get_ep_meta'):
+        base_desc = "Task name: {}\nUSD path: {}\nDesc: {}".format(isaaclab_arena_env.scene.task_name, isaaclab_arena_env.scene.usd_path, isaaclab_arena_env.orchestrator.get_ep_meta()["lang"])
     return base_desc
 
 
-def setup_task_description_ui(isaac_arena_env, env):
+def setup_task_description_ui(isaaclab_arena_env, env):
     """
     Set up UI for displaying task description in the overlay window.
 
@@ -27,7 +27,7 @@ def setup_task_description_ui(isaac_arena_env, env):
     import omni.ui as ui
 
     desc = None
-    base_desc = get_task_desc(isaac_arena_env)
+    base_desc = get_task_desc(isaaclab_arena_env)
 
     if base_desc is not None:
         desc = base_desc + "\nCheckpoints: not saved"
@@ -53,11 +53,11 @@ def setup_task_description_ui(isaac_arena_env, env):
     checker_labels = {}
     checkers = None
 
-    if hasattr(isaac_arena_env.task, "checkers_cfg") and get_checkers_from_cfg is not None:
+    if hasattr(isaaclab_arena_env.task, "checkers_cfg") and get_checkers_from_cfg is not None:
         try:
             filtered_cfg = {
                 name: cfg
-                for name, cfg in isaac_arena_env.task.checkers_cfg.items()
+                for name, cfg in isaaclab_arena_env.task.checkers_cfg.items()
                 if cfg.get("warning_on_screen", False)
             }
             if filtered_cfg:
@@ -344,7 +344,7 @@ def spawn_cylinder_with_xform(
 
 def spawn_robot_vis_helper_general(env):
     # check if the robot_vis_helper_cfg is available
-    if env.cfg.isaac_arena_env.embodiment.robot_vis_helper_cfg is None:
+    if env.cfg.isaaclab_arena_env.embodiment.robot_vis_helper_cfg is None:
         return
 
     vis_helper_prims = []
@@ -352,7 +352,7 @@ def spawn_robot_vis_helper_general(env):
     for prim in env.sim.stage.Traverse():
         if prim.GetName().lower() == "robot":
             robot_prim_path = prim.GetPath()
-    for key, cfg in env.cfg.isaac_arena_env.embodiment.robot_vis_helper_cfg.items():
+    for key, cfg in env.cfg.isaaclab_arena_env.embodiment.robot_vis_helper_cfg.items():
         prim_path = robot_prim_path.AppendPath(cfg["relative_prim_path"])
         cylinder_prim = spawn_cylinder_with_xform(
             parent_prim_path=prim_path,
@@ -368,7 +368,7 @@ def spawn_robot_vis_helper_general(env):
 def spawn_robot_vis_helper(env):
     # Have problems with Isaaclab/IsaacSim 4.5, works fine with Isaaclab/IsaacSim 5.0
     # check if the robot_vis_helper_cfg is available
-    if env.cfg.isaac_arena_env.embodiment.robot_vis_helper_cfg is None:
+    if env.cfg.isaaclab_arena_env.embodiment.robot_vis_helper_cfg is None:
         return
     import isaaclab.sim as sim_utils
 
@@ -379,7 +379,7 @@ def spawn_robot_vis_helper(env):
         if prim.GetName().lower() == "robot":
             robot_prim = prim
             robot_prim_path = prim.GetPath()
-    for key, cfg in env.cfg.isaac_arena_env.embodiment.robot_vis_helper_cfg.items():
+    for key, cfg in env.cfg.isaaclab_arena_env.embodiment.robot_vis_helper_cfg.items():
         prim_path = robot_prim_path.AppendPath(cfg["relative_prim_path"])
         prim = sim_utils.spawn_cylinder(prim_path, cfg['spawn'], translation=cfg['translation'], orientation=cfg['orientation'])
         vis_helper_prims.append(prim)

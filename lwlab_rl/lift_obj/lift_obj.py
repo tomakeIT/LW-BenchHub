@@ -14,7 +14,7 @@ from isaaclab.assets import RigidObjectCfg
 # SPDX-License-Identifier: BSD-3-Clause
 import torch
 
-from lwlab.core.tasks.base import BaseTaskEnvCfg
+from lwlab.core.tasks.base import LwLabTaskBase
 
 import isaaclab.sim as sim_utils
 from isaaclab.utils import configclass
@@ -25,10 +25,15 @@ from isaaclab.managers import ObservationTermCfg as ObsTerm
 from isaaclab.managers import RewardTermCfg as RewTerm
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from lwlab.core.rl.base import BaseRLEnvCfg
+from lwlab.core.rl.base import LwLabRL
 
 from lwlab_tasks.single_stage.lift_obj import LiftObj
 from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
+from lwlab.core.robots.lerobot.lerobotrl import LeRobotRL, LeRobot100RL
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
+from lwlab.utils.decorators import rl_on
+from lwlab.core.rl.base import PolicyCfg as BasePolicyCfg
+from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 
 from . import mdp
 
@@ -57,38 +62,68 @@ class CommandsCfg:
         ),
     )
 
-# State-based Observations
+
+@configclass
+class LiftObjPolicyCfg(BasePolicyCfg):
+    target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+
+
+# state-based observations
+@configclass
+class G1LiftObjStatePolicyCfg(LiftObjPolicyCfg):
+    """Observations for policy group."""
+    obj_pos = ObsTerm(func=mdp.object_position_in_robot_root_frame, params={"object_cfg": SceneEntityCfg("object")})
 
 
 @configclass
-class StateBasedObservationsCfg:
-    """Observation specifications for the MDP."""
+class LeRobotLiftObjStatePolicyCfg(G1LiftObjStatePolicyCfg):
+    target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
+    delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
 
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = False
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        obj_pos = ObsTerm(func=mdp.object_position_in_robot_root_frame, params={"object_cfg": SceneEntityCfg("object")})
-        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
 
-        actions = ObsTerm(func=mdp.last_action)
+# visual-based observations
+@configclass
+class G1LiftObjVisualPolicyCfg(G1LiftObjStatePolicyCfg):
+    image_hand = ObsTerm(
+        func=mdp.image_features,
+        params={
+            "sensor_cfg": SceneEntityCfg("hand_camera"),
+            "data_type": "rgb",
+            "model_name": "resnet18",
+            "model_device": "cuda:0",
+        },
+    )
 
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = True
+    rgb_d435 = ObsTerm(
+        func=mdp.image_features,
+        params={
+            "sensor_cfg": SceneEntityCfg("d435_camera"),
+            "data_type": "rgb",
+            "model_name": "resnet18",
+            "model_device": "cuda:0",
+        },
+    )
 
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
+
+@configclass
+class LeRobotLiftObjVisualPolicyCfg(LeRobotLiftObjStatePolicyCfg):
+    image_global = ObsTerm(
+        func=mdp.image,
+        params={
+            "sensor_cfg": SceneEntityCfg("global_camera"),
+            "data_type": "rgb",
+            "normalize": False,
+        },
+    )
 
 
 @configclass
 class EventCfg:
     """Configuration for events."""
-
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
     reset_object_position = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
@@ -147,6 +182,15 @@ class RewardsCfg:
 
 
 @configclass
+class LeRobotLiftobjRewardsCfg:
+    """Reward terms for the MDP."""
+    reaching_reward = RewTerm(func=mdp.object_ee_distance_maniskill, weight=1.0)
+    grasp_reward = RewTerm(func=mdp.object_is_grasped_maniskill, weight=1.0)
+    place_reward = RewTerm(func=mdp.object_is_grasped_and_placed_maniskill, weight=1.0)
+    touching_table = RewTerm(func=mdp.gripper_is_touching_table_maniskill, weight=-2.0)
+
+
+@configclass
 class CurriculumCfg:
     """Curriculum terms for the MDP."""
     # action_rate = CurrTerm(
@@ -158,8 +202,9 @@ class CurriculumCfg:
     # )
 
 
-@configclass
-class BaseLiftObjRLEnvCfg(BaseRLEnvCfg, LiftObj):
+@rl_on(task=LiftObj)
+@rl_on(embodiment=UnitreeG1HandEnvRLCfg)
+class G1LiftObjStateRL(LwLabRL):
     """
     Class encapsulating the atomic pick and place tasks.
 
@@ -168,283 +213,140 @@ class BaseLiftObjRLEnvCfg(BaseRLEnvCfg, LiftObj):
 
         exclude_obj_groups (str): Object groups to exclude from sampling the target object.
     """
-    observations: StateBasedObservationsCfg = StateBasedObservationsCfg()
-    # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    events: EventCfg = EventCfg()
-    curriculum: CurriculumCfg = CurriculumCfg()
-    commands: CommandsCfg = CommandsCfg()
-    resample_objects_placement_on_reset: bool = False
-    resample_robot_placement_on_reset: bool = False
     # fix_object_pose_cfg: dict = {"object": {"pos": (3.93, -0.6, 0.95)}}  # y- near to robot
 
     # def set_reward_arm_joint_names(self, arm_joint_names):
     #     self.rewards.target_qpos_reward.params["asset_cfg"].joint_names = arm_joint_names
 
-    def __post_init__(self):
-        """Post initialization."""
-        # general settings
-        super().__post_init__()
+    def __init__(self):
+        super().__init__()
+        self.rewards_cfg = RewardsCfg()
+        self.events_cfg = EventCfg()
+        self.curriculum_cfg = CurriculumCfg()
+        self.commands_cfg = CommandsCfg()
+        self.policy_cfg = G1LiftObjStatePolicyCfg()
+        self.resample_objects_placement_on_reset = False
+        self.resample_robot_placement_on_reset = False
 
-        self.viewer.eye = (-2.0, 2.0, 2.0)
-        self.viewer.lookat = (0.8, 0.0, 0.5)
-        # simulation settings
-        self.decimation = 5
-        self.episode_length_s = 3.2
-        # simulation settings
-        self.sim.dt = 0.01  # 100Hz
-        self.sim.render_interval = self.decimation
-
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4 * 4
-        self.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 16 * 1024
-        self.sim.physx.friction_correlation_distance = 0.00625
-
-        self.terminations.object_dropping = DoneTerm(
+    def setup_env_config(self, orchestrator):
+        super().setup_env_config(orchestrator)
+        # LeRobot-RL: gripper, G1-RL: right_wrist_yaw_link, franka: panda_hand
+        orchestrator.task.commands_cfg.object_pose.body_name = "right_wrist_yaw_link"
+        orchestrator.task.termination_cfg.object_dropping = DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": 0.9, "asset_cfg": SceneEntityCfg("object")}, time_out=True  # TODO
         )
 
-
-class G1StateLiftObjRLEnvCfg(UnitreeG1HandEnvRLCfg, BaseLiftObjRLEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        # for LeRobot-RL
-        # self.commands.object_pose.body_name = "gripper"
-        # for G1-RL
-        self.commands.object_pose.body_name = "right_wrist_yaw_link"
-        # for franka
-        # self.commands.object_pose.body_name = "panda_hand"
-
-
-# Visual Observations based
-
-
-@configclass
-class G1VisualObservationsCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
-
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
-
-        actions = ObsTerm(func=mdp.last_action)
-
-        image_hand = ObsTerm(
-            func=mdp.image_features,
-            params={
-                "sensor_cfg": SceneEntityCfg("hand_camera"),
-                "data_type": "rgb",
-                "model_name": "resnet18",
-                "model_device": "cuda:0",
-            },
-        )
-
-        rgb_d435 = ObsTerm(
-            func=mdp.image_features,
-            params={
-                "sensor_cfg": SceneEntityCfg("d435_camera"),
-                "data_type": "rgb",
-                "model_name": "resnet18",
-                "model_device": "cuda:0",
-            },
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = True
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
+        """Post initialization."""
+        super().modify_env_cfg(env_cfg)
+        # general settings
+        env_cfg.viewer.eye = (-2.0, 2.0, 2.0)
+        env_cfg.viewer.lookat = (0.8, 0.0, 0.5)
+        # simulation settings
+        env_cfg.decimation = 5
+        env_cfg.episode_length_s = 3.2
+        # simulation settings
+        env_cfg.sim.dt = 0.01  # 100Hz
+        env_cfg.sim.render_interval = env_cfg.decimation
+        env_cfg.sim.physx.bounce_threshold_velocity = 0.2
+        env_cfg.sim.physx.bounce_threshold_velocity = 0.01
+        env_cfg.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4 * 4
+        env_cfg.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 16 * 1024
+        env_cfg.sim.physx.friction_correlation_distance = 0.00625
 
 
-class G1VisualLiftObjRLEnvCfg(G1StateLiftObjRLEnvCfg):
-    observations: G1VisualObservationsCfg = G1VisualObservationsCfg()
+class G1LiftObjVisualRL(G1LiftObjStateRL):
+
+    def __init__(self):
+        super().__init__()
+        self.policy_cfg = G1LiftObjVisualPolicyCfg()
 
 
-from lwlab.core.robots.lerobot.lerobotrl import LERobotEnvRLCfg, LERobot100EnvRLCfg
+@rl_on(task=LiftObj)
+@rl_on(embodiment=LeRobotRL)
+class LeRobotLiftObjStateRL(LwLabRL):
+
+    def __init__(self):
+        super().__init__()
+        self.rewards_cfg = LeRobotLiftobjRewardsCfg()
+        self.policy_cfg = LeRobotLiftObjStatePolicyCfg()
+        self.events_cfg = EventCfg()
+        self.curriculum_cfg = CurriculumCfg()
+        self.commands_cfg = CommandsCfg()
+        self.fix_object_pose_cfg: dict = {"object": {"pos": (2.94, -4.08, 0.95)}}  # y- near to robot
+
+    def setup_env_config(self, orchestrator):
+        super().setup_env_config(orchestrator)
+        orchestrator.task.commands_cfg.object_pose.body_name = "gripper"
 
 
-@configclass
-class LeRobotLiftobjRewardsCfg:
-    """Reward terms for the MDP."""
-    reaching_reward = RewTerm(func=mdp.object_ee_distance_maniskill, weight=1.0)
-    grasp_reward = RewTerm(func=mdp.object_is_grasped_maniskill, weight=1.0)
-    place_reward = RewTerm(func=mdp.object_is_grasped_and_placed_maniskill, weight=1.0)
-    touching_table = RewTerm(func=mdp.gripper_is_touching_table_maniskill, weight=-2.0)
+@rl_on(embodiment=LeRobot100RL)
+class LeRobot100LiftObjStateRL(LeRobotLiftObjStateRL):
+
+    def setup_env_config(self, orchestrator):
+        super().setup_env_config(orchestrator)
+        orchestrator.task.commands_cfg.object_pose.body_name = "Fixed_Jaw_tip"
+
+
+class LeRobotLiftObjVisualRL(LeRobotLiftObjStateRL):
+
+    def __init__(self):
+        super().__init__()
+        self.policy_cfg = LeRobotLiftObjVisualPolicyCfg()
+
+
+class LeRobot100LiftObjVisualRL(LeRobot100LiftObjStateRL):
+
+    def __init__(self):
+        super().__init__()
+        self.policy_cfg = LeRobotLiftObjVisualPolicyCfg()
 
 
 @configclass
-class LeRobotStateObservationsCfg:
-    """Observation specifications for the MDP."""
+class LeRobotLiftObjDigitalTwin(LeRobotLiftObjVisualRL):
 
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
+    def __init__(self):
+        super().__init__()
+        """A dictionary of rgb overlay paths.
 
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
-        delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
-        obj_pos = ObsTerm(func=mdp.object_position_in_robot_root_frame, params={"object_cfg": SceneEntityCfg("object")})
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = False
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-
-
-class LeRobotStateLiftObjRLEnvCfg(LERobotEnvRLCfg, BaseLiftObjRLEnvCfg):
-    observations: LeRobotStateObservationsCfg = LeRobotStateObservationsCfg()
-    rewards: LeRobotLiftobjRewardsCfg = LeRobotLiftobjRewardsCfg()
-    fix_object_pose_cfg: dict = {"object": {"pos": (2.94, -4.08, 0.95)}}  # y- near to robot
-
-    def __post_init__(self):
-        super().__post_init__()
-        # for LeRobot-RL
-        self.commands.object_pose.body_name = "gripper"
-        # for G1-RL
-        # self.commands.object_pose.body_name = "right_wrist_yaw_link"
-        # for franka
-        # self.commands.object_pose.body_name = "panda_hand"
-
-
-class LeRobot100StateLiftObjRLEnvCfg(LERobot100EnvRLCfg, LeRobotStateLiftObjRLEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        # for LeRobot-RL
-        self.commands.object_pose.body_name = "Fixed_Jaw_tip"
-
-
-@configclass
-class LeRobotVisualObservationsCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
-
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
-        delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
-
-        # image_global = ObsTerm(
-        #     func=mdp.image_features,
-        #     params={
-        #         "sensor_cfg": SceneEntityCfg("global_camera"),
-        #         "data_type": "rgb",
-        #         "model_name": "resnet18",
-        #         "model_device": "cuda:0",
-        #     },
-        # )
-        image_global = ObsTerm(
-            func=mdp.image,
-            params={
-                "sensor_cfg": SceneEntityCfg("global_camera"),
-                "data_type": "rgb",
-                "normalize": False,
-            },
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = False
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-
-
-class LeRobotVisualLiftObjRLEnvCfg(LeRobotStateLiftObjRLEnvCfg):
-    observations: LeRobotVisualObservationsCfg = LeRobotVisualObservationsCfg()
-
-
-class LeRobot100VisualLiftObjRLEnvCfg(LERobot100EnvRLCfg, LeRobotVisualLiftObjRLEnvCfg):
-    def __post_init__(self):
-        super().__post_init__()
-        # for LeRobot-RL
-        self.commands.object_pose.body_name = "Fixed_Jaw_tip"
-
-
-@configclass
-class DigitalTwinObservationCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
-
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
-        delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
-        image_global = ObsTerm(
-            func=mdp.overlay_image,
-            params={
-                "sensor_cfg": SceneEntityCfg("global_camera"),
-                "data_type": "rgb",
-                "normalize": False,
-            },
-        )
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = False
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
-
-
-@configclass
-class LeRobotLiftObjDigitalTwinCfg(LeRobotStateLiftObjRLEnvCfg):
-    """A dictionary of rgb overlay paths.
-
-    The key is the name of the rgb sensor, and the value is the path to the background image.
-    example:{"camera_name": "path/to/greenscreen/background.png"}
-    """
-    rgb_overlay_mode: Optional[Literal["none", "debug", "background"]] = "none"
-
-    render_objects = None
-    task_name: str = "LiftObjDigitalTwin"
-    observations: DigitalTwinObservationCfg = DigitalTwinObservationCfg()
-    rgb_overlay_images: Dict[str, torch.Tensor] = {}
-
-    foreground_semantic_id_mapping: Dict[str, int] = {}
-
-    def __post_init__(self):
-        super().__post_init__()
-        self.rgb_overlay_mode = "background"
-        self.rgb_overlay_paths = {
-            "global_camera": "224101.jpg"
-        }
+        The key is the name of the rgb sensor, and the value is the path to the background image.
+        example:{"camera_name": "path/to/greenscreen/background.png"}
+        """
+        self.rgb_overlay_mode: Optional[Literal["none", "debug", "background"]] = "background"
         self.render_objects = [
             SceneEntityCfg("object"),
             SceneEntityCfg("robot"),
         ]
-        self.setup_camera_and_foreground()
+        self.rgb_overlay_images: Dict[str, torch.Tensor] = {}
+        self.foreground_semantic_id_mapping: Dict[str, int] = {}
+        self.rgb_overlay_paths = {
+            "global_camera": "224101.jpg"
+        }
+
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
+        super().modify_env_cfg(env_cfg)
+
+        self.setup_camera_and_foreground(env_cfg)
         # self.__record_semantic_id_mapping()
 
-    def setup_camera_and_foreground(self):
+    def setup_camera_and_foreground(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
         """Setup the camera for the ManagerBasedRLDigitalTwinEnv.
         1. add semantic tags to the render objects
         2. add semantic segmentation to the camera data types.
         3. modify the observation cfg to add overlay_image.
         """
         for obj in self.render_objects:
-            obj_cfg = getattr(self.scene, obj.name)
+            obj_cfg = getattr(env_cfg.scene, obj.name)
             obj_cfg.spawn.semantic_tags = [("class", "foreground")]
 
         if self.rgb_overlay_paths is not None:
             for camera_name, path in self.rgb_overlay_paths.items():
                 # preprocess camera cfg
-                camera_cfg = getattr(self.scene, camera_name)
+                camera_cfg = getattr(env_cfg.scene, camera_name)
                 if 'semantic_segmentation' not in camera_cfg.data_types:
                     camera_cfg.data_types.append('semantic_segmentation')
                 camera_cfg.colorize_semantic_segmentation = False
-                overlayed_image = self.read_overlay_image(path, target_size=(camera_cfg.width, camera_cfg.height)).to(self.sim.device)
+                overlayed_image = self.read_overlay_image(path, target_size=(camera_cfg.width, camera_cfg.height)).to(env_cfg.sim.device)
                 self.rgb_overlay_images[camera_name] = overlayed_image.repeat(self.context.num_envs, 1, 1, 1)
                 # preprocess observation cfg
                 # observation_cfg = getattr(cfg.observations.policy, camera_name)
@@ -481,9 +383,8 @@ class LeRobotLiftObjDigitalTwinCfg(LeRobotStateLiftObjRLEnvCfg):
 
 
 @configclass
-class LeRobot100LiftObjDigitalTwinCfg(LERobot100EnvRLCfg, LeRobotLiftObjDigitalTwinCfg):
+class LeRobot100LiftObjDigitalTwin(LeRobotLiftObjDigitalTwin):
 
-    def __post_init__(self):
-        super().__post_init__()
-        # for LeRobot-RL
-        self.commands.object_pose.body_name = "Fixed_Jaw_tip"
+    def setup_env_config(self, orchestrator):
+        super().setup_env_config(orchestrator)
+        orchestrator.task.commands_cfg.object_pose.body_name = "Fixed_Jaw_tip"

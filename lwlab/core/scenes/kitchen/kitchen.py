@@ -29,7 +29,7 @@ from isaaclab.sensors import ContactSensorCfg
 from isaaclab.assets import RigidObjectCfg
 from isaaclab.managers import EventTermCfg as EventTerm
 from isaaclab.managers import TerminationTermCfg as DoneTerm
-from isaac_arena.environments.isaac_arena_manager_based_env import IsaacArenaManagerBasedRLEnvCfg
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 from lwlab.core.tasks.base import TerminationsCfg
 
 from ..base import BaseSceneEnvCfg
@@ -53,10 +53,10 @@ from lwlab.utils.fixture_utils import fixture_is_type
 from lwlab.utils.place_utils.usd_object import USDObject
 
 
-from isaac_arena.scene.scene import Scene
-from isaac_arena.assets.background import Background
-from isaac_arena.assets.object_reference import ObjectReference
-from isaac_arena.assets.object_base import ObjectType
+from isaaclab_arena.scene.scene import Scene
+from isaaclab_arena.assets.background import Background
+from isaaclab_arena.assets.object_reference import ObjectReference
+from isaaclab_arena.assets.object_base import ObjectType
 from isaaclab.utils import configclass
 from lwlab.utils.log_utils import copy_dict_for_json
 from isaaclab.assets import AssetBaseCfg
@@ -173,7 +173,7 @@ class LwLabScene(Scene, NoDeepcopyMixin):
         ep_meta["floorplan_version"] = self.floorplan_version
         return ep_meta
 
-    def modify_env_cfg(self, env_cfg: IsaacArenaManagerBasedRLEnvCfg):
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
         """
         modify the environment configuration
         """
@@ -182,11 +182,15 @@ class LwLabScene(Scene, NoDeepcopyMixin):
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
         env_cfg.sim.render.enable_translucency = True
 
-        # add light in scene
-        light = AssetBaseCfg(
-            prim_path="{ENV_REGEX_NS}/light",
-            spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=9000.0),
-        )
-        setattr(env_cfg.scene, "light", light)
+        # add light in scene(if never added)
+        if not hasattr(env_cfg.scene, "light"):
+            light = AssetBaseCfg(
+                prim_path="{ENV_REGEX_NS}/light",
+                spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=9000.0),
+            )
+            setattr(env_cfg.scene, "light", light)
+
+        if self.context.execute_mode == ExecuteMode.TELEOP:
+            env_cfg.ui_window_class_type = None
 
         return env_cfg

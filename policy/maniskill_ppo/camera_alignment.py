@@ -153,14 +153,13 @@ def main():
             task_name=args_cli.task,
             robot_name=args_cli.robot,
             scene_name=args_cli.layout,
+            rl_name=args_cli.rl,
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.TRAIN,
             usd_simplify=args_cli.usd_simplify,
-            for_rl=True,
-            rl_variant=args_cli.variant,
             seed=args_cli.seed,
             sources=args_cli.sources,
             object_projects=args_cli.object_projects,
@@ -216,9 +215,9 @@ def main():
     base_pos_offset = None
     base_rot_offset = None
 
-    if hasattr(env.env.isaac_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset, "pos"):
-        base_pos_offset = np.array(env.env.isaac_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset.pos, dtype=np.float32)
-        base_rot_offset = np.array(env.env.isaac_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset.rot, dtype=np.float32)
+    if hasattr(env.env.isaaclab_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset, "pos"):
+        base_pos_offset = np.array(env.env.isaaclab_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset.pos, dtype=np.float32)
+        base_rot_offset = np.array(env.env.isaaclab_arena_env.embodiment.cfg.observation_cameras['global_camera']['camera_cfg'].offset.rot, dtype=np.float32)
 
     camera_offset = np.zeros(3, dtype=np.float32)
     active_keys = set()

@@ -30,7 +30,7 @@ class KitchenCoffeeCollisionChecker(BaseChecker):
         Returns:
             dict: Dictionary containing total collision times.
         """
-        self.coffee_machine = env.cfg.isaac_arena_env.task.get_fixture(FixtureType.COFFEE_MACHINE)
+        self.coffee_machine = env.cfg.isaaclab_arena_env.task.get_fixture(FixtureType.COFFEE_MACHINE)
 
         if self._coffee_collision_counts is None:
             self._coffee_collision_counts = 0
@@ -43,8 +43,8 @@ class KitchenCoffeeCollisionChecker(BaseChecker):
 
         cup_coffee_collision = False
 
-        cup_coffee_collision = check_contact(env, env.cfg.isaac_arena_env.task.objects["obj"], self.coffee_machine)
-        z_checks = env.cfg.isaac_arena_env.task.coffee_machine.get_z_checks()
+        cup_coffee_collision = check_contact(env, env.cfg.isaaclab_arena_env.task.objects["obj"], self.coffee_machine)
+        z_checks = env.cfg.isaaclab_arena_env.task.coffee_machine.get_z_checks()
         for z_check in z_checks:
             if not z_check and cup_coffee_collision and self._coffee_collision_warning_frame_count == 0:
                 self._coffee_collision_warning_text = "kitchen_coffee_collision Warning: Collision between <<Mug>> and <<Coffee_Machine>> happens"

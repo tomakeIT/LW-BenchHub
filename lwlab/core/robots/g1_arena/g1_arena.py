@@ -1,8 +1,8 @@
-from isaac_arena.embodiments.g1.g1 import G1WBCJointEmbodiment, G1WBCPinkEmbodiment
+from isaaclab_arena.embodiments.g1.g1 import G1WBCJointEmbodiment, G1WBCPinkEmbodiment
 from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase
 from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
 from lwlab.core.robots.unitree.g1 import G1_GEARWBC_CFG
-from isaac_arena.utils.pose import Pose
+from isaaclab_arena.utils.pose import Pose
 import torch
 import numpy as np
 import lwlab.utils.math_utils.transform_utils.torch_impl as T

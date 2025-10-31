@@ -74,7 +74,7 @@ class ManipulateDoor(LwLabTaskBase):
             self.fxtr.open_door(env=env, env_ids=env_ids)
         # set the door state then place the objects otherwise objects initialized in opened drawer will fall down before the drawer is opened
         super()._setup_scene(env, env_ids)
-        self._place_robot(scene=env.cfg.isaac_arena_env.scene)
+        self._place_robot(scene=env.cfg.isaaclab_arena_env.scene)
 
     def _place_robot(self, scene: LwLabScene):
         pass

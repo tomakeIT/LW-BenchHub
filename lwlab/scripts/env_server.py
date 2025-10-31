@@ -64,6 +64,7 @@ def make_env_cfg():
             task_name=args_cli.task,
             robot_name=args_cli.robot,
             scene_name=args_cli.layout,
+            rl_name=args_cli.rl,
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
             first_person_view=args_cli.first_person_view,
@@ -73,8 +74,6 @@ def make_env_cfg():
             seed=args_cli.seed,
             sources=args_cli.sources,
             object_projects=args_cli.object_projects,
-            for_rl=args_cli.for_rl,
-            rl_variant=args_cli.variant,
             headless_mode=args_cli.headless,
         )
         task_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"

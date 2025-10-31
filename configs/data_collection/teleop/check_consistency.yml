@@ -1,3 +1,5 @@
+_base_:
+  - teleop_base
 dataset_file: ./datasets/dataset.hdf5
 device: cpu
 disable_fabric: false

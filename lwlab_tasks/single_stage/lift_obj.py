@@ -72,7 +72,6 @@ class LeRobotVisualObservationsCfg:
     policy: PolicyCfg = PolicyCfg()
 
 
-@configclass
 class LiftObj(LwLabTaskBase):
     """
     Class encapsulating the atomic pick and place tasks.
@@ -84,10 +83,11 @@ class LiftObj(LwLabTaskBase):
     """
     counter_id: FixtureType = FixtureType.COUNTER
     task_name: str = "LiftObj"
-    fix_object_pose_cfg: dict = {"object": {"pos": (2.94, -4.08, 0.95)}}  # y- near to robot
-    resample_robot_placement_on_reset = False
-    events: EventCfg = EventCfg()
-    observations: LeRobotVisualObservationsCfg = LeRobotVisualObservationsCfg()
+
+    def __init__(self):
+        super().__init__()
+        self.fix_object_pose_cfg: dict = {"object": {"pos": (2.94, -4.08, 0.95)}}  # y- near to robot
+        self.resample_robot_placement_on_reset = False
 
     def _setup_kitchen_references(self, scene):
         """
@@ -96,7 +96,7 @@ class LiftObj(LwLabTaskBase):
         """
         super()._setup_kitchen_references(scene)
 
-        self.counter = self.register_fixture_ref("counter", dict(id=self.counter_id, fix_id=2))
+        self.counter = self.register_fixture_ref("counter", dict(id=self.counter_id, fix_id=0))
         # self.useful_fixture_names = [self.counter.name]
         self.init_robot_base_ref = self.counter
 

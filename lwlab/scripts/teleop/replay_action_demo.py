@@ -304,7 +304,7 @@ def main():
     import h5py
 
     # simulate environment -- run everything in inference mode
-    num_cameras = sum(env.cfg.isaac_arena_env.task.task_type in c["tags"] for c in env.cfg.isaac_arena_env.embodiment.observation_cameras.values())
+    num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
     if num_cameras > 4:
         # two rows layout: height is twice the original, width is the maximum width of each row
         cameras_per_row = (num_cameras + 1) // 2
@@ -609,7 +609,7 @@ def main():
 
     def save_metrics():
         """Save metrics data to JSON file"""
-        metrics_data = env_cfg.isaac_arena_env.task.get_checker_results()
+        metrics_data = env_cfg.isaaclab_arena_env.task.get_checker_results()
 
         # Save metrics to JSON file
         if metrics_data:

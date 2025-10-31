@@ -1218,8 +1218,8 @@ def set_robot_to_position(env: ManagerBasedRLEnv, global_pos, global_ori, keep_z
         robot_z = global_pos[2]
     robot_pos = torch.tensor([[global_pos[0], global_pos[1], robot_z]], dtype=torch.float32, device=env.device) + env.scene.env_origins[env_ids]
     robot_quat = T.convert_quat(T.mat2quat(T.euler2mat(global_ori)), "wxyz")
-    env.cfg.isaac_arena_env.embodiment.scene_config.robot.init_state.pos = robot_pos
-    env.cfg.isaac_arena_env.embodiment.scene_config.robot.init_state.rot = robot_quat
+    env.cfg.isaaclab_arena_env.embodiment.scene_config.robot.init_state.pos = robot_pos
+    env.cfg.isaaclab_arena_env.embodiment.scene_config.robot.init_state.rot = robot_quat
     robot_quat = torch.tensor(robot_quat, dtype=torch.float32, device=env.device).unsqueeze(0).repeat(env_ids.shape[0], 1)
     robot_pose = torch.concat([robot_pos, robot_quat], dim=-1)
     env.scene.articulations["robot"].write_root_pose_to_sim(robot_pose, env_ids=env_ids)
@@ -1259,7 +1259,7 @@ def check_valid_robot_pose(env: ManagerBasedRLEnv, robot_pos, env_ids=None):
     robot_bbox = calculate_robot_bbox(env, robot_pos)
     scene_prim = None
     for prim in env.sim.stage.Traverse():
-        if prim.IsValid() and prim.GetName().lower() == env.cfg.isaac_arena_env.scene.scene_type:
+        if prim.IsValid() and prim.GetName().lower() == env.cfg.isaaclab_arena_env.scene.scene_type:
             scene_prim = prim
             break
     scene_bbox = OpenUsd.get_prim_aabb_bounding_box(scene_prim) if scene_prim else None
@@ -1434,8 +1434,8 @@ def get_safe_robot_anchor(cfg, unsafe_anchor_pos, unsafe_anchor_ori):
 
 
 def set_camera_follow_pose(env: ManagerBasedRLEnv, offset, lookat):
-    if env.cfg.isaac_arena_env.embodiment.robot_base_link is not None:
-        robot_base_link_idx = env.scene.articulations["robot"].data.body_names.index(env.cfg.isaac_arena_env.embodiment.robot_base_link)
+    if env.cfg.isaaclab_arena_env.embodiment.robot_base_link is not None:
+        robot_base_link_idx = env.scene.articulations["robot"].data.body_names.index(env.cfg.isaaclab_arena_env.embodiment.robot_base_link)
         robot_mat = T.quat2mat(env.scene.articulations["robot"].data.body_com_quat_w[..., robot_base_link_idx, :][0].cpu().numpy()[[1, 2, 3, 0]])
         robot_pos = env.scene.articulations["robot"].data.body_com_pos_w[..., robot_base_link_idx, :][0].cpu().numpy()
         robot_pos += (robot_mat @ np.array(offset).reshape(3, 1))[:, 0]

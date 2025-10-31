@@ -1,9 +1,9 @@
 from typing import Any, Dict, Optional
-from isaac_arena.orchestrator.orchestrator_base import OrchestratorBase
-from isaac_arena.embodiments.embodiment_base import EmbodimentBase
-from isaac_arena.scene.scene import Scene
-from isaac_arena.tasks.task_base import TaskBase
-from isaac_arena.utils.pose import Pose
+from isaaclab_arena.orchestrator.orchestrator_base import OrchestratorBase
+from isaaclab_arena.embodiments.embodiment_base import EmbodimentBase
+from isaaclab_arena.scene.scene import Scene
+from isaaclab_arena.tasks.task_base import TaskBase
+from isaaclab_arena.utils.pose import Pose
 from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 import torch
 from lwlab.utils.place_utils import env_utils as EnvUtils

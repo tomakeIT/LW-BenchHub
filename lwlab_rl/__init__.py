@@ -16,6 +16,61 @@ from lwlab.core.rl import register_rl_env
 from .open_drawer import agents as open_drawer_agents
 from .lift_obj import agents as lift_obj_agents
 
+import gymnasium as gym
+gym.register(
+    id="Robocasa-Rl-G1LiftObjStateRL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:G1LiftObjStateRL",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Rl-G1LiftObjVisualRL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:G1LiftObjVisualRL",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Rl-LeRobotLiftObjStateRL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjStateRL",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Rl-LeRobotLiftObjVisualRL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjVisualRL",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Rl-LeRobotLiftObjDigitalTwin",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjDigitalTwin",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Rl-LeRobot100LiftObjStateRL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobot100LiftObjStateRL",
+    },
+    disable_env_checker=True,
+)
+
 register_rl_env(
     robot_name="G1-RL",
     task_name="OpenDrawer",

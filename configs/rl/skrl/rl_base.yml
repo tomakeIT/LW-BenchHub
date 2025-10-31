@@ -14,7 +14,7 @@ sources:                     # Object source name
 object_projects: []          # Object project name
 robot: null                  # Robot cfg name
 task: null                   # Task cfg name
-variant: null                # RL variant name, define when register the RL config
+rl: null                     # RL cfg name
 usd_simplify: false          # USD simplify enable
 use_fabric: true    # Use fabric
 

@@ -289,7 +289,7 @@ def main():
 
     def save_metrics(env):
         """Save metrics data to JSON file"""
-        metrics_data = env.cfg.isaac_arena_env.task.get_checker_results()
+        metrics_data = env.cfg.isaaclab_arena_env.task.get_checker_results()
 
         # Save metrics to JSON file
         if metrics_data:
@@ -495,15 +495,15 @@ def main():
         if keep_placement:
             # if initial_state is None:
             #     initial_state = copy.deepcopy(env.recorder_manager.get_episode(0).data["initial_state"])
-            if "robocasalibero" in env.cfg.isaac_arena_env.scene.usd_path:
+            if "robocasalibero" in env.cfg.isaaclab_arena_env.scene.usd_path:
                 scene_name = "robocasalibero"
             else:
                 scene_name = "robocasakitchen"
-            scene_name = f"{scene_name}-{env.cfg.isaac_arena_env.scene.layout_id}-{env.cfg.isaac_arena_env.scene.style_id}"
-            object_cfgs = copy.deepcopy(env.cfg.isaac_arena_env.task.object_cfgs)
+            scene_name = f"{scene_name}-{env.cfg.isaaclab_arena_env.scene.layout_id}-{env.cfg.isaaclab_arena_env.scene.style_id}"
+            object_cfgs = copy.deepcopy(env.cfg.isaaclab_arena_env.task.object_cfgs)
             cache_usd_version = {
-                "floorplan_version": env.cfg.isaac_arena_env.scene.floorplan_version,
-                "objects_version": env.cfg.isaac_arena_env.task.objects_version
+                "floorplan_version": env.cfg.isaaclab_arena_env.scene.floorplan_version,
+                "objects_version": env.cfg.isaaclab_arena_env.task.objects_version
             }
             cache_usd_version["keep_placement"] = True
             from lwlab.utils.robocasa_utils import convert_fixture_to_name
@@ -580,7 +580,7 @@ def main():
         if not args_cli.headless:
             viewports, overlay_window = setup_env_config_with_args(env)
 
-        print(colored(env_cfg.isaac_arena_env.orchestrator.get_ep_meta()["lang"], "green"))
+        print(colored(env_cfg.isaaclab_arena_env.orchestrator.get_ep_meta()["lang"], "green"))
 
         current_recorded_demo_count = 0
         success_step_count = 0
@@ -708,7 +708,7 @@ def main():
                         env.step(actions)
                         if initial_state is None:
                             initial_state = copy.deepcopy(env.recorder_manager.get_episode(0).data["initial_state"])
-                        update_checkers_status(env, env_cfg.isaac_arena_env.task.get_warning_text())
+                        update_checkers_status(env, env_cfg.isaaclab_arena_env.task.get_warning_text())
                     except Exception as e:
                         print(f"Error during env step: {traceback.format_exc()}")
                         handle_exception_and_log(e, log_path)
@@ -739,7 +739,7 @@ def main():
                     step_time = time.time() - step_start
                     frame_analyzer.record_stage('env_step', step_time)
 
-                    update_checkers_status(env, env_cfg.isaac_arena_env.task.get_warning_text())
+                    update_checkers_status(env, env_cfg.isaaclab_arena_env.task.get_warning_text())
 
                 # Recorded
                 if env_cfg.enable_cameras and start_record_state and video_recorder is not None:

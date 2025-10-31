@@ -98,7 +98,7 @@ class StandMixer(Fixture):
         """
         Check if an object is in the bowl of the stand mixer.
         """
-        obj = env.cfg.isaac_arena_env.task.objects[obj_name]
+        obj = env.cfg.isaaclab_arena_env.task.objects[obj_name]
         sites = self.get_int_sites(relative=False)
         all_in = np.array([True]).repeat(env.num_envs)
         for env_id in range(env.num_envs):

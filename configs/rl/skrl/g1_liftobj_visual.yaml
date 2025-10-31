@@ -1,5 +1,6 @@
 _base_:
   - g1_liftobj_state
+rl: G1LiftObjVisualRL
 num_envs: 200
 variant: Visual
 enable_cameras: true
