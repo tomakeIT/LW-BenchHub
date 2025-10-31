@@ -15,12 +15,21 @@ class Libero10PutInBasket(LwLabTaskBase):
     enable_fixtures = ['ketchup']
     removable_fixtures = enable_fixtures
 
+    def __post_init__(self):
+        self.activate_contact_sensors = False
+        super().__post_init__()
+
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)
         self.counter = self.register_fixture_ref("table", dict(id=FixtureType.TABLE))
         self.ketchup = self.register_fixture_ref("ketchup", dict(id=FixtureType.KETCHUP, ref=self.counter))
 
         self.init_robot_base_ref = self.counter
+
+        # Check if ketchup fixture was found
+        if self.ketchup is None:
+            print(f"Warning: Layout {self.layout_id} does not have a ketchup fixture. Task may not work correctly.")
+
         self.place_success = {}
         self.alphabet_soup = "alphabet_soup"
         self.basket = "basket"
@@ -83,7 +92,7 @@ class Libero10PutInBasket(LwLabTaskBase):
         add_cfg(self.alphabet_soup, self.alphabet_soup, True, alphabet_soup_placement, mjcf_path="/objects/lightwheel/alphabet_soup/AlphabetSoup001/model.xml", object_scale=0.8)
         add_cfg(self.basket, self.basket, True, basket_placement, mjcf_path="/objects/lightwheel/basket/Basket058/model.xml")
         add_cfg(self.butter, self.butter, True, butter_placement, mjcf_path="/objects/lightwheel/butter/Butter001/model.xml")
-        add_cfg(self.cream_cheese, self.cream_cheese, True, cream_cheese_placement, object_scale=0.2, mjcf_path="/objects/lightwheel/cream_cheese_stick/CreamCheeseStick013/model.xml")
+        add_cfg(self.cream_cheese, self.cream_cheese, True, cream_cheese_placement, mjcf_path="/objects/lightwheel/cream_cheese_stick/CreamCheeseStick013/model.xml")
         add_cfg(self.milk, self.milk, True, milk_placement, mjcf_path="/objects/lightwheel/milk_drink/MilkDrink009/model.xml")
         add_cfg(self.orange_juice, self.orange_juice, True, orange_juice_placement, mjcf_path="/objects/lightwheel/orange_juice/OrangeJuice001/model.xml")
         add_cfg(self.tomato_sauce, self.tomato_sauce, True, tomato_sauce_placement, mjcf_path="/objects/lightwheel/ketchup/Ketchup003/model.xml", object_scale=0.8)

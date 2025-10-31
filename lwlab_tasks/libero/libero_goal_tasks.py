@@ -877,7 +877,7 @@ class LGPutTheWineBottleOnTheRack(LiberoGoalTasksBase):
         wine_bottle_placement = get_placement((0.0, -0.3), (0.5, 0.5))
         cream_cheese_placement = get_placement((0.2, -0.7), (0.7, 0.7))
         plate_placement = get_placement((0.4, -1.3), (0.7, 0.7))
-        bowl_placement = get_placement((-0.3, 0.0), (0.5, 0.7))
+        bowl_placement = get_placement((0.6, -1.5), (0.5, 0.7))  # Bottom-right corner of table
 
         add_cfg(self.plate, "plate", False, plate_placement,
                 mjcf_path="/objects/lightwheel/plate/Plate012/model.xml")

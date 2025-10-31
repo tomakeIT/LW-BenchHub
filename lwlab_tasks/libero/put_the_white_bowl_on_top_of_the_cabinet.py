@@ -15,7 +15,7 @@ class L90K9PutTheWhiteBowlOnTopOfTheCabinet(LwLabTaskBase):
         ep_meta = super().get_ep_meta()
         ep_meta[
             "lang"
-        ] = f"Put the black bowl on the plate."
+        ] = f"Put the white bowl on top of the cabinet"
         return ep_meta
 
     def _setup_kitchen_references(self, scene):

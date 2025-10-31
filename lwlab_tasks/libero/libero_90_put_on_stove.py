@@ -86,7 +86,7 @@ class L90K3PutTheFryingPanOnTheStove(_BasePutOnStove):
                 pos=pos,
                 rotation=rotation,
                 margin=0.02,
-                ensure_valid_placement=True,
+                ensure_valid_placement=False,
             )
 
         def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, init_robot_here=False, object_scale=None):
@@ -99,7 +99,7 @@ class L90K3PutTheFryingPanOnTheStove(_BasePutOnStove):
                 cfg["object_scale"] = object_scale
             cfgs.append(cfg)
 
-        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.5, 0.5), rotation=-np.pi / 2)
+        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.8, 0.8), rotation=-np.pi / 2)
         # moka_pl = get_placement()
 
         # categories registered in kitchen_objects: pot, moka_pot
@@ -133,14 +133,14 @@ class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
     def _get_obj_cfgs(self):
         cfgs = []
 
-        def get_placement(pos=(0.55, -1.0), size=(0.5, 0.5), rotation=None):
+        def get_placement(pos=(0.55, -1.0), size=(0.8, 0.8), rotation=None):
             return dict(
                 fixture=self.counter,
                 size=size,
                 pos=pos,
                 rotation=rotation,
                 margin=0.02,
-                ensure_valid_placement=True,
+                ensure_valid_placement=False,
             )
 
         def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, init_robot_here=False, object_scale=None):
@@ -153,7 +153,7 @@ class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
                 cfg["object_scale"] = object_scale
             cfgs.append(cfg)
 
-        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.5, 0.5), rotation=-np.pi / 2)
+        pan_pl = get_placement(pos=(1.0, -0.75), size=(0.8, 0.8), rotation=-np.pi / 2)
         # moka_pl = get_placement()
 
         # categories registered in kitchen_objects: pot, moka_pot
@@ -162,9 +162,15 @@ class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
 
         return cfgs
 
-    def _check_success(self, env):
-        success = OU.check_place_obj1_on_obj2(env, self.mokapot, self.stove)
-
+    def _check_success(self):
+       # Check if moka pot (fixture) is placed on stove
+        success = OU.check_place_obj1_on_obj2(
+            self.env,
+            self.mokapot,
+            self.stove,
+            th_xy_dist=0.5,  # Allow larger distance since stove is big
+            gipper_th=0.4    # Gripper distance threshold
+        )
         return success
 
 

@@ -491,16 +491,34 @@ def check_obj_grasped(env, obj_name, threshold=0.035):
     return gripper_closed & is_contact
 
 
-def gripper_obj_far(env: ManagerBasedEnv, obj_name: str = "obj", th: float = 0.25, eef_name: str = None) -> torch.Tensor:
+def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None, force_th=0.1) -> torch.Tensor:
     """
-    check if gripper is far from object based on distance defined by threshold
+    Check if gripper is far from object based on distance and contact force.
+    For articulation objects, checks distance to all body parts (root + all joints).
+    Also checks contact force sensors to ensure no physical contact.
+
+    Args:
+        env: Environment object
+        obj_name: Name of the object to check distance from
+        th: Distance threshold (meters)
+        eef_name: Specific end-effector name to check (if None, checks all)
+        force_th: Force threshold (N) - contact force must be below this
+
+    Returns:
+        Boolean tensor (num_envs,) - True if gripper is far from object
     """
-    if obj_name in env.cfg.isaac_arena_env.task.objects:
-        obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[:, 0:1, :]  # (num_envs, 1, 3)
+    if obj_name in env.cfg.objects:
+        # Rigid object: use all body centers of mass
+        obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w  # (num_envs, num_bodies, 3)
     else:
+        # Articulation object: use all body centers of mass
         if not isinstance(obj_name, str):
             obj_name = obj_name.name
-        obj_pos = env.scene.state['articulation'][obj_name]['root_pose'][:, :3].unsqueeze(1)  # (num_envs, 1, 3)
+
+        # Get the articulation object
+        articulation_obj = env.scene.articulations[obj_name]
+        # Get all body centers of mass (includes root + all joints)
+        obj_pos = articulation_obj.data.body_com_pos_w  # (num_envs, num_bodies, 3)
 
     if eef_name is None:
         gripper_site_pos = env.scene["ee_frame"].data.target_pos_w  # (num_envs, num_eefs, 3)
@@ -508,8 +526,37 @@ def gripper_obj_far(env: ManagerBasedEnv, obj_name: str = "obj", th: float = 0.2
         eef_frame_data = env.scene['ee_frame'].data
         eef_index = eef_frame_data.target_frame_names.index(eef_name)
         gripper_site_pos = eef_frame_data.target_pos_w[:, eef_index: eef_index + 1, :]  # (num_envs, 1, 3)
-    gripper_obj_far = torch.norm(gripper_site_pos - obj_pos, dim=-1) > th  # (num_envs, num_eefs)
-    return torch.all(gripper_obj_far, dim=-1)  # (num_envs, )
+
+    # gripper_site_pos: (num_envs, num_eefs, 3)
+    # obj_pos: (num_envs, num_bodies, 3)
+
+    gripper_expanded = gripper_site_pos.unsqueeze(2)  # (num_envs, num_eefs, 1, 3)
+    obj_expanded = obj_pos.unsqueeze(1)  # (num_envs, 1, num_bodies, 3)
+
+    # Compute distance to all bodies: (num_envs, num_eefs, num_bodies)
+    distances = torch.norm(gripper_expanded - obj_expanded, dim=-1)
+
+    # Distance check: gripper must be far from all body parts
+    distance_check = torch.all(distances > th, dim=-1)  # (num_envs, num_eefs)
+    distance_far = torch.all(distance_check, dim=-1)  # (num_envs,)
+
+    # Contact force check: no significant contact force
+    force_check = torch.ones(env.num_envs, dtype=torch.bool, device=env.device)
+
+    # Check left gripper contact force
+    if "left_gripper_contact" in env.scene.sensors:
+        left_force = env.scene.sensors["left_gripper_contact"]._data.net_forces_w[:, 0, :]  # (num_envs, 3)
+        left_force_norm = torch.norm(left_force, dim=-1)  # (num_envs,)
+        force_check &= (left_force_norm < force_th)
+
+    # Check right gripper contact force
+    if "right_gripper_contact" in env.scene.sensors:
+        right_force = env.scene.sensors["right_gripper_contact"]._data.net_forces_w[:, 0, :]  # (num_envs, 3)
+        right_force_norm = torch.norm(right_force, dim=-1)  # (num_envs,)
+        force_check &= (right_force_norm < force_th)
+
+    # Combined check: both distance and force conditions must be satisfied
+    return distance_far & force_check
 
 
 def gripper_fixture_far(env: ManagerBasedEnv, fixture_object: str, th: float = 0.2) -> torch.Tensor:

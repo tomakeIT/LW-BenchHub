@@ -87,6 +87,8 @@ class L90L5PutTheRedMugOnTheRightPlate(L10L6PutWhiteMugOnPlateAndPutChocolatePud
     """
 
     task_name: str = "L90L5PutTheRedMugOnTheRightPlate"
+    # observations: VisualObservationsCfg = VisualObservationsCfg()
+    # reset_objects_enabled: bool = True
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()

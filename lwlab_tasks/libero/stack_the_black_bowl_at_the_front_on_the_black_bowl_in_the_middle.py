@@ -43,16 +43,16 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LwLabTaskBase):
                 obj_groups=["bowl"],
                 graspable=True,
                 washable=True,
-                object_scale=0.8,
+                object_scale=0.7,  # Scale down bowls to fit better
                 info=dict(
                     mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
                 ),
                 init_robot_here=True,
                 placement=dict(
                     fixture=self.dining_table,
-                    size=(0.50, 0.25),
+                    size=(0.30, 0.30),  # Reduce sampling area
                     margin=0.02,
-                    pos=(0.0, -0.4),
+                    pos=(0.0, -0.5),
                 ),
             )
         )
@@ -62,15 +62,15 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LwLabTaskBase):
                 obj_groups=["bowl"],
                 graspable=True,
                 washable=True,
-                object_scale=0.8,
+                object_scale=0.7,  # Scale down bowls to fit better
                 info=dict(
                     mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
                 ),
                 placement=dict(
                     fixture=self.dining_table,
-                    size=(0.50, 0.35),
+                    size=(0.30, 0.30),  # Reduce sampling area
                     margin=0.02,
-                    pos=(0.0, -0.8),
+                    pos=(0.0, -0.9),
                 ),
             )
         )
@@ -80,15 +80,15 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LwLabTaskBase):
                 obj_groups=["bowl"],
                 graspable=True,
                 washable=True,
-                object_scale=0.8,
+                object_scale=0.7,  # Scale down bowls to fit better
                 info=dict(
                     mjcf_path="/objects/lightwheel/bowl/Bowl008/model.xml"
                 ),
                 placement=dict(
                     fixture=self.dining_table,
-                    size=(0.50, 0.35),
+                    size=(0.30, 0.30),  # Reduce sampling area
                     margin=0.02,
-                    pos=(-0.1, -0.3),
+                    pos=(0.3, -0.2),
                 ),
             )
         )
@@ -104,9 +104,9 @@ class L90K2StackTheBlackBowlAtTheFrontOnTheBlackBowlInTheMiddle(LwLabTaskBase):
                 ),
                 placement=dict(
                     fixture=self.dining_table,
-                    size=(0.6, 0.35),
+                    size=(0.35, 0.30),  # Reduce sampling area
                     margin=0.02,
-                    pos=(-0.3, -0.5)
+                    pos=(-0.4, -0.5)
                 ),
             )
         )
