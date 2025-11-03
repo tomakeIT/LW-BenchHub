@@ -25,7 +25,7 @@ class Context:
     object_projects: list[str] | None = None
     headless_mode: bool = False
     extra_params: dict | None = None
-    replay_cfgs: dict | None = None
+    replay_cfgs: dict | None = field(default_factory=dict)
     resample_objects_placement_on_reset: bool | None = None
     resample_robot_placement_on_reset: bool | None = None
     num_envs: int | None = 1

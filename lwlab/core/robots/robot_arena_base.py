@@ -33,6 +33,9 @@ from lwlab.core.context import get_context
 from lwlab.utils.place_utils.env_utils import get_safe_robot_anchor
 import lwlab.utils.place_utils.env_utils as EnvUtils
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
+from isaaclab_arena.utils.cameras import make_camera_observation_cfg
+from isaaclab_arena.utils.configclass import combine_configclass_instances
+from isaaclab.managers import ObservationTermCfg as ObsTerm
 
 
 @configclass
@@ -139,14 +142,17 @@ class EmbodimentBaseObservationCfg:
 
 
 @configclass
-class EmbodimentBasePolicyObservationCfg:
+class EmbodimentBasePolicyObservationCfg(ObsGroup):
     """Observations for policy group."""
-    enable_corruption: bool = True
-    concatenate_terms: bool = False
+
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = False
 
 
 class LwLabEmbodimentBase(EmbodimentBase):
     observation_cameras: dict | None = {}
+    active_observation_camera_names: list[str] = []
     robot_vis_helper_cfg: dict | None = None
     robot_base_link: str | None = None
 
@@ -179,11 +185,23 @@ class LwLabEmbodimentBase(EmbodimentBase):
                         cam_info["camera_cfg"].width = render_resolution[0]
                         cam_info["camera_cfg"].height = render_resolution[1]
 
-    def _setup_camera_config(self, task_type: str):
+    def _setup_camera_config(self, task_type):
         for cam_name, cam_info in self.observation_cameras.items():
-            if task_type not in cam_info["tags"]:
-                continue
-            setattr(self.camera_config, cam_name, cam_info["camera_cfg"])
+            if task_type in cam_info["tags"]:
+                cam_info = self.observation_cameras[cam_name]
+                setattr(self.camera_config, cam_name, cam_info["camera_cfg"])
+        if self.enable_cameras and self.camera_config and self.add_camera_to_observation:
+            camera_observation_config = make_camera_observation_cfg(self.camera_config)
+            camera_observations = camera_observation_config.camera_obs
+            for field_name in camera_observations.__dataclass_fields__:
+                field = camera_observations.__dataclass_fields__[field_name]
+                if isinstance(field.type, type) and issubclass(field.type, ObsTerm):
+                    self.active_observation_camera_names.append(field_name)
+            self.policy_observation_config = combine_configclass_instances(
+                "PolicyObservationCfg",
+                camera_observations,
+                self.policy_observation_config,
+            )
 
     def get_recorder_term_cfg(self):
         if self.context.execute_mode in [ExecuteMode.TELEOP, ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS]:
@@ -193,9 +211,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
         return self.observation_config
 
     def get_policy_observation_cfg(self):
-        if self.add_camera_to_observation:
-            return super().get_observation_cfg()
-        return None
+        return self.policy_observation_config
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor]) -> torch.Tensor:
         pass
@@ -248,7 +264,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
         return env_cfg
 
     def set_replay_joint_targets_action(self, cfg):
-        cfg.actions = ActionsCfg()
+        cfg.actions = EmbodimentBaseActionsCfg()
         cfg.actions.joint_targets = JointReplayPositionActionCfg()
 
     def get_ep_meta(self):

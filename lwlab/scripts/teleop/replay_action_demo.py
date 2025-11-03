@@ -225,7 +225,7 @@ def main():
             scene_name=f"{scene_name}-{env_args['layout_id']}-{env_args['style_id']}" if args_cli.layout is None else args_cli.layout,
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True,
-            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height), "ep_names": episode_names_to_replay},
+            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height), "ep_names": episode_names_to_replay, "add_camera_to_observation": True},
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.REPLAY_ACTION if args_cli.replay_mode == "action" else ExecuteMode.REPLAY_JOINT_TARGETS,
@@ -532,9 +532,9 @@ def main():
                     gt_actions = copy.deepcopy(actions)
                     gt_joint_target_list.append(gt_actions.reshape(env.cfg.decimation, -1)[-1:, ...].cpu().numpy())
                 if app_launcher._enable_cameras and video_processor:
-                    camera_names = list(env.obs_buf["camera_obs"].keys())
+                    camera_names = env.cfg.isaaclab_arena_env.embodiment.active_observation_camera_names
                     # Process images asynchronously
-                    video_processor.add_frame(obs, camera_names)
+                    video_processor.add_frame(obs['policy'], camera_names)
 
                 state_from_dataset = env_episode_data_map[0].get_next_state()
                 if state_validation_enabled:

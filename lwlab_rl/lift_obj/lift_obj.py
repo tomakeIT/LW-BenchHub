@@ -80,8 +80,9 @@ class LeRobotLiftObjStatePolicyObsCfg(G1LiftObjStatePolicyObsCfg):
     target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
     delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
 
-    enable_corruption = True
-    concatenate_terms = False
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = False
 
 
 # visual-based observations

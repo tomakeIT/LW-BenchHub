@@ -602,7 +602,7 @@ def main():
                     ep_meta["object_cfgs"] = object_cfgs
                 if cache_usd_version is not None:
                     ep_meta["cache_usd_version"] = cache_usd_version
-                replay_cfgs = None
+                replay_cfgs = {}
                 if len(ep_meta) > 0:
                     replay_cfgs = {"ep_meta": ep_meta}
                 object_init_offset = [0.0, 0.0]

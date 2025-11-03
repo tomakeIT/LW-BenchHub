@@ -225,8 +225,9 @@ class G1PolicyObservationsCfg(EmbodimentBasePolicyObservationCfg):
     eef_quat = ObsTerm(func=ee_frame_quat)
     gripper_pos = ObsTerm(func=gripper_pos)
 
-    enable_corruption = False
-    concatenate_terms = False
+    def __post_init__(self):
+        self.enable_corruption = False
+        self.concatenate_terms = False
 
 
 class UnitreeG1EnvCfg(LwLabEmbodimentBase):

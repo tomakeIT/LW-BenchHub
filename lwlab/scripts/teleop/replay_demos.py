@@ -140,7 +140,7 @@ def main():
             scene_name=f"{scene_name}-{env_args['layout_id']}-{env_args['style_id']}",
             robot_scale=args_cli.robot_scale,
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=True,
-            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height), "ep_names": episode_names_to_replay},
+            replay_cfgs={"hdf5_path": args_cli.dataset_file, "ep_meta": env_args, "render_resolution": (args_cli.width, args_cli.height), "ep_names": episode_names_to_replay, "add_camera_to_observation": True},
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.REPLAY_STATE,
@@ -257,8 +257,8 @@ def main():
                 ee_poses.append(obs['policy']['ee_pose'].cpu().numpy())
                 if app_launcher._enable_cameras and video_processor:
                     # Add frame to video processing queue
-                    camera_names = [n for n, c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.items() if env.cfg.isaaclab_arena_env.task.task_type in c["tags"]]
-                    video_processor.add_frame(obs, camera_names)
+                    camera_names = env.cfg.isaaclab_arena_env.embodiment.active_observation_camera_names
+                    video_processor.add_frame(obs['policy'], camera_names)
 
             if ee_poses:
                 ee_poses = np.concatenate(ee_poses, axis=0)

@@ -63,10 +63,12 @@ class TaskBaseObservationCfg:
 
 
 @configclass
-class TaskBasePolicyObservationCfg:
+class TaskBasePolicyObservationCfg(ObsGroup):
     """Observations for policy group."""
-    enable_corruption: bool = True
-    concatenate_terms: bool = False
+
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = False
 
 
 @configclass

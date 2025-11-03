@@ -54,6 +54,7 @@ class PandaOmronEmbodiment(LwLabEmbodimentBase):
         self.scene_config = PandaOmronSceneCfg()
         self.action_config = None
         self.observation_config = PandaOmronObservationsCfg()
+        self.policy_observation_config = PandaOmronPolicyObservationsCfg()
         self.event_config = None
         self.mimic_env = None
         self.camera_config = PandaOmronCameraCfg()
@@ -260,23 +261,23 @@ from isaaclab_tasks.manager_based.manipulation.stack.mdp.observations import ee_
 @configclass
 class PandaOmronObservationsCfg:
     """Observation specifications for the MDP."""
+    pass
 
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp_isaac_lab.last_action)
-        joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
-        eef_pos = ObsTerm(func=ee_frame_pos)
-        eef_quat = ObsTerm(func=ee_frame_quat)
-        gripper_pos = ObsTerm(func=gripper_pos)
+@configclass
+class PandaOmronPolicyObservationsCfg(ObsGroup):
+    """Observations for policy group with state values."""
 
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
+    actions = ObsTerm(func=mdp_isaac_lab.last_action)
+    joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
+    joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
+    eef_pos = ObsTerm(func=ee_frame_pos)
+    eef_quat = ObsTerm(func=ee_frame_quat)
+    gripper_pos = ObsTerm(func=gripper_pos)
 
-    policy: PolicyCfg = PolicyCfg()
+    def __post_init__(self):
+        self.enable_corruption = False
+        self.concatenate_terms = False
 
 
 @configclass
