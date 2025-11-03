@@ -78,11 +78,35 @@ class StandMixer(Fixture):
         """
         Update the state of the stand mixer
         """
+        joint_names = env.scene.articulations[self.name].data.joint_names
+        if not hasattr(self, "_lifting"):
+            self._lifting = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
         # read power button
         btn = self._joint_names["button_head_lock"]
-        if btn in env.scene.articulations[self.name].data.joint_names:
+        if btn in joint_names:
             pos = self.get_joint_state(env, [btn])[btn]
             self._button_head_lock = pos > 0.75
+
+        # head is lifting slowly when button_head_lock is pressed
+        self._lifting = self._lifting | self._button_head_lock
+        if getattr(self, "_lifting", False):
+            head_joint_name = self._joint_names["head"]
+            if head_joint_name in joint_names:
+                current_head_val = self.get_joint_state(env, [head_joint_name])[head_joint_name]
+                target_val = torch.ones_like(current_head_val, device=self.device)
+                new_head_val = torch.lerp(current_head_val, target_val, 0.1)
+                new_head_val = torch.where(self._lifting, new_head_val, current_head_val)
+                new_head_val = torch.clamp(new_head_val, 0.0, 1.0)
+                self.set_joint_state(
+                    env=env,
+                    min=new_head_val,
+                    max=new_head_val,
+                    joint_names=[head_joint_name],
+                )
+                self._head_value = new_head_val
+                lift_finished = torch.allclose(new_head_val, target_val, atol=1e-3)
+                if isinstance(lift_finished, torch.Tensor):
+                    self._lifting[lift_finished] = False
 
         # sync positions back into internal values
         mapping = {

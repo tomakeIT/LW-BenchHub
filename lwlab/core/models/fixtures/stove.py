@@ -77,6 +77,7 @@ class Stove(Fixture):
                 if 0.35 <= qpos <= 2 * torch.pi - 0.35:
                     if burner_site[env_idx] is not None:
                         burner_site[env_idx].GetAttribute("visibility").Set("inherited")
+                        burner_site[env_idx].GetAttribute("purpose").Set("default")
                         if hasattr(self, 'original_flame_sizes') and location in self.original_flame_sizes:
                             # get original radius and height
                             original_radius = self.original_flame_sizes[location][env_idx]["radius"]

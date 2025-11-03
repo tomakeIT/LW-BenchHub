@@ -122,7 +122,7 @@ class L90L3PickUpTheAlphabetSoupAndPutItInTheTray(LwLabTaskBase):
                     rotation=np.pi / 2,
                     ensure_object_boundary_in_range=False,
                     margin=0.02,
-                    pos=(-0.2, -0.6)
+                    pos=(-0.15, -0.3)
                 ),
             )
         )

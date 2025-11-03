@@ -131,7 +131,7 @@ class Oven(Fixture):
         """
         for level in [rack_level, 0]:
             joint = f"rack{level}_joint"
-            if joint in env.env.scene.articulations[self.name].data.joint_names:
+            if joint in env.scene.articulations[self.name].data.joint_names:
                 contact_name = joint.replace("_joint", "")
                 break
         else:

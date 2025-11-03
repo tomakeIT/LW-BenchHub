@@ -4,6 +4,9 @@ from lwlab.core.tasks.base import LwLabTaskBase
 from dataclasses import MISSING
 from lwlab.core.models.fixtures import FixtureType
 import lwlab.utils.object_utils as OU
+import lwlab.utils.place_utils.env_utils as EnvUtils
+from lwlab.core.models import fixtures
+from lwlab.core.models.fixtures.others import Floor, Wall
 
 
 class PnP(LwLabTaskBase):
@@ -729,8 +732,8 @@ class PnPCounterToOven(PnP):  # DONE
         self.counter = self.register_fixture_ref(
             "counter", dict(id=FixtureType.COUNTER, ref=self.oven)
         )
-        if "rack_level" in self._ep_meta:
-            self.rack_level = self._ep_meta["rack_level"]
+        if "rack_level" in scene._ep_meta:
+            self.rack_level = scene._ep_meta["rack_level"]
         else:
             self.rack_level = 1 if self.rng.random() > 0.5 else 0
 
@@ -807,14 +810,72 @@ class PnPOvenToCounter(PnP):  # DONE
     EXCLUDE_LAYOUTS = LwLabTaskBase.OVEN_EXCLUDED_LAYOUTS
     task_name: str = "PnPOvenToCounter"
 
+    def _load_model(self, *args, **kwargs):
+        super()._load_model(*args, **kwargs)
+        self._place_robot()
+
+    def _place_robot(self):
+        x_ofs = (self.oven.width / 2) + 0.25
+        TEST_OFS = 0.23
+        inits = []
+
+        # compute where the robot placement if it is to the left of the oven
+        (
+            robot_base_pos_left,
+            robot_base_ori_left,
+        ) = EnvUtils.compute_robot_base_placement_pose(
+            self, ref_fixture=self.oven, offset=(-x_ofs, -0.10)
+        )
+        # get a test point to check if the robot is in contact with any fixture.
+        test_pos_left, _ = EnvUtils.compute_robot_base_placement_pose(
+            self, ref_fixture=self.oven, offset=(-x_ofs - TEST_OFS, -0.10)
+        )
+
+        # check if the robot will be in contact with any fixture or wall during initialization
+        if not self.check_fxtr_contact(test_pos_left) and not self._point_outside_scene(
+            test_pos_left
+        ):
+            # oven is to the right of the robot
+            inits.append((robot_base_pos_left, robot_base_ori_left, "right"))
+
+        # compute where the robot placement if it is to the right of the oven
+        (
+            robot_base_pos_right,
+            robot_base_ori_right,
+        ) = EnvUtils.compute_robot_base_placement_pose(
+            self, ref_fixture=self.oven, offset=(x_ofs, -0.10)
+        )
+        # get a test point to check if the robot is in contact with any fixture if initialized to the right of the oven
+        test_pos_right, _ = EnvUtils.compute_robot_base_placement_pose(
+            self, ref_fixture=self.oven, offset=(x_ofs + TEST_OFS, -0.10)
+        )
+
+        if not self.check_fxtr_contact(
+            test_pos_right
+        ) and not self._point_outside_scene(test_pos_right):
+            inits.append((robot_base_pos_right, robot_base_ori_right, "left"))
+
+        if len(inits) == 0:
+            return False
+        random_index = self.rng.integers(len(inits))
+        robot_base_pos, robot_base_ori, side = inits[random_index]
+        self.oven_side = side
+        if hasattr(self, "init_robot_base_pos_anchor"):
+            self.init_robot_base_pos_anchor[:2] = robot_base_pos[:2]
+            self.init_robot_base_ori_anchor[:2] = robot_base_ori[:2]
+        else:
+            self.init_robot_base_pos_anchor = robot_base_pos
+            self.init_robot_base_ori_anchor = robot_base_ori
+        return True
+
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)
         self.oven = self.register_fixture_ref("oven", dict(id=FixtureType.OVEN))
         self.counter = self.register_fixture_ref(
             "counter", dict(id=FixtureType.COUNTER, ref=self.oven)
         )
-        if "rack_level" in self._ep_meta:
-            self.rack_level = self._ep_meta["rack_level"]
+        if "rack_level" in scene._ep_meta:
+            self.rack_level = scene._ep_meta["rack_level"]
         else:
             self.rack_level = 1 if self.rng.random() > 0.5 else 0
         self.init_robot_base_ref = self.oven
@@ -833,6 +894,46 @@ class PnPOvenToCounter(PnP):  # DONE
             ] = f"Pick the {obj_lang} from the oven and place it on the plate on the counter."
         ep_meta["rack_level"] = self.rack_level
         return ep_meta
+
+    def check_fxtr_contact(self, pos):
+        """
+        Check if the point is in contact with any fixture
+
+        Args:
+            pos (tuple): The position of the point to check
+
+        Returns:
+            bool: True if the point is in contact with any fixture, False otherwise
+        """
+        fxtrs = [
+            fxtr
+            for fxtr in self.fixtures.values()
+            if isinstance(fxtr, fixtures.Counter)
+            or isinstance(fxtr, fixtures.Stove)
+            or isinstance(fxtr, fixtures.Stovetop)
+            or isinstance(fxtr, fixtures.HousingCabinet)
+            or isinstance(fxtr, fixtures.SingleCabinet)
+            or isinstance(fxtr, fixtures.HingeCabinet)
+            or isinstance(fxtr, fixtures.Fridge)
+            or (isinstance(fxtr, Wall) and not isinstance(fxtr, Floor))
+        ]
+
+        for fxtr in fxtrs:
+            # get bounds of fixture
+            if OU.point_in_fixture(point=pos, fixture=fxtr, only_2d=True):
+                return True
+        return False
+
+    def _point_outside_scene(self, pos):
+        walls = [
+            fxtr for (name, fxtr) in self.fixtures.items() if isinstance(fxtr, Floor)
+        ]
+        return not any(
+            [
+                OU.point_in_fixture(point=pos, fixture=wall, only_2d=True)
+                for wall in walls
+            ]
+        )
 
     def _setup_scene(self, env, env_ids=None):
         super()._setup_scene(env, env_ids)
@@ -1121,7 +1222,7 @@ class PnPToasterToCounter(PnP):  # DONE
                         ref=self.toaster,
                     ),
                     size=(0.80, 0.30),
-                    pos=(0.0, -1.0),
+                    pos=("ref", -1.0),
                 ),
             )
         )
@@ -1156,8 +1257,8 @@ class PnPCounterToToasterOven(PnP):  # DONE
         self.counter = self.register_fixture_ref(
             "counter", dict(id=FixtureType.COUNTER, ref=self.toaster_oven)
         )
-        if "rack_level" in self._ep_meta:
-            self.rack_level = self._ep_meta["rack_level"]
+        if "rack_level" in scene._ep_meta:
+            self.rack_level = scene._ep_meta["rack_level"]
         else:
             self.rack_level = 1 if self.rng.random() > 0.5 else 0
         self.init_robot_base_ref = self.toaster_oven
@@ -1229,8 +1330,8 @@ class PnPToasterOvenToCounter(PnP):  # DONE
         self.counter = self.register_fixture_ref(
             "counter", dict(id=FixtureType.COUNTER, ref=self.toaster_oven)
         )
-        if "rack_level" in self._ep_meta:
-            self.rack_level = self._ep_meta["rack_level"]
+        if "rack_level" in scene._ep_meta:
+            self.rack_level = scene._ep_meta["rack_level"]
         else:
             self.rack_level = 1 if self.rng.random() > 0.5 else 0
         self.init_robot_base_ref = self.toaster_oven

@@ -39,7 +39,7 @@ class ManipulateDrawer(LwLabTaskBase):
     behavior: str = "open"
 
     def _place_robot(self, scene):
-        x_ofs = (self.drawer.width / 2) + 0.20
+        x_ofs = (self.drawer.width / 2) + 0.25
         TEST_OFS = 0.23
         inits = []
 
@@ -266,7 +266,7 @@ class CloseDrawer(ManipulateDrawer):
                     fixture=self.drawer,
                     size=(0.30, 0.30),
                     pos=(None, -0.75),
-                    offset=(0, -self.drawer.size[1] * 0.55),
+                    offset=(0, -self.drawer.size[1] * 0.15),
                 ),
             )
         )
@@ -304,8 +304,8 @@ class SlideDishwasherRack(LwLabTaskBase):
         self.dishwasher = self.register_fixture_ref(
             "dishwasher", dict(id=FixtureType.DISHWASHER)
         )
-        if "should_pull" in self._ep_meta:
-            self.should_pull = self._ep_meta["should_pull"]
+        if "should_pull" in scene._ep_meta:
+            self.should_pull = scene._ep_meta["should_pull"]
         else:
             self.should_pull = self.rng.random() > 0.5
 

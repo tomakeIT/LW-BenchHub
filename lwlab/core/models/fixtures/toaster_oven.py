@@ -21,8 +21,9 @@ from functools import cached_property
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
-from lwlab.utils.usd_utils import OpenUsd as usd
 from .fixture_types import FixtureType
+from lwlab.utils.usd_utils import OpenUsd as usd
+import lwlab.utils.object_utils as OU
 
 
 class ToasterOven(Fixture):
@@ -186,7 +187,7 @@ class ToasterOven(Fixture):
             if joint in env.scene.articulations[self.name].data.joint_names:
                 name = f"rack{level}"
                 if name not in self._rack:
-                    self._rack[name] = torch.tensor([value], device=self.device).repeat(self.num_envs)
+                    self._rack[name] = torch.tensor([value], device=env.device).repeat(env.num_envs)
                 else:
                     self._rack[name][env_ids] = value
                 self.set_joint_state(env=env, min=value, max=value, joint_names=[joint], env_ids=env_ids)
@@ -198,7 +199,7 @@ class ToasterOven(Fixture):
             if joint in env.scene.articulations[self.name].data.joint_names:
                 name = f"tray{level}"
                 if name not in self._tray:
-                    self._tray[name] = torch.tensor([value], device=self.device).repeat(self.num_envs)
+                    self._tray[name] = torch.tensor([value], device=env.device).repeat(env.num_envs)
                 else:
                     self._tray[name][env_ids] = value
                 self.set_joint_state(env=env, min=value, max=value, joint_names=[joint], env_ids=env_ids)
@@ -282,26 +283,26 @@ class ToasterOven(Fixture):
                             self._last_time_update[env_id] = None
                 setattr(self, f"_{name}", val)
 
-    def check_rack_contact(self, cfg, obj_name, rack_level=0):
+    def check_rack_contact(self, env, obj_name, rack_level=0):
         """
         Checks whether object is touching the specified rack or tray level.
         If level 1 is requested but only level 0 exists, falls back to level 0.
 
         Args:
-            cfg: USDSceneEnvCfg
+            env: environment
             obj_name (str): Name of the object to check contact with
             rack_level (int): 0 for bottom, 1 for top (falls back to 0 if top does not exist)
         """
 
         for level in [rack_level, 0]:
             joint = f"rack{level}_joint"
-            if joint in cfg.env.scene.articulations[self.name].data.joint_names:
+            if joint in env.scene.articulations[self.name].data.joint_names:
                 contact_name = joint.replace("_joint", "")
                 break
         else:
             for level in [rack_level, 0]:
                 joint = f"tray{level}_joint"
-                if joint in cfg.env.scene.articulations[self.name].data.joint_names:
+                if joint in env.scene.articulations[self.name].data.joint_names:
                     contact_name = joint.replace("_joint", "")
                     break
             else:
@@ -314,7 +315,7 @@ class ToasterOven(Fixture):
             contact_path = self.tray_infos[contact_name][0].GetPrimPath()
         else:
             raise ValueError(f"Invalid contact name: {contact_name}")
-        return cfg.check_contact(obj_name, str(contact_path))
+        return OU.check_contact(env, obj_name, str(contact_path))
 
     def get_state(self, env, rack_level=0):
         """

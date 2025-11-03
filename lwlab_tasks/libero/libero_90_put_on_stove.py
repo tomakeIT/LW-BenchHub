@@ -163,7 +163,7 @@ class L90K3PutTheMokaPotOnTheStove(_BasePutOnStove):
         return cfgs
 
     def _check_success(self):
-       # Check if moka pot (fixture) is placed on stove
+        # Check if moka pot (fixture) is placed on stove
         success = OU.check_place_obj1_on_obj2(
             self.env,
             self.mokapot,

@@ -118,6 +118,7 @@ class CoffeeMachine(Fixture):
                 if site is not None and site.IsValid():
                     if self._active[i]:
                         site.GetAttribute("visibility").Set("inherited")
+                        site.GetAttribute("purpose").Set("default")
                     else:
                         site.GetAttribute("visibility").Set("invisible")
 

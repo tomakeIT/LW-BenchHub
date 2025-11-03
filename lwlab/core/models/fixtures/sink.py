@@ -47,6 +47,7 @@ class Sink(Fixture):
 
             if water_on[env_id]:
                 site.GetAttribute("visibility").Set("inherited")
+                site.GetAttribute("purpose").Set("default")
                 # set radius scale
                 radius = float(state["water_scale"][env_id]) * origin_radius
                 site.GetAttribute("radius").Set(radius)

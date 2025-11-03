@@ -18,8 +18,9 @@ from functools import cached_property
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
-from lwlab.utils.usd_utils import OpenUsd as usd
 from .fixture_types import FixtureType
+from lwlab.utils.usd_utils import OpenUsd as usd
+import lwlab.utils.object_utils as OU
 
 
 class Toaster(Fixture):
@@ -178,12 +179,12 @@ class Toaster(Fixture):
                 elif self._cooldown[sp][env_id] >= 1000:
                     self._cooldown[sp][env_id] = 0
 
-    def check_slot_contact(self, cfg, obj_name: str, slot_pair: int | None = None, side: str | None = None):
+    def check_slot_contact(self, env, obj_name: str, slot_pair: int | None = None, side: str | None = None):
         """
         Returns True if the specified object is in contact with any of the toaster slot-floor geom(s).
 
         Args:
-            cfg (USDSceneCfg)
+            env: environment
             obj_name (str): name of the object to check
             slot_pair (int or None): 0 to N-1 slot pairs
             side (str or None): None = both sides; otherwise “left” or “right”
@@ -237,12 +238,12 @@ class Toaster(Fixture):
                 f"must be None, 0 (left) or 1 (right)"
             )
 
-        is_contact = torch.tensor([False], device=cfg.env.device).repeat(cfg.env.num_envs)
+        is_contact = torch.tensor([False], device=env.device).repeat(env.num_envs)
 
         # check contact
         for slot_floor_name in final_floor_names:
             floor_geom_path = self.floor_geoms[slot_floor_name][0].GetPrimPath()
-            is_contact |= cfg.check_contact(obj_name, str(floor_geom_path))
+            is_contact |= OU.check_contact(env, obj_name, str(floor_geom_path))
 
         return is_contact
 

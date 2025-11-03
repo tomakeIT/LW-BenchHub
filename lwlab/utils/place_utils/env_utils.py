@@ -5,6 +5,7 @@ import contextlib
 from pathlib import Path
 from collections import deque
 from typing import Dict, List, Any
+from scipy.spatial.transform import Rotation as R
 
 from copy import deepcopy
 from isaaclab.envs.manager_based_rl_env import ManagerBasedRLEnv
@@ -696,7 +697,13 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
                     and ensure_valid_placement
                     and rotation_axis == "z"
                 ):
-                    sample_region_kwargs["min_size"] = mj_obj.size
+                    if cfg.get("rotate_upright", None):
+                        init_quat = np.array([0.5, 0.5, 0.5, 0.5])
+                        r = R.from_quat(init_quat)
+                        min_size = r.apply(mj_obj.size)
+                        sample_region_kwargs["min_size"] = min_size
+                    else:
+                        sample_region_kwargs["min_size"] = mj_obj.size
                 if reuse_region_from is None:
                     print(f"get valid reset region for {cfg['name']}")
                     reset_region = fixture.get_all_valid_reset_region(env=orchestrator.task, **sample_region_kwargs)

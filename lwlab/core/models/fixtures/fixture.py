@@ -227,7 +227,6 @@ class Fixture:
         """
         if self.name not in env.scene.articulations:
             return {}
-        from pxr import Gf
         if env_ids is None:
             env_ids = list(range(env.num_envs))
 
