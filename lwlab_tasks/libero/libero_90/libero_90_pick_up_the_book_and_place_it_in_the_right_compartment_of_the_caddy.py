@@ -97,7 +97,7 @@ class L90S1PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy(LwLabTaskBase)
 
         # Check 2: book is near caddy (xy distance check)
         xy_dist = torch.norm(book_pos_full[:, :2] - caddy_pos_full[:, :2], dim=-1)  # (num_envs,)
-        caddy_obj = env.cfg.isaac_arena_env.task.objects[self.desk_caddy]
+        caddy_obj = env.cfg.isaaclab_arena_env.task.objects[self.desk_caddy]
         th = float(caddy_obj.horizontal_radius * 0.7)  # convert to float scalar
         object_on_caddy = xy_dist < th  # tensor (num_envs,) - comparison with scalar is valid
 

@@ -1286,7 +1286,7 @@ def check_valid_robot_pose(env: ManagerBasedRLEnv, robot_pos, env_ids=None):
             get_default_logger().info(f"Object Prim Size: {obs_bbox.GetSize()}")
             return False
 
-    for fixtr in env.cfg.isaac_arena_env.task.fixture_refs.values():
+    for fixtr in env.cfg.isaaclab_arena_env.task.fixture_refs.values():
         fixtr_body_bboxes = fixtr.get_body_bbox(env)
         for body_name, body_bbox in fixtr_body_bboxes.items():
             if check_overlap(env, robot_bbox, body_bbox):

@@ -31,6 +31,7 @@ class Context:
     num_envs: int | None = 1
     device: str | None = "cpu"
     use_fabric: bool | None = None
+    add_camera_to_observation: bool = False
 
 
 def get_context():

@@ -27,7 +27,6 @@ import isaaclab.utils.math as math_utils
 
 import lwlab.core.mdp as mdp
 from lwlab.utils.math_utils import transform_utils as T
-from lwlab.core.robots.base import BaseRobotCfg
 from lwlab.core.robots.compositional.assets_cfg import FRANKA_OMRON_CFG, FRANKA_OMRON_HIGH_PD_CFG, OFFSET_CONFIG, VIS_HELPER_CFG  # isort: skip
 
 ##

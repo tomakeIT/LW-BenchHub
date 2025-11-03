@@ -6,6 +6,7 @@ from isaaclab_arena.environments.isaaclab_arena_manager_based_env import (
     IsaacLabArenaManagerBasedRLEnvCfg,
 )
 from isaaclab_arena.utils.configclass import combine_configclass_instances
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
 
 
 class LwLabEnvBuilder(ArenaEnvBuilder):
@@ -23,4 +24,20 @@ class LwLabEnvBuilder(ArenaEnvBuilder):
         super().modify_env_cfg(env_cfg)
         if self.rl_env:
             self.rl_env.modify_env_cfg(env_cfg)
+        return env_cfg
+
+    def compose_manager_cfg(self) -> IsaacLabArenaManagerBasedRLEnvCfg:
+        env_cfg = super().compose_manager_cfg()
+        policy_observation_cfg = combine_configclass_instances(
+            "PolicyObservationGroupCfg",
+            self.arena_env.embodiment.get_policy_observation_cfg(),
+            self.arena_env.task.get_policy_observation_cfg(),
+            self.rl_env.get_policy_observation_cfg() if self.rl_env else None,
+        )
+
+        new_policy = type('PolicyObservationGroupCfg', (ObsGroup,), {})()
+        for key, value in policy_observation_cfg.__dict__.items():
+            if not key.startswith('_'):
+                setattr(new_policy, key, value)
+        env_cfg.observations.policy = new_policy
         return env_cfg

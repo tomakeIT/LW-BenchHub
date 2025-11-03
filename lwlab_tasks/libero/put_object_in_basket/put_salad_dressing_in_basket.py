@@ -121,7 +121,7 @@ class LOPickUpTheSaladDressingAndPlaceItInTheBasket(PutObjectInBasket):
         )
 
         # Check 2: Horizontal (XY) position check - must be within basket's horizontal radius
-        basket_radius = env.cfg.isaac_arena_env.task.objects[self.basket].horizontal_radius
+        basket_radius = env.cfg.isaaclab_arena_env.task.objects[self.basket].horizontal_radius
         xy_distance = torch.norm(salad_pos[:, :2] - basket_pos[:, :2], dim=-1)
         is_inside_horizontally = xy_distance < basket_radius * 0.7
 

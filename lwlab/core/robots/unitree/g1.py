@@ -29,7 +29,7 @@ from lwlab.core.models.grippers.dex3 import Dex3GripperCfg, BaseGripperCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 import lwlab.core.mdp as mdp_isaac_lab
-from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase
+from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase, EmbodimentBaseObservationCfg, EmbodimentBasePolicyObservationCfg
 from isaaclab_arena.utils.pose import Pose
 from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 from isaaclab_tasks.manager_based.manipulation.stack.mdp.observations import ee_frame_pos, ee_frame_quat, gripper_pos
@@ -210,25 +210,23 @@ class G1CameraCfg:
 
 
 @configclass
-class G1ObservationsCfg:
+class G1ObservationsCfg(EmbodimentBaseObservationCfg):
     """Observation specifications for the MDP."""
 
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group with state values."""
 
-        actions = ObsTerm(func=mdp_isaac_lab.last_action)
-        joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
-        eef_pos = ObsTerm(func=ee_frame_pos)
-        eef_quat = ObsTerm(func=ee_frame_quat)
-        gripper_pos = ObsTerm(func=gripper_pos)
+@configclass
+class G1PolicyObservationsCfg(EmbodimentBasePolicyObservationCfg):
+    """Observations for policy group with state values."""
 
-        def __post_init__(self):
-            self.enable_corruption = False
-            self.concatenate_terms = False
+    actions = ObsTerm(func=mdp_isaac_lab.last_action)
+    joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
+    joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
+    eef_pos = ObsTerm(func=ee_frame_pos)
+    eef_quat = ObsTerm(func=ee_frame_quat)
+    gripper_pos = ObsTerm(func=gripper_pos)
 
-    policy: PolicyCfg = PolicyCfg()
+    enable_corruption = False
+    concatenate_terms = False
 
 
 class UnitreeG1EnvCfg(LwLabEmbodimentBase):
@@ -241,6 +239,7 @@ class UnitreeG1EnvCfg(LwLabEmbodimentBase):
             "unitree_dex3_right"
         )
         self.observation_config = G1ObservationsCfg()
+        self.policy_observation_config = G1PolicyObservationsCfg()
         self.action_config = G1PinkActionsCfg()
         self.scene_config = G1SceneCfg()
         self.robot_scale = self.context.robot_scale

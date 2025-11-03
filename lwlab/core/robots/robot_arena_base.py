@@ -24,6 +24,7 @@ from isaaclab.utils import configclass
 from isaaclab.assets import ArticulationCfg
 from isaaclab.envs.mdp.recorders.recorders_cfg import RecorderTerm, RecorderTermCfg, ActionStateRecorderManagerCfg
 from isaaclab.utils.datasets.episode_data import EpisodeData
+from isaaclab.managers import ObservationGroupCfg as ObsGroup
 
 import lwlab.core.mdp as mdp
 from lwlab.utils.env import ExecuteMode
@@ -35,7 +36,7 @@ import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 
 
 @configclass
-class ActionsCfg:
+class EmbodimentBaseActionsCfg:
     """Action specifications for the MDP."""
     """Action specifications for the MDP."""
 
@@ -126,6 +127,24 @@ from isaaclab_arena.utils.pose import Pose
 from typing import Dict, Any, Callable
 
 
+@configclass
+class EmbodimentBaseSceneCfg:
+    robot: ArticulationCfg = MISSING
+
+
+@configclass
+class EmbodimentBaseObservationCfg:
+    """Observations for policy group."""
+    pass
+
+
+@configclass
+class EmbodimentBasePolicyObservationCfg:
+    """Observations for policy group."""
+    enable_corruption: bool = True
+    concatenate_terms: bool = False
+
+
 class LwLabEmbodimentBase(EmbodimentBase):
     observation_cameras: dict | None = {}
     robot_vis_helper_cfg: dict | None = None
@@ -134,9 +153,10 @@ class LwLabEmbodimentBase(EmbodimentBase):
     def __init__(self, enable_cameras: bool = False, initial_pose: Optional[Pose] = None):
         self.context = get_context()
         super().__init__(enable_cameras, initial_pose)
-        self.scene_config = None
-        self.action_config = ActionsCfg()
-        self.observation_config = None
+        self.scene_config = EmbodimentBaseSceneCfg()
+        self.action_config = EmbodimentBaseActionsCfg()
+        self.observation_config = EmbodimentBaseObservationCfg()
+        self.policy_observation_config = EmbodimentBasePolicyObservationCfg()
         self.event_config = None
         self.mimic_env = None
         self.offset_config = None
@@ -146,6 +166,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
         self.robot_to_fixture_dist = 0.20
         self.reward_gripper_joint_names = []
         self.reward_arm_joint_names = []
+        self.add_camera_to_observation = self.context.add_camera_to_observation
 
         self.set_default_offset_config()
 
@@ -167,6 +188,14 @@ class LwLabEmbodimentBase(EmbodimentBase):
     def get_recorder_term_cfg(self):
         if self.context.execute_mode in [ExecuteMode.TELEOP, ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS]:
             return RecorderManagerCfg()
+
+    def get_observation_cfg(self):
+        return self.observation_config
+
+    def get_policy_observation_cfg(self):
+        if self.add_camera_to_observation:
+            return super().get_observation_cfg()
+        return None
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor]) -> torch.Tensor:
         pass

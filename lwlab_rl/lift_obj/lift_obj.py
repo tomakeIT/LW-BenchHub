@@ -32,7 +32,7 @@ from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
 from lwlab.core.robots.lerobot.lerobotrl import LeRobotRL, LeRobot100RL
 from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 from lwlab.utils.decorators import rl_on
-from lwlab.core.rl.base import PolicyCfg as BasePolicyCfg
+from lwlab.core.rl.base import RlBasePolicyObservationCfg
 from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 
 from . import mdp
@@ -64,30 +64,29 @@ class CommandsCfg:
 
 
 @configclass
-class LiftObjPolicyCfg(BasePolicyCfg):
+class LiftObjPolicyObsCfg(RlBasePolicyObservationCfg):
     target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
 
 
 # state-based observations
 @configclass
-class G1LiftObjStatePolicyCfg(LiftObjPolicyCfg):
+class G1LiftObjStatePolicyObsCfg(LiftObjPolicyObsCfg):
     """Observations for policy group."""
     obj_pos = ObsTerm(func=mdp.object_position_in_robot_root_frame, params={"object_cfg": SceneEntityCfg("object")})
 
 
 @configclass
-class LeRobotLiftObjStatePolicyCfg(G1LiftObjStatePolicyCfg):
+class LeRobotLiftObjStatePolicyObsCfg(G1LiftObjStatePolicyObsCfg):
     target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
     delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
 
-    def __post_init__(self):
-        self.enable_corruption = True
-        self.concatenate_terms = False
+    enable_corruption = True
+    concatenate_terms = False
 
 
 # visual-based observations
 @configclass
-class G1LiftObjVisualPolicyCfg(G1LiftObjStatePolicyCfg):
+class G1LiftObjVisualPolicyObsCfg(G1LiftObjStatePolicyObsCfg):
     image_hand = ObsTerm(
         func=mdp.image_features,
         params={
@@ -110,7 +109,7 @@ class G1LiftObjVisualPolicyCfg(G1LiftObjStatePolicyCfg):
 
 
 @configclass
-class LeRobotLiftObjVisualPolicyCfg(LeRobotLiftObjStatePolicyCfg):
+class LeRobotLiftObjVisualPolicyObsCfg(LeRobotLiftObjStatePolicyObsCfg):
     image_global = ObsTerm(
         func=mdp.image,
         params={
@@ -224,7 +223,7 @@ class G1LiftObjStateRL(LwLabRL):
         self.events_cfg = EventCfg()
         self.curriculum_cfg = CurriculumCfg()
         self.commands_cfg = CommandsCfg()
-        self.policy_cfg = G1LiftObjStatePolicyCfg()
+        self.policy_observation_cfg = G1LiftObjStatePolicyObsCfg()
         self.resample_objects_placement_on_reset = False
         self.resample_robot_placement_on_reset = False
 
@@ -259,7 +258,7 @@ class G1LiftObjVisualRL(G1LiftObjStateRL):
 
     def __init__(self):
         super().__init__()
-        self.policy_cfg = G1LiftObjVisualPolicyCfg()
+        self.policy_observation_cfg = G1LiftObjVisualPolicyObsCfg()
 
 
 @rl_on(task=LiftObj)
@@ -269,7 +268,7 @@ class LeRobotLiftObjStateRL(LwLabRL):
     def __init__(self):
         super().__init__()
         self.rewards_cfg = LeRobotLiftobjRewardsCfg()
-        self.policy_cfg = LeRobotLiftObjStatePolicyCfg()
+        self.policy_observation_cfg = LeRobotLiftObjStatePolicyObsCfg()
         self.events_cfg = EventCfg()
         self.curriculum_cfg = CurriculumCfg()
         self.commands_cfg = CommandsCfg()
@@ -292,14 +291,14 @@ class LeRobotLiftObjVisualRL(LeRobotLiftObjStateRL):
 
     def __init__(self):
         super().__init__()
-        self.policy_cfg = LeRobotLiftObjVisualPolicyCfg()
+        self.policy_observation_cfg = LeRobotLiftObjVisualPolicyObsCfg()
 
 
 class LeRobot100LiftObjVisualRL(LeRobot100LiftObjStateRL):
 
     def __init__(self):
         super().__init__()
-        self.policy_cfg = LeRobotLiftObjVisualPolicyCfg()
+        self.policy_observation_cfg = LeRobotLiftObjVisualPolicyObsCfg()
 
 
 @configclass

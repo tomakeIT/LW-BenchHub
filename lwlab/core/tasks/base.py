@@ -57,8 +57,16 @@ from lwlab.utils.usd_utils import OpenUsd as usd
 
 
 @configclass
-class ObservationsCfg:
+class TaskBaseObservationCfg:
     """Observation specifications for the MDP."""
+    pass
+
+
+@configclass
+class TaskBasePolicyObservationCfg:
+    """Observations for policy group."""
+    enable_corruption: bool = True
+    concatenate_terms: bool = False
 
 
 @configclass
@@ -233,7 +241,8 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.termination_cfg = TerminationsCfg(
             success=DoneTerm(func=self.check_success_caller)
         )
-        self.observation_cfg = ObservationsCfg()
+        self.observation_cfg = TaskBaseObservationCfg()
+        self.policy_observation_cfg = TaskBasePolicyObservationCfg()
         self.commands_cfg = None
         self.curriculum_cfg = None
         self.rewards_cfg = None
@@ -283,6 +292,9 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def get_observation_cfg(self):
         return self.observation_cfg
+
+    def get_policy_observation_cfg(self):
+        return self.policy_observation_cfg
 
     def get_commands_cfg(self):
         return self.commands_cfg

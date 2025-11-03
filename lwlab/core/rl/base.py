@@ -14,7 +14,7 @@ from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 
 
 @configclass
-class PolicyCfg(ObsGroup):
+class RlBasePolicyObservationCfg(ObsGroup):
     """Observations for policy group."""
 
     joint_pos = ObsTerm(func=mdp.joint_pos)
@@ -50,7 +50,7 @@ class LwLabRL(NoDeepcopyMixin):
         self.events_cfg = None
         self.curriculum_cfg = None
         self.commands_cfg = None
-        self.policy_cfg = PolicyCfg()
+        self.policy_observation_cfg = RlBasePolicyObservationCfg()
 
     def setup_env_config(self, orchestrator):
         assert type(orchestrator.task) in self._rl_on_tasks, f"task {type(orchestrator.task)} is not in {self._rl_on_tasks}"
@@ -63,7 +63,6 @@ class LwLabRL(NoDeepcopyMixin):
         if self.events_cfg:
             for key, value in self.events_cfg.__dict__.items():
                 setattr(orchestrator.task.events_cfg, key, value)
-        orchestrator.task.observation_cfg.policy = self.policy_cfg
 
         # TODO(xiaowei.song, 2025.10.24): only check success in eval mode, need verified
         # if orchestrator.task.context.execute_mode == ExecuteMode.TRAIN:
@@ -80,3 +79,6 @@ class LwLabRL(NoDeepcopyMixin):
         env_cfg.sim.physx.bounce_threshold_velocity = 0.2
         env_cfg.sim.physx.bounce_threshold_velocity = 0.01
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
+
+    def get_policy_observation_cfg(self):
+        return self.policy_observation_cfg

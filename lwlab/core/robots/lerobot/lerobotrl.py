@@ -14,7 +14,6 @@ import isaaclab.sim as sim_utils
 
 import lwlab.core.mdp as mdp
 
-from lwlab.core.robots.base import BaseRobotCfg
 ##
 # Pre-defined configs
 ##
