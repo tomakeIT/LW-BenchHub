@@ -30,7 +30,7 @@ class L90L3PickUpTheKetchupAndPutItInTheTray(L90L3PickUpTheTomatoSauceAndPutItIn
             self._get_obj_cfgs()
         return OU.check_place_obj1_on_obj2(
             self.env,
-            self.tomato_sauce,
+            self.ketchup,
             self.wooden_tray,
             th_z_axis_cos=0,  # verticality
             th_xy_dist=0.5,    # within 0.4 diameter

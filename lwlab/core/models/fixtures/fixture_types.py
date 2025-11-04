@@ -72,3 +72,35 @@ class FixtureType(IntEnum):
     UTENSIL_RACK = 58
     FLOOR_OBJ = 59
     FLOOR_LAYOUT = 60
+    HOOD = 61
+
+
+# Mapping from FixtureType to layout registry names (strings used by floorplan_loader)
+FIXTURE_TYPE_TO_REGISTRY_NAME = {
+    FixtureType.MICROWAVE: "microwave",
+    FixtureType.STOVE: "stovetop",
+    FixtureType.OVEN: "oven",
+    FixtureType.SINK: "sink",
+    FixtureType.COFFEE_MACHINE: "coffee_machine",
+    FixtureType.TOASTER: "toaster",
+    FixtureType.TOASTER_OVEN: "toaster_oven",
+    FixtureType.FRIDGE: "fridge_side_by_side",
+    FixtureType.DISHWASHER: "dishwasher",
+    FixtureType.BLENDER: "blender",
+    FixtureType.STAND_MIXER: "stand_mixer",
+    FixtureType.ELECTRIC_KETTLE: "electric_kettle",
+    FixtureType.STOOL: "stool",
+    FixtureType.COUNTER: "counter",
+    FixtureType.COUNTER_NON_CORNER: "counter",
+    FixtureType.DINING_COUNTER: "counter",
+    FixtureType.COUNTER_NON_DINING: "counter",
+    FixtureType.CABINET: "single_cabinet",
+    FixtureType.CABINET_WITH_DOOR: "hinge_cabinet",
+    FixtureType.CABINET_SINGLE_DOOR: "single_cabinet",
+    FixtureType.CABINET_DOUBLE_DOOR: "hinge_cabinet",
+    FixtureType.WINDOW: "window",
+    FixtureType.DISH_RACK: "dish_rack",
+    FixtureType.SOCKET: "socket",
+    FixtureType.UTENSIL_RACK: "utensil_rack",
+    FixtureType.HOOD: "hood",
+}

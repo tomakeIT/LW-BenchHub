@@ -53,9 +53,9 @@ class LiberoBlackBowlAndPlateBase(LwLabTaskBase):
 
             table_pos = self.counter.pos if hasattr(self.counter, 'pos') else [0, 0, 0]
 
-            front_pos = (table_pos[0] + 0.3, table_pos[1] - 0.05, sample_z)
+            back_pos = (table_pos[0] + 0.3, table_pos[1] - 0.05, sample_z)
             middle_pos = (table_pos[0] + 0.3, table_pos[1] - 0.20, sample_z)
-            back_pos = (table_pos[0] + 0.3, table_pos[1] - 0.35, sample_z)
+            front_pos = (table_pos[0] + 0.3, table_pos[1] - 0.35, sample_z)
 
             self.fix_object_pose_cfg[self.akita_black_bowl_front] = {"pos": front_pos}
             self.fix_object_pose_cfg[self.akita_black_bowl_middle] = {"pos": middle_pos}

@@ -51,7 +51,7 @@ from lwlab.utils.errors import SamplingError
 from lwlab.core.models.fixtures.fixture import FixtureType, Fixture
 from lwlab.utils.fixture_utils import fixture_is_type
 from lwlab.utils.place_utils.usd_object import USDObject
-
+from typing import Dict, List, Any, Optional, Union
 
 from isaaclab_arena.scene.scene import Scene
 from isaaclab_arena.assets.background import Background
@@ -76,7 +76,6 @@ What second stage need to do:
 
 
 class LwLabScene(Scene, NoDeepcopyMixin):
-
     def __init__(self,
                  num_envs: int = 1,
                  device: str = "cpu",
@@ -128,7 +127,8 @@ class LwLabScene(Scene, NoDeepcopyMixin):
             enable_fixtures=orchestrator.task.enable_fixtures,
             movable_fixtures=orchestrator.task.movable_fixtures,
             scene_cfg=self,
-            scene_type=self.scene_type
+            scene_type=self.scene_type,
+            layout_registry_names=orchestrator.task.layout_registry_names,
         )
         self.usd_path = self.lwlab_arena.usd_path
         self.layout_id = self.lwlab_arena.layout_id

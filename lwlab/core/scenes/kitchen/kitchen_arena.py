@@ -20,6 +20,7 @@ import time
 from lightwheel_sdk.loader import floorplan_loader
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.core.models.scenes.scene_parser import parse_fixtures
+from lwlab.core.models.fixtures.fixture_types import FixtureType, FIXTURE_TYPE_TO_REGISTRY_NAME
 
 
 class KitchenArena:
@@ -32,15 +33,18 @@ class KitchenArena:
         style_id (int or StyleType): style of the kitchen to load
 
         scene_cfg (RoboCasaSceneCfg): scene configuration
+
+        layout_registry_names (list, optional): List of fixture registry names (FixtureType, int, or str) required for layout filtering.
+
     """
 
-    def __init__(self, layout_id, style_id, exclude_layouts=[], enable_fixtures=[], movable_fixtures=[], scene_cfg=None, scene_type='robocasakitchen'):
+    def __init__(self, layout_id, style_id, exclude_layouts=[], enable_fixtures=[], movable_fixtures=[], scene_cfg=None, scene_type='robocasakitchen', layout_registry_names: list[str | FixtureType | int] | None = None,):
         # download floorplan usd
         self.scene_cfg = scene_cfg
         self.floorplan_version = scene_cfg.floorplan_version
         self.enable_fixtures = enable_fixtures
         self.movable_fixtures = movable_fixtures
-        self.load_floorplan(layout_id, style_id, exclude_layouts=exclude_layouts)
+        self.load_floorplan(layout_id, style_id, exclude_layouts=exclude_layouts, layout_registry_names=layout_registry_names)
         self.stage = usd.get_stage(self.usd_path)
 
         # enable fixtures in usd
@@ -90,15 +94,35 @@ class KitchenArena:
 
         return fixture_cfgs
 
-    def load_floorplan(self, layout_id, style_id, exclude_layouts=[]):
+    def load_floorplan(self, layout_id, style_id, exclude_layouts=[], layout_registry_names: list[str | FixtureType | int] | None = None):
         start_time = time.time()
+
+        # Convert FixtureType to registry name strings
+        if layout_registry_names is not None:
+            registry_name_strings = []
+            for item in layout_registry_names:
+                if isinstance(item, FixtureType) or isinstance(item, int):
+                    # Convert FixtureType enum to string
+                    if item in FIXTURE_TYPE_TO_REGISTRY_NAME:
+                        registry_name_strings.append(FIXTURE_TYPE_TO_REGISTRY_NAME[item])
+                    else:
+                        print(f"Warning: FixtureType {item} not found in mapping, skipping")
+                elif isinstance(item, str):
+                    # Already a string, keep as is
+                    registry_name_strings.append(item)
+                else:
+                    print(f"Warning: Unknown type {type(item)} for layout_registry_names item {item}, skipping")
+            # Remove duplicates while preserving order
+            layout_registry_names = list(dict.fromkeys(registry_name_strings))
+            print(f"Converted layout_registry_names: {layout_registry_names}")
+
         print(f"load floorplan usd", end="...")
         if layout_id is None:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, version=self.floorplan_version, exclude_layout_ids=exclude_layouts, layout_registry_names=layout_registry_names)
         elif style_id is None:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts, layout_registry_names=layout_registry_names)
         else:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, style_id=style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts)
+            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, style_id=style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts, layout_registry_names=layout_registry_names)
         usd_path, self.floorplan_meta = res.result()
         self.usd_path = str(usd_path)
         self.backend = self.floorplan_meta.get("backend")

@@ -221,6 +221,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     _start_success_check_count: int = 10
     enable_fixtures: list[str] = []
     movable_fixtures: list[str] = []
+    layout_registry_names: list[str | FixtureType | int] | None = None
 
     def __init__(self):
         self.context = get_context()
