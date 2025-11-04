@@ -252,9 +252,9 @@ class PandaOmronCameraCfg:
     eye_in_hand_camera: TiledCameraCfg = None
 
 
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from lwlab.core.robots.robot_arena_base import EmbodimentBasePolicyObservationCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-import lwlab.core.mdp as mdp_isaac_lab
+import lwlab.core.mdp as lwlab_mdp
 from isaaclab_tasks.manager_based.manipulation.stack.mdp.observations import ee_frame_pos, ee_frame_quat, gripper_pos
 
 
@@ -265,19 +265,12 @@ class PandaOmronObservationsCfg:
 
 
 @configclass
-class PandaOmronPolicyObservationsCfg(ObsGroup):
+class PandaOmronPolicyObservationsCfg(EmbodimentBasePolicyObservationCfg):
     """Observations for policy group with state values."""
 
-    actions = ObsTerm(func=mdp_isaac_lab.last_action)
-    joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
-    joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
-    eef_pos = ObsTerm(func=ee_frame_pos)
-    eef_quat = ObsTerm(func=ee_frame_quat)
-    gripper_pos = ObsTerm(func=gripper_pos)
-
-    def __post_init__(self):
-        self.enable_corruption = False
-        self.concatenate_terms = False
+    eef_pos = ObsTerm(func=lwlab_mdp.ee_frame_pos)
+    eef_quat = ObsTerm(func=lwlab_mdp.ee_frame_quat)
+    gripper_pos = ObsTerm(func=lwlab_mdp.gripper_pos)
 
 
 @configclass

@@ -33,6 +33,7 @@ from lwlab.core.context import get_context
 from lwlab.utils.place_utils.env_utils import get_safe_robot_anchor
 import lwlab.utils.place_utils.env_utils as EnvUtils
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
+import lwlab.core.mdp as lwlab_mdp
 from isaaclab_arena.utils.cameras import make_camera_observation_cfg
 from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab.managers import ObservationTermCfg as ObsTerm
@@ -144,9 +145,11 @@ class EmbodimentBaseObservationCfg:
 @configclass
 class EmbodimentBasePolicyObservationCfg(ObsGroup):
     """Observations for policy group."""
+    actions = ObsTerm(func=lwlab_mdp.last_action)
+    joint_pos = ObsTerm(func=lwlab_mdp.joint_pos_rel)
+    joint_vel = ObsTerm(func=lwlab_mdp.joint_vel_rel)
 
     def __post_init__(self):
-        self.enable_corruption = True
         self.concatenate_terms = False
 
 

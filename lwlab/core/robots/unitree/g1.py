@@ -28,7 +28,7 @@ from .assets_cfg import (
 from lwlab.core.models.grippers.dex3 import Dex3GripperCfg, BaseGripperCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
-import lwlab.core.mdp as mdp_isaac_lab
+import lwlab.core.mdp as lwlab_mdp
 from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase, EmbodimentBaseObservationCfg, EmbodimentBasePolicyObservationCfg
 from isaaclab_arena.utils.pose import Pose
 from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
@@ -218,16 +218,9 @@ class G1ObservationsCfg(EmbodimentBaseObservationCfg):
 class G1PolicyObservationsCfg(EmbodimentBasePolicyObservationCfg):
     """Observations for policy group with state values."""
 
-    actions = ObsTerm(func=mdp_isaac_lab.last_action)
-    joint_pos = ObsTerm(func=mdp_isaac_lab.joint_pos_rel)
-    joint_vel = ObsTerm(func=mdp_isaac_lab.joint_vel_rel)
-    eef_pos = ObsTerm(func=ee_frame_pos)
-    eef_quat = ObsTerm(func=ee_frame_quat)
-    gripper_pos = ObsTerm(func=gripper_pos)
-
-    def __post_init__(self):
-        self.enable_corruption = False
-        self.concatenate_terms = False
+    eef_pos = ObsTerm(func=lwlab_mdp.ee_frame_pos)
+    eef_quat = ObsTerm(func=lwlab_mdp.ee_frame_quat)
+    gripper_pos = ObsTerm(func=lwlab_mdp.gripper_pos)
 
 
 class UnitreeG1EnvCfg(LwLabEmbodimentBase):
