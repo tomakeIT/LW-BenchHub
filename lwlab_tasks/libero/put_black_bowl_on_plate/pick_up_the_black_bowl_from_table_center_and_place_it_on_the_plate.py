@@ -27,24 +27,6 @@ class LSPickUpTheBlackBowlFromTableCenterAndPlaceItOnThePlate(PutBlackBowlOnPlat
 
         cfgs.append(
             dict(
-                name=self.bowl,
-                obj_groups="bowl",
-                info=dict(
-                    mjcf_path=self.bowl_mjcf_path
-                ),
-                graspable=True,
-                object_scale=0.6,
-                placement=dict(
-                    fixture=self.dining_table,
-                    size=(0.4, 0.4),
-                    pos=(-0.4, -0.4),
-                    ensure_valid_placement=True,
-                ),
-            )
-        )
-
-        cfgs.append(
-            dict(
                 name=self.bowl_target,
                 obj_groups="bowl",
                 info=dict(
@@ -54,8 +36,26 @@ class LSPickUpTheBlackBowlFromTableCenterAndPlaceItOnThePlate(PutBlackBowlOnPlat
                 object_scale=0.6,
                 placement=dict(
                     fixture=self.dining_table,
+                    size=(0.4, 0.4),
+                    pos=(-0.5, -0.4),
+                    ensure_valid_placement=True,
+                ),
+            )
+        )
+
+        cfgs.append(
+            dict(
+                name=self.bowl,
+                obj_groups="bowl",
+                info=dict(
+                    mjcf_path=self.bowl_mjcf_path
+                ),
+                graspable=True,
+                object_scale=0.6,
+                placement=dict(
+                    fixture=self.dining_table,
                     size=(0.25, 0.25),
-                    pos=(-0.2, -0.6),
+                    pos=(0.0, -0.6),
                     ensure_valid_placement=True,
                 ),
             )
@@ -73,7 +73,7 @@ class LSPickUpTheBlackBowlFromTableCenterAndPlaceItOnThePlate(PutBlackBowlOnPlat
         plate_pos = torch.mean(env.scene.rigid_objects[self.plate].data.body_com_pos_w, dim=1)  # (num_envs, 3)
 
         xy_distance = torch.norm(bowl_pos[:, :2] - plate_pos[:, :2], dim=1)
-        bowl_centered = xy_distance < 0.08
+        bowl_centered = xy_distance < 0.1
 
         z_diff = bowl_pos[:, 2] - plate_pos[:, 2]
         bowl_on_plate_height = (z_diff > 0.01) & (z_diff < 0.15)

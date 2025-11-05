@@ -512,8 +512,9 @@ def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None, force_th=0.1) -
     """
     check if gripper is far from object based on distance defined by threshold
     """
-    obj = env.cfg.objects[obj_name]
-    if obj_name in env.cfg.isaaclab_arena_env.task.objects and obj.asset_type != "fixtures":
+
+    # Check if object is in rigid_objects
+    if obj_name in env.cfg.objects:
         obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w  # (num_envs, num_bodies, 3)
     else:
         # Articulation object: use all body centers of mass
