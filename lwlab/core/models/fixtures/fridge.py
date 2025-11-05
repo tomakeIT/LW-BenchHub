@@ -50,13 +50,23 @@ class Fridge(Fixture):
             joint_names = self._freezer_door_joint_names
         return super().is_open(env, joint_names, th)
 
-    def is_closed(self, env, entity="fridge", th=0.005):
-        joint_names = None
-        if entity == "fridge":
-            joint_names = self._fridge_door_joint_names
-        elif entity == "freezer":
-            joint_names = self._freezer_door_joint_names
-        return super().is_closed(env, joint_names, th)
+    def is_closed(self, env, entity="fridge", th=0.005, reg_type="door", drawer_rack_index=None):
+        if reg_type == "door":
+            joint_names = None
+            if entity == "fridge":
+                joint_names = self._fridge_door_joint_names
+            elif entity == "freezer":
+                joint_names = self._freezer_door_joint_names
+            return super().is_closed(env, joint_names, th)
+        elif reg_type == "drawer":
+            draw_joints = self._get_drawer_joints(
+                compartment=entity, drawer_rack_index=drawer_rack_index
+            )
+            if not draw_joints:
+                return torch.tensor([True], dtype=torch.bool, device=env.device).repeat(env.num_envs)
+            return super().is_closed(env, joint_names=draw_joints, th=th)
+        else:
+            raise ValueError(f"Invalid reg_type: {reg_type}")
 
     def check_rack_contact(self, env, object_name, rack_index=None, compartment="fridge", reg_type="shelf", partial_check=False, th=0.05):
         """
