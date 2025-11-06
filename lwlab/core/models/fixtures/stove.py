@@ -169,7 +169,7 @@ class Stove(Fixture):
         """
 
         knobs_state = self.get_knobs_state(env=env)
-        obj = env.cfg.objects[obj_name]
+        obj = env.scene.rigid_objects[obj_name]
         if obj.asset_type == "fixtures":
             obj_pos = env.scene.articulations[obj_name].data.body_com_pos_w[..., 0, :]
         else:

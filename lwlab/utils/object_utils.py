@@ -429,7 +429,7 @@ def check_obj_scrubbed(env, sponge_name, obj_name):
 
     movement_vector = sponge_pos - prev_sponge_pos
 
-    in_contact = env.cfg.check_contact(env.cfg.objects[sponge_name], env.cfg.objects[obj_name])
+    in_contact = env.cfg.check_contact(env.scene.rigid_objects[sponge_name], env.scene.rigid_objects[obj_name])
 
     sponge_still_inside = check_obj_in_receptacle(env, sponge_name, obj_name)
     env.prev_sponge_pos = sponge_pos
@@ -502,7 +502,7 @@ def check_obj_grasped(env, obj_name, threshold=0.035):
     gripper_joint_positions = env.scene.articulations["robot"].data.joint_pos[:, joint_index]
     gripper_closed = (gripper_joint_positions < threshold).all()
     is_contact = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
-    obj = env.cfg.objects[obj_name]
+    obj = env.scene.rigid_objects[obj_name]
     for gripper_name in [name for name in list(env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
         is_contact |= env.cfg.check_contact(gripper_name.replace("_contact", ""), obj)
     return gripper_closed & is_contact
@@ -514,7 +514,7 @@ def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None, force_th=0.1) -
     """
 
     # Check if object is in rigid_objects
-    if obj_name in env.cfg.objects:
+    if obj_name in env.scene.rigid_objects:
         obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w  # (num_envs, num_bodies, 3)
     else:
         # Articulation object: use all body centers of mass

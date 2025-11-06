@@ -52,7 +52,7 @@ class ObjDropChecker(BaseChecker):
                 print(f"[ObjDropChecker] Skip fixture {ref_name}: {e}")
                 continue
 
-        for name in env.cfg.objects:
+        for name in env.scene.rigid_objects:
             if name in scene.rigid_objects:
                 obj_getters[name] = lambda o=scene.rigid_objects[name]: o.data.body_com_pos_w[:, 0:1, 2]
             elif name in scene.deformable_objects:
