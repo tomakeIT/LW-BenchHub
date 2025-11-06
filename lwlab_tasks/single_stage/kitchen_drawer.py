@@ -266,7 +266,7 @@ class CloseDrawer(ManipulateDrawer):
                     fixture=self.drawer,
                     size=(0.30, 0.30),
                     pos=(None, -0.75),
-                    offset=(0, -self.drawer.size[1] * 0.15),
+                    # offset=(0, -self.drawer.size[1] * 0.15),
                 ),
             )
         )

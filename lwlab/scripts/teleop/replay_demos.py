@@ -26,8 +26,7 @@ import h5py
 from pathlib import Path
 from isaaclab.app import AppLauncher
 import pinocchio  # noqa: F401
-from lwlab.utils.video_recorder import get_video_duration
-from lwlab.utils.video_recorder import VideoProcessor
+from lwlab.utils.video_recorder import get_video_duration, VideoProcessor, calculate_camera_layout
 
 
 # add argparse arguments
@@ -56,6 +55,13 @@ args_cli = parser.parse_args()
 # args_cli.headless = True
 if not args_cli.without_image:
     import cv2
+
+
+def check_terminations(env):
+    # -- check terminations
+    env.reset_buf = env.termination_manager.compute()
+    env.reset_time_outs = env.termination_manager.time_outs
+    env.extras["is_success"] = env.termination_manager._terminated_buf
 
 
 def main():
@@ -162,7 +168,7 @@ def main():
 
     # Disable all recorders and terminations
     env_cfg.recorders = {}
-    delattr(env_cfg.terminations, "success")
+    # delattr(env_cfg.terminations, "success")
 
     # create environment from loaded config
     env: ManagerBasedRLEnv = gym.make(env_name, cfg=env_cfg).unwrapped
@@ -182,34 +188,8 @@ def main():
     if len(args_cli.select_episodes) > 0:
         episode_names = [episode_names[i] for i in args_cli.select_episodes]
     replayed_episode_count = 0
-
-    # calculate the shape of the video recorder
-    num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
-    if num_cameras > 4:
-        # two rows layout: height is twice the original, width is the maximum width of each row
-        cameras_per_row = (num_cameras + 1) // 2
-        video_height = args_cli.height * 2
-        video_width = max(cameras_per_row, num_cameras - cameras_per_row) * args_cli.width
-    else:
-        # single row layout: original calculation
-        video_height = args_cli.height
-        video_width = num_cameras * args_cli.width
-
     # Initialize video processor
     video_processor = None
-
-    def convert_tensors_to_serializable(obj):
-        """Convert PyTorch tensors to JSON serializable format."""
-        if isinstance(obj, dict):
-            return {key: convert_tensors_to_serializable(value) for key, value in obj.items()}
-        elif isinstance(obj, list):
-            return [convert_tensors_to_serializable(item) for item in obj]
-        elif hasattr(obj, 'cpu') and hasattr(obj, 'numpy'):  # PyTorch tensor
-            return obj.cpu().numpy().tolist()
-        elif hasattr(obj, 'tolist'):  # numpy array
-            return obj.tolist()
-        else:
-            return obj
 
     # Create a single video writer for all episodes
     if args_cli.replay_all_clips:
@@ -221,7 +201,53 @@ def main():
 
     # Initialize video processor (manages VideoWriter internally)
     if app_launcher._enable_cameras:
-        video_processor = VideoProcessor(replay_mp4_path, video_height, video_width, args_cli)
+        # calculate the shape of the video recorder
+        num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
+        max_cameras_per_row = 4  # Maximum cameras per row
+        # Calculate layout using shared function
+        num_rows, cameras_per_row_list, max_cameras_in_row = calculate_camera_layout(
+            num_cameras, max_cameras_per_row
+        )
+
+        # Print layout design
+        print(f"Video grid layout -> rows: {num_rows}, per_row: {cameras_per_row_list} total cameras: {num_cameras}")
+        # Calculate video dimensions
+        video_height = args_cli.height * num_rows
+        video_width = max_cameras_in_row * args_cli.width
+
+        # Calculate product video dimensions
+        product_camera_names = [n for n, c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values() if "product" in c.get("tags", [])]
+        product_mp4_path = None
+        if product_camera_names:
+            product_num_cameras = len(product_camera_names)
+            max_cameras_per_row = 4  # Maximum cameras per row
+            # Calculate layout using shared function
+            product_num_rows, product_cameras_per_row_list, product_max_cameras_in_row = calculate_camera_layout(
+                product_num_cameras, max_cameras_per_row
+            )
+
+            # Print product layout design
+            print(f"Product video grid layout -> rows: {product_num_rows}, per_row: {product_cameras_per_row_list} total cameras: {product_num_cameras}")
+
+            # Calculate product video dimensions
+            product_video_height = args_cli.height * product_num_rows
+            product_video_width = product_max_cameras_in_row * args_cli.width
+            product_mp4_path = save_dir / "isaac_replay_product.mp4"
+        else:
+            # No product cameras, use regular video dimensions
+            product_video_height = 0
+            product_video_width = 0
+
+        video_processor = VideoProcessor(
+            replay_mp4_path,
+            video_height,
+            video_width,
+            args_cli,
+            product_mp4_path=product_mp4_path,
+            product_camera_names=product_camera_names,
+            product_video_height=product_video_height,
+            product_video_width=product_video_width
+        )
     else:
         video_processor = None
 
@@ -251,6 +277,7 @@ def main():
                 if args_cli.first_person_view:
                     set_camera_follow_pose(env, env_cfg.viewport_cfg["offset"], env_cfg.viewport_cfg["lookat"])
                 obs, _ = env.reset_to(next_state, torch.tensor([env_id], device=env.device), is_relative=True if env_args["robot_name"].endswith("Rel") else False)
+                check_terminations(env=env)
                 env.sim.render()
                 next_state = env_episode_data_map[env_id].get_next_state()
                 step_count += 1

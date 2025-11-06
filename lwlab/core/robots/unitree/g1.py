@@ -195,6 +195,8 @@ class G1DecoupledWBCActionsCfg(DecoupledWBCActionsCfg):
     base_action: G1DecoupledWBCActionCfg = G1DecoupledWBCActionCfg(asset_name="robot", joint_names=[".*"])
     left_hand_action: mdp.ActionTermCfg = None
     right_hand_action: mdp.ActionTermCfg = None
+    left_arm_action: mdp.ActionTermCfg = None
+    right_arm_action: mdp.ActionTermCfg = None
 
 
 @configclass
@@ -1025,6 +1027,8 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
         self.name = "G1-Controller-DecoupledWBC"
         self.scene_config.robot = G1_GEARWBC_CFG.replace(prim_path="{ENV_REGEX_NS}/Robot")
         self.action_config = G1DecoupledWBCActionsCfg()
+        self.action_config.left_hand_action = self.gripper_cfg.left_hand_action_cfg()[self.hand_action_mode]
+        self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
         self.observation_cameras["left_hand_camera"] = {
             "camera_cfg": TiledCameraCfg(
                 prim_path="{ENV_REGEX_NS}/Robot/left_hand_palm_link/left_hand_camera",
@@ -1068,10 +1072,27 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
         self.init_waist_pitch = 0.0
         self.init_waist_roll = 0.0
 
+        self.pitch_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+        self.yaw_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+        self.roll_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+        self.height_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+
     def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg) -> IsaacLabArenaManagerBasedRLEnvCfg:
-        return super().modify_env_cfg(env_cfg)
+        env_cfg = super().modify_env_cfg(env_cfg)
         env_cfg.sim.dt = 1 / 200  # physics frequency: 100Hz
         env_cfg.decimation = 4  # action frequency: 50Hz
+        return env_cfg
+
+    def reset_robot_cfg_state(self):
+        super().reset_robot_cfg_state()
+        self.init_robot_base_height = 0.75
+        self.init_waist_yaw = 0.0
+        self.init_waist_pitch = 0.0
+        self.init_waist_roll = 0.0
+        self.pitch_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+        self.yaw_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+        self.roll_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
+        self.height_dead_zone_state = 0  # 0: normal, 1: dead zone waiting, 2: dead zone ready to activate
 
     def preprocess_device_action(self, action: dict[str, torch.Tensor], device) -> torch.Tensor:
         """
@@ -1084,9 +1105,18 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
         base_action[4:] = torch.tensor([self.init_waist_roll, self.init_waist_pitch, self.init_waist_yaw], device=action['lbase'].device)
         # Left squeeze released: Moving-base related cmds
         # left joystick up/down to control pitch movement of the base
-        base_action[5] = self.init_waist_pitch + 0.02 * torch.tensor([action['lbase'][0]], device=action['lbase'].device)
-        base_action[5] = torch.clamp(base_action[5], min=-0.5, max=0.5)
-        self.init_waist_pitch = base_action[5]
+
+        if action['lbase'][0] > 0.5 or action['lbase'][0] < -0.5:
+            action['lbase'][1] = 0
+        if action['lbase'][1] > 0.5 or action['lbase'][1] < -0.5:
+            action['lbase'][0] = 0
+
+        joystick_input = action['lbase'][0].item()
+        target_pitch, self.pitch_dead_zone_state = self._apply_dead_zone_control(
+            joystick_input, self.init_waist_pitch, self.pitch_dead_zone_state, dead_zone_threshold=0.1, activation_threshold=0.5, scale_factor=0.01
+        )
+        base_action[5] = torch.clamp(torch.tensor(target_pitch), min=-1.5, max=1.5)
+        self.init_waist_pitch = base_action[5].item()
 
         if action['lsqueeze'] <= 0.5:
             if action['rsqueeze'] > 0.5:
@@ -1098,25 +1128,36 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
             # left joystick left/right to control yaw, up/down to control pitch movement of the base
             # base_action[4:] = torch.tensor([0, action['lbase'][0], action['lbase'][1]], device=action['lbase'].device)
             # left joystick left/right to control yaw movement of the base
-            base_action[6] = self.init_waist_yaw + 0.05 * torch.tensor([action['lbase'][1]], device=action['lbase'].device)
-            base_action[6] = torch.clamp(base_action[6], min=-2, max=2)
-            self.init_waist_yaw = base_action[6]
+            yaw_joystick_input = action['lbase'][1].item()
+            target_yaw, self.yaw_dead_zone_state = self._apply_dead_zone_control(
+                yaw_joystick_input, self.init_waist_yaw, self.yaw_dead_zone_state,
+                dead_zone_threshold=0.1, activation_threshold=0.5, scale_factor=0.005
+            )
+            base_action[6] = torch.clamp(torch.tensor(target_yaw), min=-2, max=2)
+            self.init_waist_yaw = base_action[6].item()
         # Left squeeze pressed
         else:
             # left joystick left/right to control roll, up/down to control pitch movement of the base
             # base_action[4:] = torch.tensor([-1 * action['lbase'][1], action['lbase'][0], 0], device=action['lbase'].device)
             # left joystick left/right to control roll movement of the base
-            base_action[4] = self.init_waist_roll + 0.02 * torch.tensor([-action['lbase'][1]], device=action['lbase'].device)
-            base_action[4] = torch.clamp(base_action[4], min=-0.5, max=0.5)
-            self.init_waist_roll = base_action[4]
+            roll_joystick_input = -action['lbase'][1].item()
+            target_roll, self.roll_dead_zone_state = self._apply_dead_zone_control(
+                roll_joystick_input, self.init_waist_roll, self.roll_dead_zone_state,
+                dead_zone_threshold=0.1, activation_threshold=0.5, scale_factor=0.02
+            )
+            base_action[4] = torch.clamp(torch.tensor(target_roll), min=-0.5, max=0.5)
+            self.init_waist_roll = base_action[4].item()
 
             # Left squeeze pressed and Right squeeze pressed: right joystick up/down to control base_height_cmd (relative to current height)
             if action['rsqueeze'] > 0.5:
                 # joystaick returns -1 to 1, remap to a smaller range
-                base_action[3] = self.init_robot_base_height + 0.01 * torch.tensor([action['rbase'][0]], device=action['rbase'].device)
-                # Clip base_action[3] to be within 0.5 to 1.0
-                base_action[3] = torch.clamp(base_action[3], min=0.2, max=0.75)
-                self.init_robot_base_height = base_action[3]
+                height_joystick_input = action['rbase'][0].item()
+                target_height, self.height_dead_zone_state = self._apply_dead_zone_control(
+                    height_joystick_input, self.init_robot_base_height, self.height_dead_zone_state,
+                    dead_zone_threshold=0.1, activation_threshold=0.5, scale_factor=0.01
+                )
+                base_action[3] = torch.clamp(torch.tensor(target_height), min=0.2, max=0.75)
+                self.init_robot_base_height = base_action[3].item()
 
         _cumulative_base, base_quat = math_utils.subtract_frame_transforms(device.robot.data.root_com_pos_w[0],
                                                                            device.robot.data.root_com_quat_w[0],
@@ -1133,14 +1174,6 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
             [cos_yaw, -sin_yaw],
             [sin_yaw, cos_yaw]
         ], device=device.env.device)
-
-        # Decoupled WBC does not use x/y/angular in global frame, use local frame
-        # robot_x = base_action[0]
-        # robot_y = base_action[1]
-        # local_xy = torch.tensor([robot_x, robot_y], device=device.env.device)
-        # world_xy = torch.matmul(rot_mat_2d, local_xy)
-        # base_action[0] = world_xy[0]
-        # base_action[1] = world_xy[1]
 
         left_arm_action = None
         right_arm_action = None
@@ -1161,4 +1194,79 @@ class UnitreeG1ControllerDecoupledWBCEnvCfg(UnitreeG1ControllerEnvCfg):
                 right_arm_action = arm_action  # Robot frame
         left_gripper = torch.tensor([-action["left_gripper"]], device=action['rbase'].device)
         right_gripper = torch.tensor([-action["right_gripper"]], device=action['rbase'].device)
-        return torch.concat([left_gripper, right_gripper, left_arm_action, right_arm_action, base_action]).unsqueeze(0)
+        result = torch.concat([left_gripper, right_gripper, left_arm_action, right_arm_action, base_action]).unsqueeze(0)
+        return result
+
+    def _apply_dead_zone_control(self, joystick_input, current_angle, dead_zone_state, dead_zone_threshold=0.1, activation_threshold=0.5, scale_factor=0.02):
+        """
+        Apply dead zone control logic for pitch angle control.
+
+        Logic:
+        1. When angle crosses zero (from negative to 0 or positive to 0), enter dead zone state
+        2. In dead zone state, no control signals are accepted
+        3. To exit dead zone: joystick must first enter (-dead_zone_threshold, dead_zone_threshold), then go beyond ±activation_threshold
+
+        Args:
+            joystick_input (float): Joystick input value (-1 to 1)
+            current_angle (float): Current pitch angle
+            dead_zone_state (int): Dead zone state (0: normal, 1: dead zone waiting, 2: dead zone ready to activate)
+            dead_zone_threshold (float): Dead zone threshold for joystick input (default: 0.1)
+            activation_threshold (float): Activation threshold for exiting dead zone (default: 0.5)
+            scale_factor (float): Scale factor for joystick input (default: 0.02)
+
+        Returns:
+            tuple: (target_pitch, new_dead_zone_state)
+        """
+        # Calculate target angle
+        target_pitch = current_angle + scale_factor * joystick_input
+        new_dead_zone_state = dead_zone_state
+
+        # Check if we just reached 0 from either direction (crossed zero)
+        crossed_zero_from_negative = current_angle < 0 and target_pitch >= 0
+        crossed_zero_from_positive = current_angle > 0 and target_pitch <= 0
+        if crossed_zero_from_negative or crossed_zero_from_positive:
+            # Just reached 0, enter dead zone state
+            target_pitch = 0.0
+            new_dead_zone_state = 1  # Enter dead zone waiting state
+            return target_pitch, new_dead_zone_state
+
+        # Handle different dead zone states
+        if dead_zone_state == 0:
+            # Normal state - allow normal control
+            if current_angle < 0:
+                # When current angle < 0, must return to 0 first
+                if joystick_input > 0:
+                    target_pitch = min(target_pitch, 0.0)
+                else:
+                    target_pitch = current_angle + scale_factor * joystick_input
+            elif current_angle > 0:
+                # When current angle > 0, must return to 0 first
+                if joystick_input < 0:
+                    target_pitch = max(target_pitch, 0.0)
+                else:
+                    target_pitch = current_angle + scale_factor * joystick_input
+            else:
+                # At 0, normal accumulation
+                target_pitch = current_angle + scale_factor * joystick_input
+
+        elif dead_zone_state == 1:
+            # Dead zone waiting state - check if joystick enters dead zone
+            if abs(joystick_input) <= dead_zone_threshold:
+                # Entered dead zone, move to ready state
+                new_dead_zone_state = 2
+                target_pitch = current_angle  # No movement
+            else:
+                # Still outside dead zone, maintain current angle
+                target_pitch = current_angle
+
+        elif dead_zone_state == 2:
+            # Dead zone ready state - check if joystick exceeds activation threshold
+            if abs(joystick_input) >= activation_threshold:
+                # Exceeded activation threshold, exit dead zone and resume normal control
+                new_dead_zone_state = 0
+                target_pitch = current_angle + scale_factor * joystick_input
+            else:
+                # Still in dead zone, maintain current angle
+                target_pitch = current_angle
+
+        return target_pitch, new_dead_zone_state

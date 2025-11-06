@@ -249,8 +249,35 @@ def run_teleop(rerun_count, reset_count=0):
             while time.time() < wait_end_time:
                 if process.poll() is not None:
                     print(f"[ERROR] Process terminated unexpectedly during the first wait. Exit code: {process.returncode}")
+                    # Read remaining output to get error information
+                    remaining_output = process.stdout.read()
+                    if remaining_output:
+                        print(f"[ERROR OUTPUT] {remaining_output}")
+                        # Parse traceback if present
+                        parse_traceback = False
+                        traceback_lines = []
+                        for line in remaining_output.split('\n'):
+                            if line.strip():
+                                line = line.strip()
+                                if "Traceback (most recent call last):" in line:
+                                    parse_traceback = True
+                                    traceback_lines = [line]
+                                elif parse_traceback:
+                                    if line == "" or ("ms]" in line):
+                                        parse_traceback = False
+                                        if traceback_lines:
+                                            test_result["error"] = traceback_lines
+                                            last_three_lines = traceback_lines[-3:] if len(traceback_lines) >= 3 else traceback_lines
+                                            test_result["desc"] = "\n".join(last_three_lines)
+                                    else:
+                                        traceback_lines.append(line)
+                        if parse_traceback and traceback_lines:
+                            test_result["error"] = traceback_lines
+                            last_three_lines = traceback_lines[-3:] if len(traceback_lines) >= 3 else traceback_lines
+                            test_result["desc"] = "\n".join(last_three_lines)
                     test_result["success"] = False
-                    test_result["desc"] = f"Process terminated unexpectedly during the first wait.{wait_duration}"
+                    if "desc" not in test_result or test_result.get("desc", "").startswith("Process terminated unexpectedly during the first wait."):
+                        test_result["desc"] = f"Process terminated unexpectedly during the first wait. Exit code: {process.returncode}"
                     process_alive = False
                     break
                 time.sleep(0.1)
@@ -279,8 +306,35 @@ def run_teleop(rerun_count, reset_count=0):
             while time.time() < wait_end_time:
                 if process.poll() is not None:
                     print(f"[ERROR] Process terminated unexpectedly during the second wait. Exit code: {process.returncode}")
+                    # Read remaining output to get error information
+                    remaining_output = process.stdout.read()
+                    if remaining_output:
+                        print(f"[ERROR OUTPUT] {remaining_output}")
+                        # Parse traceback if present
+                        parse_traceback = False
+                        traceback_lines = []
+                        for line in remaining_output.split('\n'):
+                            if line.strip():
+                                line = line.strip()
+                                if "Traceback (most recent call last):" in line:
+                                    parse_traceback = True
+                                    traceback_lines = [line]
+                                elif parse_traceback:
+                                    if line == "" or ("ms]" in line):
+                                        parse_traceback = False
+                                        if traceback_lines:
+                                            test_result["error"] = traceback_lines
+                                            last_three_lines = traceback_lines[-3:] if len(traceback_lines) >= 3 else traceback_lines
+                                            test_result["desc"] = "\n".join(last_three_lines)
+                                    else:
+                                        traceback_lines.append(line)
+                        if parse_traceback and traceback_lines:
+                            test_result["error"] = traceback_lines
+                            last_three_lines = traceback_lines[-3:] if len(traceback_lines) >= 3 else traceback_lines
+                            test_result["desc"] = "\n".join(last_three_lines)
                     test_result["success"] = False
-                    test_result["desc"] = f"Process terminated unexpectedly during the second wait.{wait_duration}"
+                    if "desc" not in test_result or test_result.get("desc", "").startswith("Process terminated unexpectedly during the second wait."):
+                        test_result["desc"] = f"Process terminated unexpectedly during the second wait. Exit code: {process.returncode}"
                     process_alive = False
                     break
                 time.sleep(0.1)

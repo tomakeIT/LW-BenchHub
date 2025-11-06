@@ -110,10 +110,10 @@ class Stove(Fixture):
             env_ids = torch.arange(env.num_envs)
         for env_id in env_ids:
             knob_joint_id = env.scene.articulations[self.name].data.joint_names.index(f"knob_{knob}_joint")
-            joint_limits = env.scene.articulations[self.name].data.joint_limits[:, knob_joint_id]
-            joint_min, joint_max = joint_limits[0, 0].item(), joint_limits[0, 1].item()
+            joint_pos_limits = env.scene.articulations[self.name].data.joint_pos_limits[:, knob_joint_id]
+            joint_min, joint_max = joint_pos_limits[0, 0].item(), joint_pos_limits[0, 1].item()
             if knob not in self._knob_joint_ranges:
-                self._knob_joint_ranges[knob] = joint_limits
+                self._knob_joint_ranges[knob] = joint_pos_limits
 
             if mode == "off":
                 joint_val = 0.0

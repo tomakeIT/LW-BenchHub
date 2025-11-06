@@ -794,7 +794,6 @@ def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_ax
     obj1_is_standing = z_axis_cos > th_z_axis_cos  # (num_envs,)
     obj1_in_obj2 = xy_dist < obj1_obj2_size_xy_min * th_xy_dist  # (num_envs,)
     obj1_stable = xyz_vel < th_xyz_vel  # (num_envs,)
-    print(f"gripper_far: {gripper_far}, obj1_is_standing: {obj1_is_standing}, obj1_in_obj2: {obj1_in_obj2}, obj1_stable: {obj1_stable}")
     return gripper_far & obj1_is_standing & obj1_in_obj2 & obj1_stable
 
 

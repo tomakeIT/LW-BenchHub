@@ -117,6 +117,4 @@ class L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate(LwLabTaskBase):
             },
             gipper_th=0.35
         )
-        print(f"porcelain_mug success state: {success_porcelain_mug}")
-        print(f"chocolate_pudding success state: {success_chocolate_pudding}")
         return success_porcelain_mug & success_chocolate_pudding

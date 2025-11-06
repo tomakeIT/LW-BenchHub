@@ -570,7 +570,6 @@ class LGPutTheBowlOnThePlate(LiberoGoalTasksBase):
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
 
-        print(f"success state: {success}")
         return success
 
 
@@ -655,7 +654,6 @@ class LGPutTheCreamCheeseInTheBowl(LiberoGoalTasksBase):
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
 
-        print(f"success state: {success}")
         return success
 
 

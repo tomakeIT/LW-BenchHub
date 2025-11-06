@@ -427,7 +427,7 @@ def compute_robot_base_placement_pose(scene: LwLabScene, task: LwLabTaskBase, re
 
                 # these dining counters only have 1 accesssible side for robot to spawn
                 one_accessible_layout_ids = [11, 27, 30, 35, 49, 60]
-                if task.layout_id in one_accessible_layout_ids:
+                if scene.layout_id in one_accessible_layout_ids:
                     stool_rotations = get_current_layout_stool_rotations(scene)
                     categorized_stool_rotations = categorize_stool_rotations(
                         stool_rotations, ground_fixture.rot

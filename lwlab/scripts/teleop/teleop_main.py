@@ -518,7 +518,7 @@ def main():
             "P": lambda: quick_rewind(teleop_interface.env, 10),
         }
 
-        if hasattr(env_cfg.isaaclab_arena_env.embodiment, "teleop_devices") and args_cli.teleop_device in isaaclab_arena_env.embodiment.teleop_devices.devices:
+        if hasattr(env_cfg.isaaclab_arena_env.embodiment, "teleop_devices") and args_cli.teleop_device in env_cfg.isaaclab_arena_env.embodiment.teleop_devices.devices:
             teleoperation_active = False
             teleop_interface = create_teleop_device(
                 env, args_cli.teleop_device, env_cfg.teleop_devices.devices, teleoperation_callbacks
@@ -710,7 +710,6 @@ def main():
         env.close()
         # Create fresh configuration using the same logic
         new_env = create_env_config(scene_name=scene_name)
-
         get_default_logger().info(f"env_cfg: {new_env.cfg}")
 
         reset_physx(new_env)
@@ -798,6 +797,7 @@ def main():
         debug_print("Frame rate analyzer initialized in debug mode")
 
         vis_helper_prims = []
+        initial_state = None
 
         # Initialize delay statistics (only for async mode)
         delay_stats = {
@@ -834,9 +834,8 @@ def main():
 
                     if command.lower() == "t":
                         flush_recorder_manager()
-
                     if command.lower() == "x":
-                        reset_env_instance_keep_placement()
+                        reset_env_keep_placement()
                         action_idx = 0
 
                     if command.lower() == "b":
@@ -1001,6 +1000,8 @@ def main():
                     if actions is None:
                         continue
                     obs, *_ = env.step(actions)
+                    if initial_state is None:
+                        initial_state = copy.deepcopy(env.recorder_manager.get_episode(0).data.get("initial_state", None))
                     carb.profiler.end(1)
                 step_time = time.time() - step_start
                 frame_analyzer.record_stage('env_step', step_time)

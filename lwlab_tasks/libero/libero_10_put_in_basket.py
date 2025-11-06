@@ -153,8 +153,6 @@ class L10L2PutBothTheCreamCheeseBoxAndTheButterInTheBasket(Libero10PutInBasket):
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
 
-        print(f"cream cheese success state: {success_cream_cheese}")
-        print(f"butter success state: {success_butter}")
         return success_cream_cheese & success_butter
 
 
@@ -197,8 +195,6 @@ class L10L2PutBothTheAlphabetSoupAndTheTomatoSauceInTheBasket(Libero10PutInBaske
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
 
-        print(f"alphabet soup success state: {success_alphabet_soup}")
-        print(f"tomato sauce success state: {success_tomato_sauce}")
         return success_alphabet_soup & success_tomato_sauce
 
 
@@ -252,6 +248,4 @@ class L10L1PutBothTheAlphabetSoupAndTheCreamCheeseBoxInTheBasket(Libero10PutInBa
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
 
-        print(f"cream cheese success state: {success_cream_cheese}")
-        print(f"alphabet soup success state: {success_alphabet_soup}")
         return success_cream_cheese & success_alphabet_soup

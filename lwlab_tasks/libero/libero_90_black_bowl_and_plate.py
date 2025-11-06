@@ -145,7 +145,6 @@ class L90K2PutTheMiddleBlackBowlOnThePlate(LiberoBlackBowlAndPlateBase):
             th_xy_dist=0.7,    # within 0.4 diameter
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
-        print(f"success state: {success}")
         return success
 
 
@@ -177,7 +176,6 @@ class L90K2PutTheBlackBowlAtTheFrontOnThePlate(LiberoBlackBowlAndPlateBase):
             th_xy_dist=0.7,    # within 0.4 diameter
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
-        print(f"success state: {success}")
         return success
 
 
@@ -200,7 +198,6 @@ class L90K2PutTheBlackBowlAtTheBackOnThePlate(LiberoBlackBowlAndPlateBase):
             th_xy_dist=0.5,    # within 0.4 diameter
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
-        print(f"success state: {success}")
         success1 = OU.check_place_obj1_on_obj2(
             env,
             self.akita_black_bowl_back,

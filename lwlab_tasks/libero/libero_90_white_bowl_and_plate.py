@@ -97,7 +97,6 @@ class L90K7PutTheWhiteBowlOnThePlate(LwLabTaskBase):
             th_xy_dist=0.25,    # within 0.4 diameter
             th_xyz_vel=0.5     # velocity vector length less than 0.5
         )
-        print(f"success state: {success}")
         return success
 
 
@@ -125,7 +124,6 @@ class L90K7PutTheWhiteBowlToTheRightOfThePlate(L90K7PutTheWhiteBowlOnThePlate):
                 "stable_threshold": 0.5,
             }
         )
-        print(f"success state: {success}")
         return success
 
 

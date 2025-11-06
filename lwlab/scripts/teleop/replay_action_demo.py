@@ -34,7 +34,7 @@ from lwlab.utils.isaaclab_utils import get_robot_joint_target_from_scene
 
 from lwlab.utils.log_utils import get_default_logger, get_logger
 
-from lwlab.utils.video_recorder import VideoProcessor
+from lwlab.utils.video_recorder import VideoProcessor, calculate_camera_layout
 
 from lwlab.utils.isaaclab_utils import update_sensors
 
@@ -305,15 +305,17 @@ def main():
 
     # simulate environment -- run everything in inference mode
     num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
-    if num_cameras > 4:
-        # two rows layout: height is twice the original, width is the maximum width of each row
-        cameras_per_row = (num_cameras + 1) // 2
-        video_height = args_cli.height * 2
-        video_width = max(cameras_per_row, num_cameras - cameras_per_row) * args_cli.width
-    else:
-        # single row layout: original calculation
-        video_height = args_cli.height
-        video_width = num_cameras * args_cli.width
+    max_cameras_per_row = 4  # Maximum cameras per row
+
+    # Calculate layout using shared function
+    num_rows, cameras_per_row_list, max_cameras_in_row = calculate_camera_layout(
+        num_cameras, max_cameras_per_row
+    )
+    # Print layout design
+    print(f"Video grid layout -> rows: {num_rows}, per_row: {cameras_per_row_list} total cameras: {num_cameras}")
+    # Calculate video dimensions
+    video_height = args_cli.height * num_rows
+    video_width = max_cameras_in_row * args_cli.width
 
     # Initialize async image processor
     video_processor = None

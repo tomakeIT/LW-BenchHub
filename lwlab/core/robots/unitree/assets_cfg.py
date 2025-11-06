@@ -330,7 +330,7 @@ G1_GEARWBC_CFG = ArticulationCfg(
             "waist_yaw_joint": -0.000,
             "left_hip_roll_joint": 0.022,
             "right_hip_roll_joint": -0.016,
-            "waist_roll_joint": -0.007,
+            "waist_roll_joint": -0.000,
             "left_hip_yaw_joint": 0.025,
             "right_hip_yaw_joint": -0.025,
             "waist_pitch_joint": 0.049,

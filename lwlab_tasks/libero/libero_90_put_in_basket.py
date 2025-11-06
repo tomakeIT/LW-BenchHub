@@ -232,5 +232,4 @@ class L90L1PickUpTheTomatoSauceAndPutItInTheBasket(Libero10PutInBasket):
             th_xy_dist=0.4,
             th_xyz_vel=0.5,
         )
-        print(f"tomato sauce success state: {success_tomato_sauce}")
         return success_tomato_sauce

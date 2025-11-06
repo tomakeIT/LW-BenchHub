@@ -234,13 +234,11 @@ def parse_env_cfg(
         task = load_cfg_cls_from_registry("task", "Usd", "env_cfg_entry_point")
     else:
         task = load_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point")
-
     # rl config settings
     if rl_name:
         rl = load_cfg_cls_from_registry("rl", rl_name, "env_cfg_entry_point")
     else:
         rl = None
-
     # TODO: how to handle teleop_device, remove it in main?
     # if teleop_device is not None:
     #     teleop_device = environment_base.device_registry.get_device_by_name(teleop_device)()

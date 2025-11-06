@@ -555,6 +555,10 @@ class VRDevice(Device):
         if not self.has_started and not self.started:
             self.first_right_wrist_mat = right_wrist_mat.copy()
             self.first_left_wrist_mat = left_wrist_mat.copy()
+            self.last_left_wrist_mat = left_wrist_mat.copy()
+            self.last_right_wrist_mat = right_wrist_mat.copy()
+
+        self.has_started = self.started
 
         origin_left_wrist_mat = left_wrist_mat.copy()
         origin_right_wrist_mat = right_wrist_mat.copy()
@@ -797,7 +801,6 @@ class VRController(VRDevice):
         else:
             rel_use_left_wrist_mat = abs_left_wrist_mat.copy()
             rel_use_right_wrist_mat = abs_right_wrist_mat.copy()
-
         rel_left_wrist_mat = np.eye(4)
         rel_left_wrist_mat[:3, :3] = (rel_use_left_wrist_mat[:3, :3] @ np.linalg.inv(self.last_left_wrist_mat[:3, :3]))
         rel_left_wrist_mat[:3, 3] = (rel_use_left_wrist_mat[:3, 3] - self.last_left_wrist_mat[:3, 3])

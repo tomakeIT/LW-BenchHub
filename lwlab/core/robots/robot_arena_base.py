@@ -273,6 +273,9 @@ class LwLabEmbodimentBase(EmbodimentBase):
     def get_ep_meta(self):
         ep_meta = {}
         ep_meta["robot_name"] = self.name
+        ep_meta["init_robot_base_pos_anchor"] = self.init_robot_base_pos_anchor.tolist()
+        ep_meta["init_robot_base_ori_anchor"] = self.init_robot_base_ori_anchor.tolist()
+ 
         return ep_meta
 
     def set_default_offset_config(self):
