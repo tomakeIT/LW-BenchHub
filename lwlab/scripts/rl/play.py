@@ -83,6 +83,8 @@ def main():
     from lwlab.utils.env import parse_env_cfg, ExecuteMode  # noqa: F811
 
     env_cfg = parse_env_cfg(
+        scene_backend=args_cli.scene_backend,
+        task_backend=args_cli.task_backend,
         task_name=args_cli.task,
         robot_name=args_cli.robot,
         scene_name=args_cli.layout,

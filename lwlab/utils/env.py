@@ -50,9 +50,11 @@ class ExecuteMode(enum.Enum):
     REPLAY_JOINT_TARGETS = 3
     REPLAY_ACTION = 4
     REPLAY_STATE = 5
+    TEST_OBJECT = 6
+    TEST_FIXTURE = 7
 
 
-def load_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_point_key: str) -> dict | object:
+def load_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_point_key: str, backend: str = "robocasa") -> dict | object:
     """Load default configuration given its entry point from the gym registry.
 
     This function loads the configuration object from the gym registry for the given task name.
@@ -91,7 +93,7 @@ def load_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_point_key: st
     if not cfg_name:
         return None
     assert cfg_type in ["scene", "task", "robot", "rl"]
-    cfg_name = f"Robocasa-{cfg_type.capitalize()}-{cfg_name}"
+    cfg_name = f"{backend.capitalize()}-{cfg_type.capitalize()}-{cfg_name}"
     cfg_entry_point = gym.spec(cfg_name).kwargs.get(entry_point_key)
     # check if entry point exists
     if cfg_entry_point is None:
@@ -138,7 +140,19 @@ def load_cfg_cls_from_registry(cfg_type: str, cfg_name: str, entry_point_key: st
     return cfg
 
 
+def get_scene_type(scene_name: str, debug_assets: str | None = None) -> str:
+    if debug_assets:
+        scene_type = "Testasset"
+    elif scene_name.endswith(".usd"):
+        scene_type = "Usd"
+    else:
+        scene_type, *_ = scene_name.split("-", 1)
+    return scene_type.capitalize()
+
+
 def parse_env_cfg(
+    scene_backend: str,
+    task_backend: str,
     scene_name: str,
     robot_name: str,
     task_name: str,
@@ -159,6 +173,7 @@ def parse_env_cfg(
     sources: list[str] | None = None,
     object_projects: list[str] | None = None,
     headless_mode: bool = False,
+    initial_state: dict | None = None,
     teleop_device: str = None,
     resample_objects_placement_on_reset: bool | None = None,
     resample_robot_placement_on_reset: bool | None = None,
@@ -167,6 +182,8 @@ def parse_env_cfg(
     """Parse configuration for an environment and override based on inputs.
 
     Args:
+        scene_backend: The backend to use for the scene.
+        task_backend: The backend to use for the task.
         task_name: The name of the environment.
         device: The device to run the simulation on. Defaults to "cuda:0".
         num_envs: Number of environments to create. Defaults to None, in which case it is left unchanged.
@@ -188,8 +205,10 @@ def parse_env_cfg(
     from lwlab.core.env_builder.env_builder import LwLabEnvBuilder
     context = get_context()
     context.scene_name = scene_name
+    context.scene_backend = scene_backend
     context.robot_name = robot_name
     context.task_name = task_name
+    context.task_backend = task_backend
     context.execute_mode = execute_mode
     context.device = device
     context.robot_scale = robot_scale
@@ -203,6 +222,7 @@ def parse_env_cfg(
     context.sources = sources
     context.object_projects = object_projects
     context.headless_mode = headless_mode
+    context.initial_state = initial_state
     context.extra_params = kwargs
     context.resample_objects_placement_on_reset = resample_objects_placement_on_reset
     context.resample_robot_placement_on_reset = resample_robot_placement_on_reset
@@ -214,26 +234,23 @@ def parse_env_cfg(
             context.ep_meta = replay_cfgs["ep_meta"]
         if "add_camera_to_observation" in replay_cfgs:
             context.add_camera_to_observation = replay_cfgs["add_camera_to_observation"]
+    for k, v in kwargs.items():
+        setattr(context, k, v)
     discover_and_import_lwlab_modules()
 
     from isaaclab_arena.environments.isaaclab_arena_environment import IsaacLabArenaEnvironment
 
-    if scene_name.endswith(".usd"):
-        scene_type = "USD"
-    else:
-        scene_type, *_ = scene_name.split("-", 1)
+    scene_type = get_scene_type(scene_name, kwargs.get("debug_assets", None))
 
     # scene config settings
-    scene = load_cfg_cls_from_registry("scene", "Robocasakitchen", "env_cfg_entry_point")
+    scene = load_cfg_cls_from_registry("scene", scene_type, "env_cfg_entry_point", backend=scene_backend)
 
     # robot config settings
     robot = load_cfg_cls_from_registry("robot", robot_name, "env_cfg_entry_point")
 
     # task config settings
-    if scene_type == "USD":
-        task = load_cfg_cls_from_registry("task", "Usd", "env_cfg_entry_point")
-    else:
-        task = load_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point")
+    task = load_cfg_cls_from_registry("task", task_name, "env_cfg_entry_point", backend=task_backend)
+
     # rl config settings
     if rl_name:
         rl = load_cfg_cls_from_registry("rl", rl_name, "env_cfg_entry_point")

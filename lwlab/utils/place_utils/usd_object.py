@@ -12,12 +12,12 @@ class USDObject():
         self,
         name: str,
         task_name: str,
-        category,
         obj_path,
         object_scale=(1.0, 1.0, 1.0),
         rotate_upright=False,
         rgb_replace=None,
         asset_type="objects",
+        is_deformable=False,
     ):
         # get scale in x, y, z
         if isinstance(object_scale, float):
@@ -32,7 +32,9 @@ class USDObject():
         object_scale = np.array(object_scale)
         self.name = name
         self.task_name = task_name
-        self.category = category
+        self.asset_type = asset_type
+        self.is_deformable = is_deformable
+        self.rgb_replace = rgb_replace
         self.obj_path = obj_path
         self.object_scale = object_scale
         self.rotate_upright = rotate_upright

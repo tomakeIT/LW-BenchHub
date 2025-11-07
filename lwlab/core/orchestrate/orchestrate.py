@@ -18,6 +18,7 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 from isaaclab.managers import EventTermCfg as EventTerm
 from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 from lwlab.utils.log_utils import get_code_version
+from lwlab.utils.env import ExecuteMode
 
 
 class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
@@ -58,18 +59,19 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
             from lwlab.utils.usd_utils import OpenUsd as usd
             new_stage = usd.usd_simplify(self.scene.lwlab_arena.stage, self.fixture_refs)
             self.scene.scene_type
-            self.scene.usd_path = self.scene.usd_path.replace(".usd", "_simplified.usd")
-            new_stage.GetRootLayer().Export(self.scene.usd_path)
+            self.scene.scene_usd_path = self.scene.scene_usd_path.replace(".usd", "_simplified.usd")
+            new_stage.GetRootLayer().Export(self.scene.scene_usd_path)
             # modify background
-            self.scene.assets[self.scene.scene_type].usd_path = self.scene.usd_path
+            self.scene.assets[self.scene.scene_type].usd_path = self.scene.scene_usd_path
         # del self.scene.lwlab_arena
 
     def _reset_internal(self, env, env_ids):
         """
         Reset the event.
         """
-        self.task._setup_scene(env, env_ids)
-        self.reset_root_state(env=env, env_ids=env_ids)
+        if self.task.context.task_backend == "robocasa":
+            self.task._setup_scene(env, env_ids)
+            self.reset_root_state(env=env, env_ids=env_ids)
 
     def update_state(self, env):
         for fixture_controller in self.fixture_refs.values():
@@ -106,6 +108,13 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
         object_placements, updated_obj_names = self._update_fxtr_obj_placement(object_placements)
         if self.task.resample_objects_placement_on_reset and self.task.fix_object_pose_cfg is None:
             reset_objs = object_placements.keys()
+            # test asset part
+            if self.context.execute_mode == ExecuteMode.TEST_OBJECT:
+                self.task.visible_obj_idx += 1
+                if self.task.visible_obj_idx >= len(self.task.objects):
+                    self.task.visible_obj_idx = 0
+                print(f"[INFO] Placing object {list(self.task.objects.keys())[self.task.visible_obj_idx]}")
+                print(f"[INFO] Object sizes: {self.task.objects[list(self.task.objects.keys())[self.task.visible_obj_idx]].size}")
         else:
             reset_objs = updated_obj_names
         for obj_name in reset_objs:

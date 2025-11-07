@@ -16,7 +16,10 @@ robot_scale: 1.0
 # =========================
 # Task & Scene Settings
 # =========================
-task: OpenDrawer
+task: RobocasaBaseTask
+scene_backend: robocasa
+task_backend: robocasa
+debug_assets: null
 layout: robocasakitchen
 sources:
   - objaverse

@@ -12,6 +12,9 @@ sources:                     # Object source name
   - lightwheel
   - aigen_objs
 object_projects: []          # Object project name
+scene_backend: robocasa      # Scene backend name
+task_backend: robocasa       # task backedn name
+debug_assets: null           # Debug assets name
 robot: null                  # Robot cfg name
 task: null                   # Task cfg name
 rl: null                     # RL cfg name

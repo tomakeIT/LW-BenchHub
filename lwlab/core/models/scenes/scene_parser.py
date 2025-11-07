@@ -45,6 +45,26 @@ def parse_fixtures(stage, num_envs, seed, device):
     return fixtures
 
 
+def get_fixture_cfgs(env):
+    """
+    Returns config data for all fixtures in the arena
+
+    Returns:
+        list: list of fixture configurations
+    """
+    fixture_cfgs = []
+    for (name, fxtr) in env.fixtures.items():
+        cfg = {}
+        cfg["name"] = name
+        cfg["model"] = fxtr
+        cfg["type"] = "fixture"
+        if hasattr(fxtr, "_placement"):
+            cfg["placement"] = fxtr._placement
+
+        fixture_cfgs.append(cfg)
+    return fixture_cfgs
+
+
 def register_fixture_from_obj(obj, prim, fixtures_ref, num_envs, pos, rot):
     """
     Register a fixture if the given object corresponds to an articulated fixture.

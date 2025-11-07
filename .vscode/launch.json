@@ -158,5 +158,27 @@
                 "LW_API_ENDPOINT": "https://api-dev.lightwheel.net"
             }
         },
+        {
+            "name": "test_objects",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "--task_config=test_object" ,
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
+            "name": "test_fixtures",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "--task_config=test_fixture" ,
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        }
     ]
 }

@@ -8,8 +8,10 @@ CURRENT_CONTEXT = None
 @dataclass
 class Context:
     scene_name: str | None = None
+    scene_backend: str | None = None
     robot_name: str | None = None
     task_name: str | None = None
+    task_backend: str | None = None
     execute_mode: ExecuteMode | None = None
     device: str | None = None
     ep_meta: dict | None = field(default_factory=dict)
@@ -24,6 +26,7 @@ class Context:
     sources: list[str] | None = None
     object_projects: list[str] | None = None
     headless_mode: bool = False
+    initial_state: dict | None = None
     extra_params: dict | None = None
     replay_cfgs: dict | None = field(default_factory=dict)
     resample_objects_placement_on_reset: bool | None = None
@@ -32,6 +35,9 @@ class Context:
     device: str | None = "cpu"
     use_fabric: bool | None = None
     add_camera_to_observation: bool = False
+    test_fixture_path: str | None = None
+    test_fixture_type: str | None = None
+    test_object_paths: list[str] | None = None
 
 
 def get_context():

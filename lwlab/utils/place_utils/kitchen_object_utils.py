@@ -53,6 +53,7 @@ def sample_kitchen_object(
     rgb_replace=None,
     projects=None,
     version=None,
+    load_from_local=False,
     ignore_cache=False,
 ):
     """
@@ -72,6 +73,10 @@ def sample_kitchen_object(
         projects (list[str]): list of projects to sample from. If set will filter the objects by the projects.
 
         version (str): version of the object to sample from. If set will filter the objects by the version.
+
+        load_from_local (bool): whether to load the object from local.
+
+        ignore_cache (bool): whether to ignore the cache and force to sample a new object
 
 
     Returns:
@@ -95,6 +100,16 @@ def sample_kitchen_object(
             acquire_end_time = time.time()
             total_acquire_time = acquire_end_time - acquire_start_time
             print(f"Total Acquire Time: {total_acquire_time:.4f}s")
+        elif load_from_local:
+            obj_path = object_cfgs["asset_name"]
+            obj_name = object_cfgs["asset_name"].split("/")[-1].split(".")[0]
+            category = None
+            obj_res = {
+                "assetName": obj_name,
+                "source": "local",
+                "metadata": {},
+                "property": {},
+            }
         else:
             if cache_key:
                 print(f"--- First Run: '{cache_key}' not in cache. Using object_loader. ---")
@@ -102,23 +117,19 @@ def sample_kitchen_object(
             if version is not None:
                 acquire_start_time = time.time()
                 obj_path, obj_name, obj_res = object_loader.acquire_by_file_version(version)
-                category = find_most_similar_category(obj_name)
                 acquire_end_time = time.time()
                 total_acquire_time = acquire_end_time - acquire_start_time
                 print(f"Total Acquire Time: {total_acquire_time:.4f}s")
 
-            elif isinstance(object_cfgs["obj_groups"], str) and object_cfgs["obj_groups"].endswith(".usd"):
-                if "/" in object_cfgs["obj_groups"]:
-                    filename = object_cfgs["obj_groups"].split("/")[-1].split(".")[0]
-                    category = find_most_similar_category(object_cfgs["obj_groups"].split("/")[-2])
+            elif object_cfgs["asset_name"]:
+                if "/" in object_cfgs["asset_name"]:
+                    filename = object_cfgs["asset_name"].split("/")[-1].split(".")[0]
                 else:
-                    filename = object_cfgs["obj_groups"].split(".")[0]
-                    category = find_most_similar_category(filename)
+                    filename = object_cfgs["asset_name"].split(".")[0]
 
                 acquire_start_time = time.time()
                 obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
                     object_cfgs["asset_type"],
-                    registry_name=[category],
                     file_name=filename,
                     source=list(source) if source is not None else [],
                     projects=list(projects) if projects is not None else [],
@@ -128,16 +139,11 @@ def sample_kitchen_object(
                 print(f"Total Acquire Time: {total_acquire_time:.4f}s")
 
             else:
-                category = object_cfgs["obj_groups"]
-                if isinstance(category, list):
-                    registry_name = [item for c in category for item in OBJ_GROUPS[c]]
-                elif isinstance(category, str):
-                    registry_name = OBJ_GROUPS[category]
-
                 acquire_start_time = time.time()
+                categories = [item for c in object_cfgs["obj_groups"] for item in OBJ_GROUPS[c]]
                 obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
                     object_cfgs["asset_type"],
-                    registry_name=registry_name,
+                    registry_name=categories,
                     eqs=None if not object_cfgs["properties"] else object_cfgs["properties"],
                     source=list(source) if source is not None else [],
                     projects=list(projects) if projects is not None else [],
@@ -147,20 +153,28 @@ def sample_kitchen_object(
                 acquire_end_time = time.time()
                 total_acquire_time = acquire_end_time - acquire_start_time
                 print(f"Total Acquire Time: {total_acquire_time:.4f}s")
+            category = obj_res["registryName"]
 
-        sampled_category = find_most_similar_category(obj_res["assetName"])
-        if sampled_category is None:
-            sampled_category = category
         obj_info = ObjInfo(
             name=obj_name,
             types=obj_res["property"]["types"] if "types" in obj_res["property"] else [],
-            category=sampled_category,
+            category=category,
             task_name=object_cfgs.get("task_name"),
             source=SOURCE_MAPPING[obj_res["source"]],
             rotate_upright=rotate_upright,
             obj_path=obj_path,
             obj_version=obj_res.get("fileVersionId", None),
         )
+
+        # detect deformable flag from registry properties
+        prop_dict = obj_res.get("property", {})
+        is_deformable = bool(prop_dict.get("is_deformable", False)) or str(prop_dict.get("body_type", "")).lower() in [
+            "deformable",
+            "soft_body",
+            "soft",
+        ]
+        # store on obj_info so it appears in returned info dict
+        setattr(obj_info, "is_deformable", is_deformable)
 
         metadata = {"scale": 1.0, "exclude": []}
         if obj_info.source in obj_res["metadata"]:
@@ -186,12 +200,12 @@ def sample_kitchen_object(
         model = USDObject(
             name=obj_info.name,
             task_name=object_cfgs["task_name"],
-            category=obj_info.category,
             obj_path=obj_path,
             object_scale=obj_scale,
             rotate_upright=rotate_upright,
             rgb_replace=rgb_replace,
-            asset_type=object_cfgs["asset_type"]
+            asset_type=object_cfgs["asset_type"],
+            is_deformable=is_deformable,
         )
         obj_info.size = model.size
         obj_info.set_attrs(obj_res["property"])
@@ -235,32 +249,17 @@ def sample_kitchen_object(
     return model, obj_info.get_info()
 
 
-def find_most_similar_category(filename):
-    def normalize_name(name):
-        return name.replace("_", "").lower()
-    filename_norm = normalize_name(filename)
-    groups = max(
-        [g for g in OBJ_GROUPS if filename_norm.startswith(normalize_name(g))],
-        key=len,
-        default=None
-    )
-    if groups is not None:
-        return OBJ_GROUPS[groups][0]
-    from difflib import get_close_matches
-    candidates = list(OBJ_GROUPS.keys())
-    matches = get_close_matches(filename_norm, [normalize_name(c) for c in candidates], n=1, cutoff=0.7)
-    if matches:
-        idx = [normalize_name(c) for c in candidates].index(matches[0])
-        return OBJ_GROUPS[candidates[idx]][0]
-    else:
-        return None
-
-
 def extract_failed_object_name(error_message):
     import re
-    match = re.search(r"Failed to place object '([^']+)'", error_message)
-    if match:
-        return match.group(1)
+    patterns = [
+        r"Failed to place object\s*'([^']+)'",  # With single quotes
+        r'Failed to place object\s*"([^"]+)"',  # With double quotes
+        r"Failed to place object\s*([^\s,'\"]+)",  # Without quotes, stops at space or comma or quote
+    ]
+    for pat in patterns:
+        match = re.search(pat, error_message)
+        if match:
+            return match.group(1)
     return None
 
 
@@ -272,8 +271,10 @@ def recreate_object(orchestrator, failed_obj_name):
             return False
 
         orchestrator.task.objects.pop(failed_obj_name, None)
-        if "obj_path" in obj_cfg["info"]:
-            obj_cfg["info"] = {"obj_path": obj_cfg["info"]["obj_path"]}
+
+        # TODO: mjcf_path need to be deleted!!!! its too ugly!!!!
+        if "mjcf_path" in obj_cfg["info"]:
+            obj_cfg["info"] = {"mjcf_path": obj_cfg["info"]["mjcf_path"]}
         else:
             obj_cfg.pop("info", None)
 

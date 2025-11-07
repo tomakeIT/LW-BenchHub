@@ -227,6 +227,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def __init__(self):
         self.context = get_context()
+        self.task_backend = self.context.task_backend
         self.usd_simplify = self.context.usd_simplify
         self.exclude_layouts = self.EMPTY_EXCLUDE_LAYOUTS
         self.cache_usd_version = self.context.ep_meta.get("cache_usd_version", {})
@@ -261,6 +262,10 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.is_replay_mode = False
         self.contact_queues = [ContactQueue() for _ in range(self.context.num_envs)]
 
+        if self.context.execute_mode == ExecuteMode.TEST_OBJECT:
+            self.visible_obj_idx = 0
+            self.test_object_paths = self.context.test_object_paths
+
         # Initialize retry counts
         self.scene_retry_count = 0
         self.object_retry_count = 0
@@ -269,6 +274,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self._success_flag: torch.Tensor = torch.tensor([False], device=self.context.device, dtype=torch.bool).repeat(self.context.num_envs)
 
     def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg) -> IsaacLabArenaManagerBasedRLEnvCfg:
+        env_cfg.task_backend = self.task_backend
         if self.context.execute_mode == ExecuteMode.TELEOP:
             self._success_count = int(1 / env_cfg.sim.dt / 2)
         else:
@@ -452,7 +458,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                                     break
                         ##
                 model, info = EnvUtils.create_obj(self, obj_cfg, version=object_version)
-                obj_cfg["info"] = info
+                obj_cfg["info"] = {**info, **obj_cfg.get("info", {})}
                 self.objects[model.task_name] = model
         else:
             self.object_cfgs = self._get_obj_cfgs()
@@ -463,7 +469,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                 if "name" not in obj_cfg:
                     obj_cfg["name"] = "obj_{}".format(obj_num + 1)
                 model, info = EnvUtils.create_obj(self, obj_cfg)
-                obj_cfg["info"] = info
+                obj_cfg["info"] = {**info, **obj_cfg.get("info", {})}
                 self.objects[model.task_name] = model
 
                 # check and create merged object if needed
@@ -503,7 +509,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
                             all_obj_cfgs.append(merged_obj_cfg)
                             model, info = EnvUtils.create_obj(self, merged_obj_cfg)
-                            merged_obj_cfg["info"] = info
+                            merged_obj_cfg["info"] = {**info, **merged_obj_cfg.get("info", {})}
                             self.objects[model.task_name] = model
                     else:
                         raise FileNotFoundError(f"Merged object USD file not found.")
@@ -542,7 +548,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                     # add in the new object to the model
                     all_obj_cfgs.append(container_cfg)
                     model, info = EnvUtils.create_obj(self, container_cfg)
-                    container_cfg["info"] = info
+                    container_cfg["info"] = {**info, **container_cfg.get("info", {})}
                     self.objects[model.task_name] = model
 
                     # modify object config to lie inside of container
@@ -874,8 +880,8 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self._get_obj_cfgs()
         self._create_objects()
 
-        object_placements = EnvUtils.sample_object_placements(orchestrator)
-        self._apply_object_placements(object_placements)
+        self.object_placements = EnvUtils.sample_object_placements(orchestrator)
+        self._apply_object_placements(self.object_placements)
 
         self._set_reward_joint_names(
             orchestrator.embodiment.reward_gripper_joint_names,
@@ -939,3 +945,8 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def _setup_scene(self, env, env_ids=None):
         pass
+
+
+class TestAssetTask(LwLabTaskBase):
+    def __init__(self):
+        super().__init__()

@@ -14,9 +14,9 @@
 
 import os
 import math
+import numpy as np
 from turtle import st
-from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema, UsdShade
-from pxr import Sdf
+from pxr import Usd, UsdPhysics, UsdGeom, UsdSkel, PhysxSchema, UsdShade, Gf, Sdf
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
 
@@ -492,6 +492,52 @@ class OpenUsd:
 
         return fixture_placements
 
+    @staticmethod
+    def replace_prim(stage, prim, new_prim_path):
+        translate_attr = None
+        rotateXYZ_attr = None
+        scale_attr = None
+        need_reorder = False
+        path = prim.GetPath()
+        old_translate = prim.GetAttribute("xformOp:translate").Get()
+        old_rot = prim.GetAttribute("xformOp:rotateXYZ").Get()
+        old_bbox = OpenUsd.get_prim_aabb_bounding_box(prim)
+        old_bbox_size = np.array([old_bbox.GetSize()[0], old_bbox.GetSize()[1], old_bbox.GetSize()[2]])
+        old_bbox_size = abs(T.euler2mat(np.array(old_rot) / 180 * np.pi) @ old_bbox_size)
+        prim_type = prim.GetAttribute("type").Get()
+        stage.RemovePrim(path)
+        new_prim = stage.DefinePrim(path, "Xform")
+        new_prim.GetReferences().AddReference(new_prim_path)
+        new_bbox = OpenUsd.get_prim_aabb_bounding_box(new_prim)
+        new_bbox_size = [new_bbox.GetSize()[0], new_bbox.GetSize()[1], new_bbox.GetSize()[2]]
+        relative_scale = [float((old_bbox_size[i]) / new_bbox_size[i]) for i in range(3)]
+        xformable = UsdGeom.Xformable(new_prim)
+        ops = xformable.GetOrderedXformOps()
+        for op in ops:
+            if op.GetOpType() == UsdGeom.XformOp.TypeScale:
+                scale_attr = op
+                op.Set(Gf.Vec3f(relative_scale[0], relative_scale[1], relative_scale[2]))
+            elif op.GetOpType() == UsdGeom.XformOp.TypeRotateXYZ:
+                rotateXYZ_attr = op
+                op.Set(Gf.Vec3f(old_rot[0], old_rot[1], old_rot[2]))
+            elif op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
+                translate_attr = op
+                op.Set(Gf.Vec3f(old_translate[0], old_translate[1], old_translate[2]))
+            elif op.GetOpType() in [UsdGeom.XformOp.TypeRotateZYX, UsdGeom.XformOp.TypeOrient]:
+                rotateXYZ_attr = xformable.AddRotateXYZOp()
+                rotateXYZ_attr.Set(Gf.Vec3f(old_rot[0], old_rot[1], old_rot[2]))
+                need_reorder = True
+        if need_reorder:
+            xformable.SetXformOpOrder([
+                translate_attr,
+                rotateXYZ_attr,
+                scale_attr,
+            ])
+        type_attr = new_prim.CreateAttribute("type", Sdf.ValueTypeNames.String)
+        type_attr.Set(prim_type)
+        size_attr = new_prim.CreateAttribute("size", Sdf.ValueTypeNames.String)
+        size_attr.Set(f"{old_bbox_size[0]}, {old_bbox_size[1]}, {old_bbox_size[2]}")
+
 
 class OpenUsdWrapper:
     def __init__(self, usd_path):
@@ -617,3 +663,6 @@ class OpenUsdWrapper:
         if root_prim is None:
             root_prim = self.root_prim
         return self._usd.get_fixture_placements(root_prim, fixture_cfgs, fixtures)
+
+    def replace_prim(self, prim, new_prim_path):
+        return self._usd.replace_prim(self.stage, prim, new_prim_path)

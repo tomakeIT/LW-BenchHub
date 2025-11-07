@@ -199,6 +199,8 @@ def main():
         task_name = args_cli.task.strip()
     else:  # robocasa
         from lwlab.utils.env import parse_env_cfg, ExecuteMode
+        scene_backend = env_args["scene_backend"] if "scene_backend" in env_args else "robocasa"
+        task_backend = env_args["task_backend"] if "task_backend" in env_args else "robocasa"
         task_name = env_args["task_name"] if args_cli.task is None else args_cli.task.strip()
         # TODO delete the hardcoded task names
         if task_name == "PutButterInBasket":
@@ -220,6 +222,8 @@ def main():
         else:
             scene_name = "robocasakitchen"
         env_cfg = parse_env_cfg(
+            scene_backend=scene_backend,
+            task_backend=task_backend,
             task_name=task_name,
             robot_name=robot_name,
             scene_name=f"{scene_name}-{env_args['layout_id']}-{env_args['style_id']}" if args_cli.layout is None else args_cli.layout,

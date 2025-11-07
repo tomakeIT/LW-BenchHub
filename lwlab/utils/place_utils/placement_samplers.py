@@ -503,6 +503,7 @@ class SequentialCompositeSampler(ObjectPositionSampler):
     def __init__(self, name, seed):
         # Samplers / args will be filled in later
         self.samplers = collections.OrderedDict()
+        self.tmp_samplers = collections.OrderedDict()
         self.sample_args = collections.OrderedDict()
         self.samplers_with_args = []
 
@@ -527,33 +528,49 @@ class SequentialCompositeSampler(ObjectPositionSampler):
             ), f"{obj.task_name} '{obj.name}' already has sampler associated with it!"
             self.mujoco_objects.append(obj)
         self.samplers[sampler.name] = sampler
+        self.tmp_samplers[sampler.name] = sampler
         self.sample_args[sampler.name] = sample_args
 
+        self.update_samplers_with_args()
+
+    def update_samplers_with_args(self):
+        """
+        Update the samplers with args. Called by append_sampler, hide, unhide.
+        """
         # sort samplers by object size (large -> small)
         self.samplers_with_args = list(zip(self.samplers.values(), self.sample_args.values()))
         self.samplers_with_args.sort(key=lambda x: self.get_obj_size(x[0]), reverse=True)
         self.samplers_with_args = self.adjust_order_by_container(self.samplers_with_args)
 
-    def hide(self, mujoco_objects):
+    def hide(self, sampler_name):
         """
         Helper method to remove an object from the workspace.
 
         Args:
             mujoco_objects (MujocoObject or list of MujocoObject): Object(s) to hide
         """
-        sampler = UniformRandomSampler(
-            name="HideSampler",
-            mujoco_objects=mujoco_objects,
-            x_range=[-10, -20],
-            y_range=[-10, -20],
+        hide_sampler = UniformRandomSampler(
+            name=sampler_name,
+            seed=self.seed,
+            mujoco_objects=self.samplers[sampler_name].mujoco_objects,
+            x_ranges=[[-20, -10]],
+            y_ranges=[[-20, -10]],
             rotation=[0, 0],
             rotation_axis="z",
             z_offset=10,
             ensure_object_boundary_in_range=False,
             ensure_valid_placement=False,
-            rng=self.rng,
         )
-        self.append_sampler(sampler=sampler)
+        self.samplers[sampler_name] = hide_sampler
+        self.update_samplers_with_args()
+
+    def unhide(self, sampler_name):
+        """
+        Helper method to restore an object to the workspace.
+        """
+        unhide_sampler = self.tmp_samplers[sampler_name]
+        self.samplers[sampler_name] = unhide_sampler
+        self.update_samplers_with_args()
 
     def add_objects(self, mujoco_objects):
         """

@@ -650,8 +650,19 @@ def main():
                         pass
                 if scene_name is None:
                     scene_name = args_cli.layout
-
+                kwargs = {"debug_assets": args_cli.debug_assets}
+                if args_cli.debug_assets == "object":
+                    execute_mode = ExecuteMode.TEST_OBJECT
+                    kwargs["test_object_paths"] = args_cli.test_object_paths
+                elif args_cli.debug_assets == "fixture":
+                    execute_mode = ExecuteMode.TEST_FIXTURE
+                    kwargs["test_fixture_path"] = args_cli.test_fixture_path
+                    kwargs["test_fixture_type"] = args_cli.test_fixture_type
+                else:
+                    execute_mode = ExecuteMode.TELEOP
                 env_cfg = parse_env_cfg(
+                    scene_backend=args_cli.scene_backend,
+                    task_backend=args_cli.task_backend,
                     task_name=args_cli.task,
                     robot_name=args_cli.robot,
                     scene_name=scene_name,
@@ -662,7 +673,7 @@ def main():
                     replay_cfgs=replay_cfgs,
                     first_person_view=args_cli.first_person_view,
                     enable_cameras=app_launcher._enable_cameras,
-                    execute_mode=ExecuteMode.TELEOP,
+                    execute_mode=execute_mode,
                     usd_simplify=args_cli.usd_simplify,
                     object_init_offset=object_init_offset,
                     max_scene_retry=args_cli.max_scene_retry,
@@ -671,12 +682,12 @@ def main():
                     sources=args_cli.sources,
                     object_projects=args_cli.object_projects,
                     headless_mode=args_cli.headless,
+                    initial_state=initial_state,
                     teleop_device=args_cli.teleop_device,
                     resample_objects_placement_on_reset=args_cli.resample_objects_placement_on_reset,
                     resample_robot_placement_on_reset=args_cli.resample_robot_placement_on_reset,
+                    **kwargs,
                 )
-                if hasattr(args_cli, "reset_objects_enabled"):
-                    env_cfg.reset_objects_enabled = args_cli.reset_objects_enabled
             env_name = f"Robocasa-{args_cli.task}-{args_cli.robot}-v0"
             env_cfg.env_name = env_name
             env_cfg.terminations.time_out = None

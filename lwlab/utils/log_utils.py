@@ -572,7 +572,10 @@ def get_action_space_def(env):
         term_info["action_name"] = term_name
         term_info["action_dim"] = term.action_dim
         term_info["applied_joint_names"] = term._joint_names
-        term_info["applied_joint_ids"] = term._joint_ids
+        if term._joint_ids == slice(None):
+            term_info["applied_joint_ids"] = list(range(len(term._joint_names)))
+        else:
+            term_info["applied_joint_ids"] = term._joint_ids
         term_info["action_type"] = term.__class__.__name__
         term_info["root_name"] = root_name
         term_info["clip"] = term.cfg.clip

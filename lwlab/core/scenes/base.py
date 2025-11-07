@@ -21,7 +21,7 @@ from isaaclab.assets import ArticulationCfg, AssetBaseCfg
 from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 from lwlab.utils.isaaclab_utils.assets import GeneralAssetCfg
-from lwlab.core.cfg import LwBaseCfg
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 
 
 @configclass
@@ -57,45 +57,38 @@ class USDSceneCfg(InteractiveSceneCfg):
 # so that InteractiveSceneCfg._add_entities_from_cfg can ignore _usd_path
 # InteractiveSceneCfg.__dataclass_fields__["_usd_path"] = USDSceneCfg.__dataclass_fields__["_usd_path"]
 
+from isaaclab_arena.scene.scene import Scene
+from isaaclab_arena.assets.background import Background
+from lwlab.core.context import get_context
+from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
 
-# @configclass
-class BaseSceneEnvCfg(LwBaseCfg):
-    """Configuration for the kitchen environment."""
 
-    # Scene settings
-    scene: USDSceneCfg = MISSING
-    usd_path: str = MISSING
+class LocalScene(Scene, NoDeepcopyMixin):
+    def __init__(self, **kwargs):
+        super().__init__()
+        self.context = get_context()
+        self.scene_usd_path = self.context.scene_name
+        self.scene_type = "local"
+        self.fixtures = {}
+        self.fxtr_placements = {}
+        self.is_replay_mode = False
+        assert self.scene_usd_path.endswith(".usd"), "Scene USD path must end with .usd"
 
-    def __post_init__(self):
-        """Post initialization."""
-        super().__post_init__()
-        self.scene = USDSceneCfg(
-            num_envs=4096,
-            env_spacing=10.0,
-            _usd_path=self.usd_path
+    def setup_env_config(self, orchestrator):
+        background = Background(
+            name=self.scene_type,
+            usd_path=self.scene_usd_path,
+            object_min_z=0.1,
         )
-        if hasattr(self, "enable_cameras") and self.enable_cameras:
-            render_resolution = None
-            if hasattr(self, "replay_cfgs") and self.replay_cfgs.get("render_resolution", None) is not None:
-                render_resolution = self.replay_cfgs["render_resolution"]
-            task_obs_cameras = [(n, c) for n, c in self.observation_cameras.items() if self.execute_mode in c["execute_mode"]]
-            for name, camera_infos in task_obs_cameras:
-                camera_cfg = camera_infos["camera_cfg"]
-                if render_resolution is not None:
-                    camera_cfg.width = render_resolution[0]
-                    camera_cfg.height = render_resolution[1]
-                setattr(self.scene, name, camera_cfg)
-
-        # general settings
-        self.sim.physx.bounce_threshold_velocity = 0.2
-        self.sim.physx.bounce_threshold_velocity = 0.01
-        self.sim.physx.friction_correlation_distance = 0.00625
-        self.sim.render.enable_translucency = True
-
-    def _reset_internal(self, env_ids):
-        pass
+        # flush self.assets
+        self.assets = {}
+        self.add_asset(background)
 
     def get_ep_meta(self):
-        ep_meta = super().get_ep_meta()
-        ep_meta["usd_path"] = self.usd_path
-        return ep_meta
+        return {
+            "floorplan_version": None,
+        }
+
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
+        env_cfg.sim.render.enable_translucency = True
+        return env_cfg

@@ -4,18 +4,19 @@ from lightwheel_sdk.loader import object_loader
 OBJECT_INFO_CACHE = {}
 
 
-def postprocess_obj_categories(obj_categories, exclude_fixture=True):
+def postprocess_categories(obj_categories, selected_type="objects"):
     updated_categories = []
     for obj_cat in obj_categories:
         if obj_cat["removed"]:
             continue
-        if exclude_fixture and obj_cat["registryType"] == "fixtures":
+        if obj_cat["registryType"] != selected_type:
             continue
         updated_categories.append(obj_cat)
     return updated_categories
 
 
-OBJ_CATEGORIES = postprocess_obj_categories(object_loader.list_registry(), exclude_fixture=False)
+OBJ_CATEGORIES = postprocess_categories(object_loader.list_registry(), selected_type="objects")
+FIXTURE_CATEGORIES = postprocess_categories(object_loader.list_registry(), selected_type="fixtures")
 
 
 def get_cats_by_type(types, obj_registries=[]):
@@ -61,8 +62,15 @@ OBJ_GROUPS = dict(
     all=[obj_cat["name"] for obj_cat in OBJ_CATEGORIES],
 )
 
+FIXTURE_GROUPS = dict(
+    all=[obj_cat["name"] for obj_cat in FIXTURE_CATEGORIES],
+)
+
 for obj_cat in OBJ_CATEGORIES:
     OBJ_GROUPS[obj_cat["name"]] = [obj_cat["name"]]
+
+for obj_cat in FIXTURE_CATEGORIES:
+    FIXTURE_GROUPS[obj_cat["name"]] = [obj_cat["name"]]
 
 all_types = set()
 # populate all_types
@@ -138,4 +146,5 @@ SOURCE_MAPPING = {
     "objaverse": "objaverse",
     "aigen_objs": "aigen",
     "lightwheel": "lightwheel",
+    "local": "local",
 }

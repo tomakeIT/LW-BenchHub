@@ -28,45 +28,48 @@ class KitchenArena:
     Kitchen arena class holding all of the fixtures
 
     Args:
-        layout_id (int or LayoutType): layout of the kitchen to load
-
-        style_id (int or StyleType): style of the kitchen to load
-
-        scene_cfg (RoboCasaSceneCfg): scene configuration
-
-        layout_registry_names (list, optional): List of fixture registry names (FixtureType, int, or str) required for layout filtering.
-
+        layout_id (int, optional): ID of the kitchen layout to load; may also be a LayoutType.
+        style_id (int, optional): ID of the kitchen style to load; may also be a StyleType.
+        cache_usd_version (dict, optional): Dictionary with USD file versioning information, e.g. {"floorplan_version": ...}.
+        exclude_layouts (list, optional): List of layout IDs or types to exclude from selection.
+        enable_fixtures (list, optional): List of fixture names to explicitly enable in the floorplan.
+        removable_fixtures (list, optional): List of fixture names to make removable (i.e., deactivate joints).
+        scene_type (str, optional): Type of the scene, e.g. "kitchen" or "usd".
+        local_scene_path (str, optional): Path to the local USD file to load.
     """
 
-    def __init__(self, layout_id, style_id, exclude_layouts=[], enable_fixtures=[], movable_fixtures=[], scene_cfg=None, scene_type='robocasakitchen', layout_registry_names: list[str | FixtureType | int] | None = None,):
+    def __init__(self,
+                 layout_id: int | None = None,
+                 style_id: int | None = None,
+                 floorplan_version: str | None = None,
+                 exclude_layouts: list[int] | None = None,
+                 enable_fixtures: list[str] | None = None,
+                 movable_fixtures: list[str] | None = None,
+                 scene_type: str | None = None,
+                 local_scene_path: str | None = None
+                 ):
         # download floorplan usd
-        self.scene_cfg = scene_cfg
-        self.floorplan_version = scene_cfg.floorplan_version
-        self.enable_fixtures = enable_fixtures
-        self.movable_fixtures = movable_fixtures
-        self.load_floorplan(layout_id, style_id, exclude_layouts=exclude_layouts, layout_registry_names=layout_registry_names)
+        self.load_floorplan(layout_id, style_id, floorplan_version, exclude_layouts, scene_type, local_scene_path)
         self.stage = usd.get_stage(self.usd_path)
 
         # enable fixtures in usd
-        if self._is_updated_usd():
+        if self._is_updated_usd(enable_fixtures, movable_fixtures):
             dir_name = os.path.dirname(self.usd_path)
             base_name = os.path.basename(self.usd_path)
             new_path = os.path.join(dir_name, base_name.replace(".usd", "_enabled.usd"))
             self.stage.GetRootLayer().Export(new_path)
             self.usd_path = new_path
-        # load fixtures
-        self.scene_cfg.fixtures = parse_fixtures(self.stage, scene_cfg.context.num_envs, scene_cfg.context.seed, scene_cfg.context.device)
 
-    def _is_updated_usd(self):
+    def _is_updated_usd(self, enable_fixtures, movable_fixtures):
         is_updated_usd = False
-        if self.enable_fixtures is not None:
+        if enable_fixtures is not None:
             is_updated_usd = True
-            for fixture in self.enable_fixtures:
+            for fixture in enable_fixtures:
                 usd.activate_prim(self.stage, fixture)
-        if self.movable_fixtures is not None:
+        if movable_fixtures is not None:
             is_updated_usd = True
             root_prim = self.stage.GetPseudoRoot()
-            for fixture in self.movable_fixtures:
+            for fixture in movable_fixtures:
                 prims = usd.get_prim_by_prefix(root_prim, fixture)
                 for prim in prims:
                     fixed_joints = usd.get_prim_by_type(prim, include_types=["PhysicsFixedJoint"])
@@ -94,41 +97,28 @@ class KitchenArena:
 
         return fixture_cfgs
 
-    def load_floorplan(self, layout_id, style_id, exclude_layouts=[], layout_registry_names: list[str | FixtureType | int] | None = None):
+    def load_floorplan(self, layout_id, style_id, floorplan_version, exclude_layouts, scene_type, local_scene_path):
         start_time = time.time()
-
-        # Convert FixtureType to registry name strings
-        if layout_registry_names is not None:
-            registry_name_strings = []
-            for item in layout_registry_names:
-                if isinstance(item, FixtureType) or isinstance(item, int):
-                    # Convert FixtureType enum to string
-                    if item in FIXTURE_TYPE_TO_REGISTRY_NAME:
-                        registry_name_strings.append(FIXTURE_TYPE_TO_REGISTRY_NAME[item])
-                    else:
-                        print(f"Warning: FixtureType {item} not found in mapping, skipping")
-                elif isinstance(item, str):
-                    # Already a string, keep as is
-                    registry_name_strings.append(item)
-                else:
-                    print(f"Warning: Unknown type {type(item)} for layout_registry_names item {item}, skipping")
-            # Remove duplicates while preserving order
-            layout_registry_names = list(dict.fromkeys(registry_name_strings))
-            print(f"Converted layout_registry_names: {layout_registry_names}")
-
         print(f"load floorplan usd", end="...")
-        if layout_id is None:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, version=self.floorplan_version, exclude_layout_ids=exclude_layouts, layout_registry_names=layout_registry_names)
-        elif style_id is None:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts, layout_registry_names=layout_registry_names)
+
+        if local_scene_path is not None:
+            self.usd_path = local_scene_path
+            self.scene_type = "usd"
+            self.layout_id = None
+            self.style_id = None
+            self.version_id = None
         else:
-            res = floorplan_loader.acquire_usd(scene=self.scene_cfg.scene_type, layout_id=layout_id, style_id=style_id, version=self.floorplan_version, exclude_layout_ids=exclude_layouts, layout_registry_names=layout_registry_names)
-        usd_path, self.floorplan_meta = res.result()
-        self.usd_path = str(usd_path)
-        self.backend = self.floorplan_meta.get("backend")
-        self.scene_type = self.floorplan_meta.get("scene")
-        self.layout_id = self.floorplan_meta.get("layout_id")
-        self.style_id = self.floorplan_meta.get("style_id")
-        self.version_id = self.floorplan_meta.get("version_id")
-        print(f"{self.backend}-{self.scene_type}-{self.layout_id}-{self.style_id} loaded in {time.time() - start_time:.2f}s\n")
-        print(f"version_id: {self.version_id}")
+            if layout_id is None:
+                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, version=floorplan_version, exclude_layout_ids=exclude_layouts)
+            elif style_id is None:
+                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, layout_id=layout_id, version=floorplan_version, exclude_layout_ids=exclude_layouts)
+            else:
+                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, layout_id=layout_id, style_id=style_id, version=floorplan_version, exclude_layout_ids=exclude_layouts)
+            usd_path, self.floorplan_meta = res.result()
+            self.usd_path = str(usd_path)
+            self.scene_type = self.floorplan_meta.get("scene")
+            self.layout_id = self.floorplan_meta.get("layout_id")
+            self.style_id = self.floorplan_meta.get("style_id")
+            self.version_id = self.floorplan_meta.get("version_id")
+        print(f"[backend->robocasa] | [scene->{self.scene_type}] | [layout->{self.layout_id}] | [style->{self.style_id}] loaded in {time.time() - start_time:.2f}s\n")
+        print(f"floorplan version_id: {self.version_id}")

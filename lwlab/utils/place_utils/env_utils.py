@@ -668,9 +668,10 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
             y_ranges.append(np.array([-target_size[1] / 2, target_size[1] / 2]))
             ref_pos = [0, 0, 0]
             ref_rot = 0.0
-            target_pos = placement.get("pos", None)
-            if target_pos is not None:
+            target_pos = placement.get("pos", [0.0, 0.0])
+            if target_pos[0] is not None:
                 x_ranges[0] += target_pos[0]
+            if target_pos[1] is not None:
                 y_ranges[0] += target_pos[1]
         else:
             fixture = orchestrator.task.get_fixture(
@@ -712,7 +713,12 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
                         sample_region_kwargs["min_size"] = mj_obj.size
                 if reuse_region_from is None:
                     print(f"get valid reset region for {cfg['name']}")
-                    reset_region = fixture.get_all_valid_reset_region(env=orchestrator.task, **sample_region_kwargs)
+                    try:
+                        reset_region = fixture.get_all_valid_reset_region(
+                            env=orchestrator.task, **sample_region_kwargs
+                        )
+                    except SamplingError as e:
+                        raise SamplingError(f"Failed to place object {cfg['name']}, because {e}")
                 else:
                     # find and re-use sampling region from another object
                     print(f"reuse region from {reuse_region_from}")
@@ -996,20 +1002,24 @@ def create_obj(task: LwLabTaskBase, cfg: Dict[str, Any], version=None, ignore_ca
             # TODO: old version, need remove later
             obj_path = Path(cfg["info"]["mjcf_path"]).parent.with_suffix(".usd")
             obj_path = f"{obj_path.parent.name}/{obj_path.name}"
-        obj_groups = obj_path
+        asset_name = obj_path
         exclude_obj_groups = None
     else:
-        obj_groups = cfg.get("obj_groups", "all")
+        asset_name = cfg.get("asset_name", None)
         exclude_obj_groups = cfg.get("exclude_obj_groups", None)
 
+    obj_groups = cfg.get("obj_groups", "all")
     if not isinstance(obj_groups, list) and isinstance(obj_groups, tuple):
         obj_groups = list(obj_groups)
+    if isinstance(obj_groups, str):
+        obj_groups = [obj_groups]
     if isinstance(exclude_obj_groups, str):
         exclude_obj_groups = list(exclude_obj_groups)
 
     object_cfgs["task_name"] = cfg.get("name")
     object_cfgs["asset_type"] = "fixtures" if cfg.get("is_fixture") else "objects"
     object_cfgs["obj_groups"] = obj_groups
+    object_cfgs["asset_name"] = asset_name
     object_cfgs["exclude_obj_groups"] = exclude_obj_groups
     object_cfgs["properties"] = {}
     object_properties = object_cfgs["properties"]
@@ -1058,6 +1068,7 @@ def create_obj(task: LwLabTaskBase, cfg: Dict[str, Any], version=None, ignore_ca
         object_scale=cfg.get("object_scale", None),
         rotate_upright=cfg.get("rotate_upright", False),
         rgb_replace=cfg.get("rgb_replace", None),
+        load_from_local=cfg.get("load_from_local", False),
         projects=task.object_projects,
         version=version,
         ignore_cache=ignore_cache,
@@ -1070,21 +1081,28 @@ def reset_obj_cache():
 
 def sample_object_placements(orchestrator, need_retry=True) -> dict:
     context = orchestrator.task.context
-    try:
-        if not hasattr(orchestrator.task, "placement_initializer"):
-            orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
-        else:
-            assert isinstance(orchestrator.task.placement_initializer, SequentialCompositeSampler), "placement_initializer must be a SequentialCompositeSampler"
+    orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
 
-        if orchestrator.scene.is_replay_mode:
-            return orchestrator.task._load_placement()
+    if context.initial_state is not None and orchestrator.scene.is_replay_mode:
+        return orchestrator.task._load_placement()
 
-        if not need_retry:
+    if not need_retry:
+        if context.execute_mode == ExecuteMode.TEST_OBJECT:
+            for obj_name in orchestrator.task.objects:
+                if obj_name != list(orchestrator.task.objects.keys())[orchestrator.task.visible_obj_idx]:
+                    orchestrator.task.placement_initializer.hide(f"{obj_name}_Sampler")
+                else:
+                    orchestrator.task.placement_initializer.unhide(f"{obj_name}_Sampler")
+        try:
             return orchestrator.task.placement_initializer.sample(
-                placed_objects=orchestrator.scene.fxtr_placements,
-                max_attempts=15000,
+                placed_objects=orchestrator.scene.fxtr_placements, max_attempts=5000,
             )
+        except SamplingError as e:
+            print(f"Re-Initializing placement initializer")
+            orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, None)
+            return sample_object_placements(orchestrator, need_retry)
 
+    try:
         # Check if scene retry count exceeds max
         if orchestrator.task.scene_retry_count >= context.max_scene_retry:
             raise RuntimeError(f"Maximum scene retries ({context.max_scene_retry}) exceeded. Failed to place objects after {context.max_scene_retry} scene reloads.")
@@ -1096,37 +1114,31 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
             # orchestrator.task = LwLabTaskBase()
             orchestrator.scene.setup_env_config(orchestrator)
             orchestrator.task.setup_env_config(orchestrator)
-            return sample_object_placements(orchestrator, need_retry)
+            return orchestrator.task.object_placements
 
         return orchestrator.task.placement_initializer.sample(
             placed_objects=orchestrator.scene.fxtr_placements,
             max_attempts=15000,
         )
-
     except SamplingError as e:
         error_message = str(e)
 
         failed_obj_name = extract_failed_object_name(error_message)
 
         if failed_obj_name:
-            if failed_obj_name.endswith('.usd'):
-                print(f"Failed object {failed_obj_name} can not be replaced, directly reloading model")
+            # No cached versions, try to replace object
+            print(f"Attempting to replace failed object: {failed_obj_name}")
+            if recreate_object(orchestrator, failed_obj_name):
+                orchestrator.task.object_retry_count += 1
+                return sample_object_placements(orchestrator, need_retry)
+            else:
+                # If recreate failed, increment scene retry and reload model
                 orchestrator.task.scene_retry_count += 1
+                print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
                 # orchestrator.task = LwLabTaskBase()
                 orchestrator.scene.setup_env_config(orchestrator)
                 orchestrator.task.setup_env_config(orchestrator)
-            else:
-                # No cached versions, try to replace object
-                print(f"Attempting to replace failed object: {failed_obj_name}")
-                if recreate_object(orchestrator, failed_obj_name):
-                    orchestrator.task.object_retry_count += 1
-                else:
-                    # If recreate failed, increment scene retry and reload model
-                    orchestrator.task.scene_retry_count += 1
-                    print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
-                    # orchestrator.task = LwLabTaskBase()
-                    orchestrator.scene.setup_env_config(orchestrator)
-                    orchestrator.task.setup_env_config(orchestrator)
+                return orchestrator.task.object_placements
         else:
             print("Could not identify failed object, falling back to model reload")
             orchestrator.task.scene_retry_count += 1
@@ -1134,8 +1146,7 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
             # orchestrator.task = LwLabTaskBase()
             orchestrator.scene.setup_env_config(orchestrator)
             orchestrator.task.setup_env_config(orchestrator)
-
-        return sample_object_placements(orchestrator, need_retry)
+            return orchestrator.task.object_placements
 
 
 @contextlib.contextmanager

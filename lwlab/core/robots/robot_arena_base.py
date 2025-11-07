@@ -110,9 +110,10 @@ class PrePhysicsStepJointTargetsRecorder(RecorderTerm):
         return None, None
 
     def record_pre_reset(self, env_ids):
-        for env_id, success in zip(env_ids, (self._env.cfg.isaaclab_arena_env.scene.success_cache >= self._env.cfg.isaaclab_arena_env.scene.success_count)[env_ids]):
-            if not success.item():
-                self._env.recorder_manager._episodes[env_id] = EpisodeData()
+        if self._env.cfg.scene_backend == "robocasa" and self._env.cfg.task_backend == "robocasa":
+            for env_id, success in zip(env_ids, (self._env.cfg.isaaclab_arena_env.scene.success_cache >= self._env.cfg.isaaclab_arena_env.scene.success_count)[env_ids]):
+                if not success.item():
+                    self._env.recorder_manager._episodes[env_id] = EpisodeData()
         return None, None
 
 
@@ -208,7 +209,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
             )
 
     def get_recorder_term_cfg(self):
-        if self.context.execute_mode in [ExecuteMode.TELEOP, ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_JOINT_TARGETS]:
+        if self.context.execute_mode not in [ExecuteMode.TRAIN, ExecuteMode.EVAL, ExecuteMode.REPLAY_STATE]:
             return RecorderManagerCfg()
 
     def get_observation_cfg(self):
@@ -290,10 +291,14 @@ class LwLabEmbodimentBase(EmbodimentBase):
         }
 
     def setup_env_config(self, orchestrator):
-        self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
-        self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
-        self.modify_observation_cameras(orchestrator.task.task_type)
-        self._setup_camera_config(orchestrator.task.task_type)
+        if orchestrator.task.context.task_backend == "robocasa":
+            self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
+            self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
+            self.modify_observation_cameras(orchestrator.task.task_type)
+            self._setup_camera_config(orchestrator.task.task_type)
+        elif orchestrator.task.context.task_backend == "local":
+            self.init_robot_base_pos_anchor = np.array(self.scene_config.robot.init_state.pos)
+            self.init_robot_base_ori_anchor = Tn.mat2euler(Tn.quat2mat(Tn.convert_quat(np.array(self.scene_config.robot.init_state.rot), to="xyzw")))
 
     def get_robot_anchor(self, orchestrator):
         (
