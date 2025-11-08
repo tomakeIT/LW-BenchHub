@@ -507,9 +507,9 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                                 else:
                                     raise FileNotFoundError(f"Base object USD file does not contain the required anchor site.")
 
-                            all_obj_cfgs.append(merged_obj_cfg)
                             model, info = EnvUtils.create_obj(self, merged_obj_cfg)
-                            merged_obj_cfg["info"] = {**info, **merged_obj_cfg.get("info", {})}
+                            merged_obj_cfg["info"] = info
+                            all_obj_cfgs.append(merged_obj_cfg)
                             self.objects[model.task_name] = model
                     else:
                         raise FileNotFoundError(f"Merged object USD file not found.")

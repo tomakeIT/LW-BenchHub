@@ -129,7 +129,7 @@ class LwLabScene(Scene, NoDeepcopyMixin):
         self.scene_type = self.lwlab_arena.scene_type
         self.fixture_cfgs = get_fixture_cfgs(self)
         self.floorplan_version = self.lwlab_arena.version_id
-        self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs, self.fixtures)
+        self.fxtr_placements = usd.get_fixture_placements(self.lwlab_arena.stage.GetPseudoRoot(), self.fixture_cfgs)
 
         if self.lwlab_arena.layout_id in orchestrator.task.exclude_layouts:
             raise ValueError(f"Layout {self.lwlab_arena.layout_id} is excluded in task {self.task_name}")

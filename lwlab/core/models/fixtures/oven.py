@@ -19,6 +19,7 @@ from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 
 from .fixture import Fixture
 from lwlab.utils.usd_utils import OpenUsd as usd
+import lwlab.utils.object_utils as OU
 
 import numpy as np
 import re
@@ -136,7 +137,7 @@ class Oven(Fixture):
                 break
         else:
             raise RuntimeError(f"No rack found for level {rack_level}")
-        return env.check_contact(object_name, str(self.rack_infos[contact_name][0].GetPrimPath()))
+        return OU.check_contact(env, object_name, str(self.rack_infos[contact_name][0].GetPrimPath()))
 
     def get_state(self, rack_level=0):
         state = {}

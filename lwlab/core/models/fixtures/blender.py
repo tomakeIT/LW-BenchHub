@@ -90,7 +90,7 @@ class Blender(Fixture):
 
         button_pressed = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
         for gripper_name in [name for name in list(env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
-            button_pressed |= env.cfg.check_contact(gripper_name.replace("_contact", ""), self.power_button_name)
+            button_pressed |= OU.check_contact(env, gripper_name.replace("_contact", ""), self.power_button_name)
         # since the state updates very often and the same button is used for turning on/off
         # we look at the release of the button to determine the state. If we look at the press then
         # the state will flicker between on and off

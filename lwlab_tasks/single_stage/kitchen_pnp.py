@@ -348,7 +348,7 @@ class PnPCounterToSink(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the counter to sink pick and place task is successful.
         Checks if the object is inside the sink and the gripper is far from the object.
@@ -356,8 +356,8 @@ class PnPCounterToSink(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_in_sink = OU.obj_inside_of(self.env, "obj", self.sink, partial_check=True)
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_in_sink = OU.obj_inside_of(env, "obj", self.sink, partial_check=True)
+        gripper_obj_far = OU.gripper_obj_far(env)
         return obj_in_sink & gripper_obj_far
 
 
@@ -458,7 +458,7 @@ class PnPSinkToCounter(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the sink to counter pick and place task is successful.
         Checks if the object is in the container, the container on the counter, and the gripper far from the object.
@@ -466,9 +466,9 @@ class PnPSinkToCounter(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_in_recep = OU.check_obj_in_receptacle(self.env, "obj", "container")
-        recep_on_counter = self.check_contact(self.objects["container"], self.counter)
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_in_recep = OU.check_obj_in_receptacle(env, "obj", "container")
+        recep_on_counter = OU.check_contact(env, self.objects["container"], self.counter)
+        gripper_obj_far = OU.gripper_obj_far(env)
         return obj_in_recep & recep_on_counter & gripper_obj_far
 
 
@@ -509,8 +509,8 @@ class PnPCounterToMicrowave(PnP):  # DONE
         """
         Resets simulation internal configurations.
         """
-        super()._setup_scene(env_ids)
-        self.microwave.open_door(env=self.env, env_ids=env_ids)
+        super()._setup_scene(env, env_ids)
+        self.microwave.open_door(env=env, env_ids=env_ids)
 
     def get_ep_meta(self):
         """
@@ -580,7 +580,7 @@ class PnPCounterToMicrowave(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the counter to microwave pick and place task is successful.
         Checks if the object is inside the microwave and on the container and the gripper is far from the object.
@@ -591,9 +591,9 @@ class PnPCounterToMicrowave(PnP):  # DONE
         obj = self.objects["obj"]
         container = self.objects["container"]
 
-        obj_container_contact = self.check_contact(obj, container)
-        container_micro_contact = self.check_contact(container, self.microwave)
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_container_contact = OU.check_contact(env, obj, container)
+        container_micro_contact = OU.check_contact(env, container, self.microwave)
+        gripper_obj_far = OU.gripper_obj_far(env)
         return obj_container_contact & container_micro_contact & gripper_obj_far
 
 
@@ -705,7 +705,7 @@ class PnPMicrowaveToCounter(PnP):  # DONE
 
         return cfgs
 
-    def _check_success(self):
+    def _check_success(self, env):
         """
         Check if the microwave to counter pick and place task is successful.
         Checks if the object is inside the container and the gripper far from the object.
@@ -713,8 +713,8 @@ class PnPMicrowaveToCounter(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_container_contact = OU.check_obj_in_receptacle(self.env, "obj", "container")
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_container_contact = OU.check_obj_in_receptacle(env, "obj", "container")
+        gripper_obj_far = OU.gripper_obj_far(env)
         return obj_container_contact & gripper_obj_far
 
 
@@ -794,9 +794,9 @@ class PnPCounterToOven(PnP):  # DONE
         return cfgs
 
     def _check_success(self, env):
-        obj_container_contact = OU.check_obj_in_receptacle(self.env, "obj", "oven_tray")
+        obj_container_contact = OU.check_obj_in_receptacle(env, "obj", "oven_tray")
         on_rack = self.oven.check_rack_contact(  # TODO: implement this
-            self, "oven_tray", rack_level=self.rack_level
+            env, "oven_tray", rack_level=self.rack_level
         )
         gripper_far = OU.gripper_obj_far(env, "obj")
         return on_rack & obj_container_contact & gripper_far
@@ -979,8 +979,8 @@ class PnPOvenToCounter(PnP):  # DONE
         return cfgs
 
     def _check_success(self, env):
-        obj_in_recep = OU.check_obj_in_receptacle(self.env, "obj", "container")
-        recep_on_counter = self.check_contact(self.objects["container"], self.counter)
+        obj_in_recep = OU.check_obj_in_receptacle(env, "obj", "container")
+        recep_on_counter = OU.check_contact(env, self.objects["container"], self.counter)
         return obj_in_recep & recep_on_counter & OU.gripper_obj_far(env, "obj")
 
 
@@ -1161,8 +1161,8 @@ class PnPStoveToCounter(PnP):  # DONE
         Returns:
             bool: True if the task is successful, False otherwise
         """
-        obj_in_container = OU.check_obj_in_receptacle(self.env, "obj", "container", th=0.07)
-        gripper_obj_far = OU.gripper_obj_far(self.env)
+        obj_in_container = OU.check_obj_in_receptacle(env, "obj", "container", th=0.07)
+        gripper_obj_far = OU.gripper_obj_far(env)
 
         return obj_in_container & gripper_obj_far
 
@@ -1309,7 +1309,7 @@ class PnPCounterToToasterOven(PnP):  # DONE
 
     def _check_success(self, env):
         on_rack = self.toaster_oven.check_rack_contact(
-            self, "obj", rack_level=self.rack_level
+            env, "obj", rack_level=self.rack_level
         )
         gripper_far = OU.gripper_obj_far(env, "obj")
         return on_rack & gripper_far
@@ -1397,9 +1397,9 @@ class PnPToasterOvenToCounter(PnP):  # DONE
         return cfgs
 
     def _check_success(self, env):
-        obj_in_recep = OU.check_obj_in_receptacle(self.env, "obj", "container")
-        recep_on_counter = self.check_contact(self.objects["container"], self.counter)
-        return obj_in_recep & recep_on_counter & OU.gripper_obj_far(self.env, "obj")
+        obj_in_recep = OU.check_obj_in_receptacle(env, "obj", "container")
+        recep_on_counter = OU.check_contact(env, self.objects["container"], self.counter)
+        return obj_in_recep & recep_on_counter & OU.gripper_obj_far(env, "obj")
 
 
 class PnPCounterToStandMixer(PnP):  # DONE

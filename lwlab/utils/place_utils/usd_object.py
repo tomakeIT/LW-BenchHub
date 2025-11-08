@@ -1,4 +1,6 @@
+import gc
 import numpy as np
+from lwlab.utils.usd_utils import OpenUsd
 from lwlab.utils.usd_utils import OpenUsdWrapper as Usd
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 
@@ -13,6 +15,7 @@ class USDObject():
         name: str,
         task_name: str,
         obj_path,
+        prim=None,
         object_scale=(1.0, 1.0, 1.0),
         rotate_upright=False,
         rgb_replace=None,
@@ -40,41 +43,50 @@ class USDObject():
         self.rotate_upright = rotate_upright
         self.init_quat = np.array([0, 0, 0, 1])  # xyzw
         self._regions = dict()
-        usd = Usd(self.obj_path)
-        self._setup_region_dict(usd)
-        usd.scale_size(scale_factor=self.object_scale)
-        usd.set_contact_force_threshold(name=self.name, contact_force_threshold=0.0)
-        # get rgb_replace
-        if rgb_replace is not None:
-            if isinstance(rgb_replace, tuple) or isinstance(rgb_replace, list):
-                assert len(rgb_replace) == 3
+        if prim is None:
+            usd = Usd(self.obj_path)
+            self._setup_region_dict(usd)
+            usd.scale_size(scale_factor=self.object_scale)
+            usd.set_contact_force_threshold(name=self.name, contact_force_threshold=0.0)
+            # get rgb_replace
+            if rgb_replace is not None:
+                if isinstance(rgb_replace, tuple) or isinstance(rgb_replace, list):
+                    assert len(rgb_replace) == 3
+                    rgb_replace = np.array(rgb_replace)
+                elif isinstance(rgb_replace, np.ndarray):
+                    assert rgb_replace.shape[0] == 3
+                else:
+                    raise Exception("got invalid rgb_replace: {}".format(rgb_replace))
                 rgb_replace = np.array(rgb_replace)
-            elif isinstance(rgb_replace, np.ndarray):
-                assert rgb_replace.shape[0] == 3
-            else:
-                raise Exception("got invalid rgb_replace: {}".format(rgb_replace))
-            rgb_replace = np.array(rgb_replace)
-            usd.set_rgb(rgb=rgb_replace)
-            rgb_str = "_".join([f"{scale:.2f}" for scale in rgb_replace])
-            self.obj_path = self.obj_path.replace(".usd", f"_rgb_{rgb_str}.usd")
-        # save to a new file if scaled
-        if not np.allclose(object_scale, [1, 1, 1], atol=1e-6):
-            scale_str = "_".join([f"{scale:.1f}" for scale in object_scale])
-            self.obj_path = self.obj_path.replace(".usd", f"_scaled_{scale_str}.usd")
-        usd.export(self.obj_path)
+                usd.set_rgb(rgb=rgb_replace)
+                rgb_str = "_".join([f"{scale:.2f}" for scale in rgb_replace])
+                self.obj_path = self.obj_path.replace(".usd", f"_rgb_{rgb_str}.usd")
+            # save to a new file if scaled
+            if not np.allclose(object_scale, [1, 1, 1], atol=1e-6):
+                scale_str = "_".join([f"{scale:.1f}" for scale in object_scale])
+                self.obj_path = self.obj_path.replace(".usd", f"_scaled_{scale_str}.usd")
+            usd.export(self.obj_path)
+        else:
+            usd = prim
+            self._setup_region_dict(usd, fxtr2obj=True)
 
-    def _setup_region_dict(self, usd):
+        try:
+            del usd
+            gc.collect()
+        except Exception as e:
+            print(f"warning: failed to clean usd: {e}")
+
+    def _setup_region_dict(self, usd, fxtr2obj=False):
         if self.rotate_upright:
             self.init_quat = np.array([0.5, 0.5, 0.5, 0.5])
-        reg_bboxes = usd.get_prim_by_prefix("reg_", only_xform=False)
-        reg_bboxes += usd.get_prim_by_prefix("anchor_site", only_xform=False)
+        reg_bboxes = usd.get_prim_by_prefix("reg_", only_xform=False) if not fxtr2obj else OpenUsd.get_prim_by_prefix(usd, "reg_", only_xform=False)
         for reg_bbox in reg_bboxes:
             reg_dict = dict()
-            if reg_bbox.GetTypeName() == "Cylinder" or reg_bbox.GetTypeName() == "Mesh":
+            if reg_bbox.GetTypeName() == "Cylinder" or reg_bbox.GetTypeName() == "Mesh" or reg_bbox.GetTypeName() == "Sphere":
                 reg_halfsize = np.array(reg_bbox.GetAttribute("extent").Get()[1])
             else:
                 reg_halfsize = np.array(reg_bbox.GetAttribute("xformOp:scale").Get())
-            reg_pos, _ = usd.get_prim_pos_rot_in_world(reg_bbox)
+            reg_pos, _ = usd.get_prim_pos_rot_in_world(reg_bbox) if not fxtr2obj else (np.array([0, 0, 0]), None)
             reg_offset = reg_bbox.GetAttribute("xformOp:translate").Get()
             if reg_offset is None:
                 reg_offset = np.array([0, 0, 0])

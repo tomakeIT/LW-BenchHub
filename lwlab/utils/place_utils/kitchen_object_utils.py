@@ -1,7 +1,7 @@
 import numpy as np
 from lightwheel_sdk.loader import object_loader
 from lwlab.utils.place_utils.usd_object import USDObject
-from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS
+from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS, FIXTURE_GROUPS
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from termcolor import colored
 import time
@@ -140,7 +140,8 @@ def sample_kitchen_object(
 
             else:
                 acquire_start_time = time.time()
-                categories = [item for c in object_cfgs["obj_groups"] for item in OBJ_GROUPS[c]]
+                obj_groups = FIXTURE_GROUPS if object_cfgs["asset_type"] == "fixtures" else OBJ_GROUPS
+                categories = [item for c in object_cfgs["obj_groups"] for item in obj_groups[c]]
                 obj_path, obj_name, obj_res = object_loader.acquire_by_registry(
                     object_cfgs["asset_type"],
                     registry_name=categories,

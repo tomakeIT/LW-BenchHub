@@ -473,7 +473,7 @@ class OpenUsd:
         return bbox_cache.ComputeWorldBound(prim).ComputeAlignedBox()
 
     @staticmethod
-    def get_fixture_placements(root_prim, fixture_cfgs, fixtures):
+    def get_fixture_placements(root_prim, fixture_cfgs):
         valid_fixture_names = []
         fixture_placements = {}
         for fxr_cfg in fixture_cfgs:
@@ -487,8 +487,25 @@ class OpenUsd:
             prim = prim[0]
             fixture_pos = tuple(prim.GetAttribute("xformOp:translate").Get())
             fixture_rot = prim.GetAttribute("xformOp:rotateXYZ").Get()
-            fixture_quat = T.mat2quat(T.euler2mat([math.radians(fixture_rot[0]), math.radians(fixture_rot[1]), math.radians(fixture_rot[2])]))  # xyzw
-            fixture_placements[name] = (fixture_pos, fixture_quat, fixtures[name])
+            fixture_quat = T.mat2quat(
+                T.euler2mat([
+                    math.radians(fixture_rot[0]),
+                    math.radians(fixture_rot[1]),
+                    math.radians(fixture_rot[2])
+                ])
+            )  # xyzw
+
+            from lwlab.utils.place_utils.usd_object import USDObject
+            usd_obj = USDObject(
+                name=name,
+                task_name=name,
+                prim=prim,
+                obj_path=None,
+                object_scale=(1.0, 1.0, 1.0),
+                asset_type="fixtures"
+            )
+
+            fixture_placements[name] = (fixture_pos, fixture_quat, usd_obj)
 
         return fixture_placements
 
