@@ -86,8 +86,8 @@ docker/.isaac-lab-docker-history
 lwlab_logs/
 
 # third party
-third_party/*
-!third_party/robocasa_upload/
-!third_party/robocasa_upload/**
-!third_party/IsaacLab/
-!third_party/IsaacLab/**
+#third_party/*
+#!third_party/robocasa_upload/
+#!third_party/robocasa_upload/**
+#!third_party/IsaacLab/
+#!third_party/IsaacLab/**

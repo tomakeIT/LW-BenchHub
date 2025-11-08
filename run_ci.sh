@@ -46,14 +46,24 @@ if [[ $COMMIT_ID =~ ^[0-9a-f]{7,40}$ ]]; then
     # Reset to the specified commit (hard reset to ensure clean state)
     echo "Resetting to commit $COMMIT_ID..."
     git reset --hard "$COMMIT_ID"
+    git lfs pull
     sleep 3
 
-    git submodule update
+    git submodule update --init --recursive
 
     # Clean any untracked files (optional, but good for CI)
     echo "Cleaning untracked files..."
     git clean -fd
+
+    # lwlab install
+    echo "Install lwlab files..."
     pip install -e .  --extra-index-url https://mirrors.aliyun.com/pypi/simple/
+
+    # IsaacLab-Arena install
+    pushd ./third_party/IsaacLab-Arena/
+    echo "Install IsaacLab-Arena files..."
+    pip install -e .  --extra-index-url https://mirrors.aliyun.com/pypi/simple/
+    popd
 else 
     echo "Skipping git operations. Keep current code in docker."
 fi

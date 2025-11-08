@@ -80,14 +80,19 @@ RUN source $CONDA_DIR/etc/profile.d/conda.sh && \
 
 # Copy and install IsaacLab
 WORKDIR /workspace
-RUN mkdir -p /workspace/lwlab/third_party
-COPY ./third_party/IsaacLab /workspace/lwlab/third_party/IsaacLab
+RUN mkdir -p /workspace/lwlab/third_party/IsaacLab-Arena/submodules
+COPY ./third_party/IsaacLab-Arena/submodules/IsaacLab /workspace/lwlab/third_party/IsaacLab-Arena/submodules/IsaacLab
+COPY ./third_party/IsaacLab-Arena/submodules/Isaac-GR00T /workspace/lwlab/third_party/IsaacLab-Arena/submodules/Isaac-GR00T
 
-WORKDIR /workspace/lwlab/third_party/IsaacLab/
-RUN source $CONDA_DIR/etc/profile.d/conda.sh && \
-    conda activate $ENV_NAME && \
-    git config --global http.proxy http://127.0.0.1:8890 && \
-    pip config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/ && \
+# set git config
+RUN git config --global http.postBuffer 524288000
+RUN git config --global https.postBuffer 524288000
+
+WORKDIR /workspace/lwlab/third_party/IsaacLab-Arena/submodules/IsaacLab
+RUN source /opt/conda/etc/profile.d/conda.sh && \
+    conda activate lwlab && \
+    git config --global http.proxy http://127.0.0.1:7897 && \
+    # pip config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/ && \
     # Retry logic for Isaac Lab installation
     for i in {1..3}; do \
         echo "Attempting to install Isaac Lab dependencies (attempt $i/3)..."; \
@@ -104,6 +109,24 @@ RUN source $CONDA_DIR/etc/profile.d/conda.sh && \
             sleep 5; \
         fi; \
     done && \
-    # Clean up proxy settings
-    git config --global --unset http.proxy && \
-    pip config unset global.extra-index-url
+    echo "Clean up proxy settings" && \
+    # save clear git proxy config
+    git config --global --unset http.proxy 2>/dev/null || true && \
+    git config --global --unset https.proxy 2>/dev/null || true && \
+    # save clear pip config
+    pip config unset global.extra-index-url 2>/dev/null || true && \
+    echo "Clean up proxy settings finish"
+
+
+RUN source /opt/conda/etc/profile.d/conda.sh && \
+    conda activate lwlab && \
+    git config --global http.proxy http://127.0.0.1:7897 && \
+    # pip config set global.extra-index-url https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install lerobot==0.3.3  && \
+    echo "Clean up proxy settings" && \
+    # save clear git proxy config
+    git config --global --unset http.proxy 2>/dev/null || true && \
+    git config --global --unset https.proxy 2>/dev/null || true && \
+    # save clear pip config
+    pip config unset global.extra-index-url 2>/dev/null || true && \
+    echo "Clean up proxy settings finish"
