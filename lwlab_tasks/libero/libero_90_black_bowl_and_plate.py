@@ -36,58 +36,32 @@ class LiberoBlackBowlAndPlateBase(LwLabTaskBase):
 
     def _load_model(self):
 
-        if self.fix_object_pose_cfg is None:
-            self.fix_object_pose_cfg = {}
-
         super()._load_model()
-
-        if hasattr(self, 'object_placements'):
-            if self.akita_black_bowl_front in self.object_placements:
-                sample_z = self.object_placements[self.akita_black_bowl_front][0][2]
-            elif self.akita_black_bowl_middle in self.object_placements:
-                sample_z = self.object_placements[self.akita_black_bowl_middle][0][2]
-            elif self.akita_black_bowl_back in self.object_placements:
-                sample_z = self.object_placements[self.akita_black_bowl_back][0][2]
-            else:
-                sample_z = 0.82
-
-            table_pos = self.counter.pos if hasattr(self.counter, 'pos') else [0, 0, 0]
-
-            back_pos = (table_pos[0] + 0.3, table_pos[1], sample_z)
-            middle_pos = (table_pos[0] + 0.3, table_pos[1] + 0.15, sample_z)
-            front_pos = (table_pos[0] + 0.3, table_pos[1] + 0.30, sample_z)
-
-            self.fix_object_pose_cfg[self.akita_black_bowl_front] = {"pos": front_pos}
-            self.fix_object_pose_cfg[self.akita_black_bowl_middle] = {"pos": middle_pos}
-            self.fix_object_pose_cfg[self.akita_black_bowl_back] = {"pos": back_pos}
-
-            for bowl_name, bowl_pos in [
-                (self.akita_black_bowl_front, front_pos),
-                (self.akita_black_bowl_middle, middle_pos),
-                (self.akita_black_bowl_back, back_pos)
-            ]:
-                if bowl_name in self.object_placements:
-                    bowl_obj = copy.deepcopy(self.object_placements[bowl_name])
-                    bowl_obj_list = list(bowl_obj)
-                    bowl_obj_list[0] = bowl_pos
-                    self.object_placements[bowl_name] = tuple(bowl_obj_list)
 
     def _get_obj_cfgs(self):
         cfgs = []
 
-        def get_placement(pos=(0.0, -1), size=(0.5, 0.5)):
+        base_x = self.rng.uniform(-0.5, -0.15)
+        middle_y = self.rng.uniform(0, 0.3)
+        spacing = self.rng.uniform(0.6, 1.0)
+
+        front_pos = (base_x, middle_y + spacing)
+        middle_pos = (base_x, middle_y)
+        back_pos = (base_x, middle_y - spacing)
+
+        def get_placement(pos=(0.0, -1), size=(0.5, 0.5), ensure_valid=False):
             return dict(
                 fixture=self.counter,
                 size=size,
                 pos=pos,
                 margin=0.02,
-                ensure_valid_placement=False,
+                ensure_valid_placement=ensure_valid,
             )
 
-        plate_placement = get_placement(pos=(0.0, -0.3), size=(0.5, 0.5))
-        black_bowl_front_placement = get_placement(pos=(-0.5, -0.15), size=(0.5, 0.5))
-        black_bowl_middle_placement = get_placement(pos=(-0.5, -0.4), size=(0.5, 0.5))
-        black_bowl_back_placement = get_placement(pos=(-0.5, -0.65), size=(0.5, 0.5))
+        plate_placement = get_placement(pos=(0.15, -0.2), size=(0.28, 0.28))
+        black_bowl_front_placement = get_placement(pos=front_pos, size=(0.22, 0.22))
+        black_bowl_middle_placement = get_placement(pos=middle_pos, size=(0.22, 0.22))
+        black_bowl_back_placement = get_placement(pos=back_pos, size=(0.22, 0.22))
 
         def add_cfg(name, obj_groups, graspable, placement, mjcf_path=None, scale=1.0):
             if mjcf_path is not None:

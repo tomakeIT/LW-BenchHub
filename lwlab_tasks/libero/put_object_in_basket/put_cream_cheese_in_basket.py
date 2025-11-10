@@ -121,8 +121,8 @@ class LOPutCreamCheeseInBasket(PutObjectInBasket):
                 graspable=True,
                 placement=dict(
                     fixture=self.floor,
-                    size=(0.2, 0.3),
-                    pos=(0.1, 0.0),
+                    size=(0.35, 0.25),
+                    pos=(0.25, -0.15),
                     ensure_object_boundary_in_range=False,
                 ),
                 info=dict(
