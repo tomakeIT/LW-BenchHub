@@ -315,7 +315,7 @@ def main():
     import h5py
 
     # simulate environment -- run everything in inference mode
-    num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
+    num_cameras = sum(env.cfg.isaaclab_arena_env.task.context.execute_mode in c["execute_mode"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
     max_cameras_per_row = 4  # Maximum cameras per row
 
     # Calculate layout using shared function

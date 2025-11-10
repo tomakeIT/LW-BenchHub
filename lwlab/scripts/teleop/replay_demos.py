@@ -210,7 +210,7 @@ def main():
     # Initialize video processor (manages VideoWriter internally)
     if app_launcher._enable_cameras:
         # calculate the shape of the video recorder
-        num_cameras = sum(env.cfg.isaaclab_arena_env.task.task_type in c["tags"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
+        num_cameras = sum(env.cfg.isaaclab_arena_env.task.context.execute_mode in c["execute_mode"] for c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values())
         max_cameras_per_row = 4  # Maximum cameras per row
         # Calculate layout using shared function
         num_rows, cameras_per_row_list, max_cameras_in_row = calculate_camera_layout(

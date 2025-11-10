@@ -226,17 +226,24 @@ class Toaster(Fixture):
                 n for n in slot_floor_names if any(tok in n for tok in slot_tokens)
             ]
 
-        if slot_pair is None:
-            final_floor_names = side_filtered
-        elif slot_pair == 0:
-            final_floor_names = [n for n in side_filtered if "sideL" in n]
-        elif slot_pair == 1:
-            final_floor_names = [n for n in side_filtered if "sideR" in n]
-        else:
-            raise ValueError(
-                f"Invalid slot_pair {slot_pair!r}; "
-                f"must be None, 0 (left) or 1 (right)"
-            )
+        n_pairs = len(self.slot_pairs)
+        if n_pairs == 1:
+            if slot_pair in (None, 0):
+                final_floor_names = side_filtered
+            else:
+                raise ValueError("Only slot_pair=0 is valid for a single-pair toaster")
+        elif n_pairs == 2:
+            if slot_pair is None:
+                final_floor_names = side_filtered
+            elif slot_pair == 0:
+                final_floor_names = [n for n in side_filtered if "sideL" in n]
+            elif slot_pair == 1:
+                final_floor_names = [n for n in side_filtered if "sideR" in n]
+            else:
+                raise ValueError(
+                    f"Invalid slot_pair {slot_pair!r}; "
+                    f"must be None, 0 (left) or 1 (right)"
+                )
 
         is_contact = torch.tensor([False], device=env.device).repeat(env.num_envs)
 

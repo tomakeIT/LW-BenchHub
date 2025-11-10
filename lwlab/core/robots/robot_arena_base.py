@@ -111,7 +111,7 @@ class PrePhysicsStepJointTargetsRecorder(RecorderTerm):
 
     def record_pre_reset(self, env_ids):
         if self._env.cfg.scene_backend == "robocasa" and self._env.cfg.task_backend == "robocasa":
-            for env_id, success in zip(env_ids, (self._env.cfg.isaaclab_arena_env.scene.success_cache >= self._env.cfg.isaaclab_arena_env.scene.success_count)[env_ids]):
+            for env_id, success in zip(env_ids, (self._env.cfg.isaaclab_arena_env.task._success_cache >= self._env.cfg.isaaclab_arena_env.task._success_count)[env_ids]):
                 if not success.item():
                     self._env.recorder_manager._episodes[env_id] = EpisodeData()
         return None, None
@@ -124,6 +124,7 @@ class PrePhysicsStepJointTargetsRecorderCfg(RecorderTermCfg):
     class_type: type[RecorderTerm] = PrePhysicsStepJointTargetsRecorder
 
 
+@configclass
 class RecorderManagerCfg(ActionStateRecorderManagerCfg):
     record_pre_step_joint_targets = PrePhysicsStepJointTargetsRecorderCfg()
 

@@ -1,14 +1,12 @@
 import numpy as np
 from lightwheel_sdk.loader import object_loader
 from lwlab.utils.place_utils.usd_object import USDObject
-from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS, FIXTURE_GROUPS
+from lwlab.utils.place_utils.kitchen_objects import SOURCE_MAPPING, OBJ_GROUPS, FIXTURE_GROUPS, OBJECT_INFO_CACHE
 import lwlab.utils.place_utils.env_utils as EnvUtils
 from termcolor import colored
 import time
 import os
 import glob
-
-OBJECT_INFO_CACHE = {}
 
 
 class ObjInfo:

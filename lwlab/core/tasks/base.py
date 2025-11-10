@@ -293,7 +293,6 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         env_cfg.sim.physx.bounce_threshold_velocity = 0.2
         env_cfg.sim.physx.bounce_threshold_velocity = 0.01
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
-        # self._set_camera_based_on_task_type(env_cfg)
         return env_cfg
 
     def get_termination_cfg(self):
@@ -458,7 +457,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                                     break
                         ##
                 model, info = EnvUtils.create_obj(self, obj_cfg, version=object_version)
-                obj_cfg["info"] = {**info, **obj_cfg.get("info", {})}
+                obj_cfg["info"] = {**obj_cfg.get("info", {}), **info}
                 self.objects[model.task_name] = model
         else:
             self.object_cfgs = self._get_obj_cfgs()
@@ -469,7 +468,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                 if "name" not in obj_cfg:
                     obj_cfg["name"] = "obj_{}".format(obj_num + 1)
                 model, info = EnvUtils.create_obj(self, obj_cfg)
-                obj_cfg["info"] = {**info, **obj_cfg.get("info", {})}
+                obj_cfg["info"] = {**obj_cfg.get("info", {}), **info}
                 self.objects[model.task_name] = model
 
                 # check and create merged object if needed
@@ -548,7 +547,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                     # add in the new object to the model
                     all_obj_cfgs.append(container_cfg)
                     model, info = EnvUtils.create_obj(self, container_cfg)
-                    container_cfg["info"] = {**info, **container_cfg.get("info", {})}
+                    container_cfg["info"] = {**container_cfg.get("info", {}), **info}
                     self.objects[model.task_name] = model
 
                     # modify object config to lie inside of container
@@ -919,29 +918,6 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def get_prompt(self):
         return self.get_ep_meta()["lang"]
-
-    def _set_camera_based_on_task_type(self, env_cfg):
-        if not self.context.enable_cameras:
-            return
-        if self.task_type != "teleop" or self.context.execute_mode == ExecuteMode.TELEOP:
-            return
-        for name, camera_infos in env_cfg.isaaclab_arena_env.embodiment.observation_cameras.items():
-            if self.context.execute_mode not in camera_infos["execute_mode"]:
-                continue
-            if self.task_type == "teleop" and self.context.execute_mode is not ExecuteMode.TELEOP:
-                continue
-            setattr(
-                env_cfg.observations.policy,
-                name,
-                ObsTerm(
-                    func=mdp.image,
-                    params={
-                        "sensor_cfg": SceneEntityCfg(name),
-                        "data_type": "rgb",
-                        "normalize": False,
-                    }
-                )
-            )
 
     def _setup_scene(self, env, env_ids=None):
         pass

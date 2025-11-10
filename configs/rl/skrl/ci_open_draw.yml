@@ -2,7 +2,7 @@ _base_:
   - rl_base
 # Environment Configuration
 task: OpenDrawer               # Task name
-layout: robocasakitchen-20-20  # Scene layout
+layout: robocasakitchen-3-3  # Scene layout
 robot: G1-RL                   # Robot type
 usd_simplify: true # USD simplify enable
 # Reinforcement Learning Settings

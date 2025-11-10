@@ -62,7 +62,7 @@ class OpenUsd:
         if prim is None:
             prim = stage.GetPseudoRoot()
         for child in prim.GetAllChildren():
-            if any(name == child.GetName() for name in ref_fixture_names.keys()):
+            if any(name == child.GetName() for name in ref_fixture_names):
                 continue
             if not child.IsValid():
                 continue
@@ -263,6 +263,60 @@ class OpenUsd:
             if not (diffuse_tint_input and diffuse_tint_input.GetAttr().IsValid()):
                 diffuse_tint_input = shader.CreateInput("diffuse_tint", Sdf.ValueTypeNames.Color3f)
             diffuse_tint_input.Set((rgb[0], rgb[1], rgb[2]))
+
+    @staticmethod
+    def convert_asset_instanceable(asset_usd_path, save_as_path=None, create_xforms=True):
+        """
+            Makes all mesh/geometry prims instanceable (and optionally inserts Xform parents) while preserving materials.
+            All operations are performed within the save_as_path file; no additional mesh files are generated.
+        """
+        import omni.usd
+
+        working_path = save_as_path if save_as_path else asset_usd_path
+        root_path = "/"
+
+        if create_xforms:
+            omni.usd.get_context().open_stage(asset_usd_path)
+            stage = omni.usd.get_context().get_stage()
+            prims = [stage.GetPrimAtPath(root_path)]
+            edits = Sdf.BatchNamespaceEdit()
+
+            while len(prims) > 0:
+                prim = prims.pop(0)
+                if prim.GetTypeName() in ["Mesh", "Capsule", "Sphere", "Box"]:
+                    new_xform = UsdGeom.Xform.Define(
+                        stage, str(prim.GetPath()) + "_xform")
+                    edits.Add(Sdf.NamespaceEdit.Reparent(
+                        prim.GetPath(), new_xform.GetPath(), 0))
+                    continue
+                children_prims = prim.GetChildren()
+                prims += children_prims
+
+            stage.GetRootLayer().Apply(edits)
+            if save_as_path is None:
+                omni.usd.get_context().save_stage()
+            else:
+                omni.usd.get_context().save_as_stage(save_as_path)
+
+        omni.usd.get_context().open_stage(working_path)
+        stage = omni.usd.get_context().get_stage()
+        prims = [stage.GetPrimAtPath(root_path)]
+
+        while len(prims) > 0:
+            prim = prims.pop(0)
+            if prim:
+                if prim.GetTypeName() in ["Mesh", "Capsule", "Sphere", "Box"]:
+                    parent_prim = prim.GetParent()
+                    if parent_prim and not parent_prim.IsInstance():
+                        parent_prim.SetInstanceable(True)
+                        continue
+                children_prims = prim.GetChildren()
+                prims += children_prims
+
+        if save_as_path is None:
+            omni.usd.get_context().save_stage()
+        else:
+            omni.usd.get_context().save_as_stage(save_as_path)
 
     @staticmethod
     def export(stage, path):
@@ -574,8 +628,8 @@ class OpenUsdWrapper:
     def get_all_prims(self, prim=None, prims_list=None):
         return self._usd.get_all_prims(self.stage, prim, prims_list)
 
-    def usd_simplify(self, ref_prim, prim=None):
-        return self._usd.usd_simplify(self.stage, ref_prim, prim)
+    def usd_simplify(self, ref_prim_names, prim=None):
+        return self._usd.usd_simplify(self.stage, ref_prim_names, prim)
 
     def activate_prim(self, name):
         return self._usd.activate_prim(self.stage, name)
@@ -607,6 +661,9 @@ class OpenUsdWrapper:
 
     def set_rgb(self, rgb=(1.0, 1.0, 1.0)):
         return self._usd.set_rgb(self.root_prim, rgb)
+
+    def convert_asset_instanceable(self, save_as_path=None):
+        return self._usd.convert_asset_instanceable(self.stage, save_as_path)
 
     def export(self, path):
         return self._usd.export(self.stage, path)

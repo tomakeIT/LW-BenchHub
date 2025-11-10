@@ -1080,29 +1080,29 @@ def reset_obj_cache():
 
 
 def sample_object_placements(orchestrator, need_retry=True) -> dict:
-    context = orchestrator.task.context
-    orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
-
-    if context.initial_state is not None and orchestrator.scene.is_replay_mode:
-        return orchestrator.task._load_placement()
-
-    if not need_retry:
-        if context.execute_mode == ExecuteMode.TEST_OBJECT:
-            for obj_name in orchestrator.task.objects:
-                if obj_name != list(orchestrator.task.objects.keys())[orchestrator.task.visible_obj_idx]:
-                    orchestrator.task.placement_initializer.hide(f"{obj_name}_Sampler")
-                else:
-                    orchestrator.task.placement_initializer.unhide(f"{obj_name}_Sampler")
-        try:
-            return orchestrator.task.placement_initializer.sample(
-                placed_objects=orchestrator.scene.fxtr_placements, max_attempts=5000,
-            )
-        except SamplingError as e:
-            print(f"Re-Initializing placement initializer")
-            orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, None)
-            return sample_object_placements(orchestrator, need_retry)
-
     try:
+        context = orchestrator.task.context
+        orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
+
+        if context.initial_state is not None and orchestrator.scene.is_replay_mode:
+            return orchestrator.task._load_placement()
+
+        if not need_retry:
+            if context.execute_mode == ExecuteMode.TEST_OBJECT:
+                for obj_name in orchestrator.task.objects:
+                    if obj_name != list(orchestrator.task.objects.keys())[orchestrator.task.visible_obj_idx]:
+                        orchestrator.task.placement_initializer.hide(f"{obj_name}_Sampler")
+                    else:
+                        orchestrator.task.placement_initializer.unhide(f"{obj_name}_Sampler")
+            try:
+                return orchestrator.task.placement_initializer.sample(
+                    placed_objects=orchestrator.scene.fxtr_placements, max_attempts=5000,
+                )
+            except SamplingError as e:
+                print(f"Re-Initializing placement initializer")
+                orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, None)
+                return sample_object_placements(orchestrator, need_retry)
+
         # Check if scene retry count exceeds max
         if orchestrator.task.scene_retry_count >= context.max_scene_retry:
             raise RuntimeError(f"Maximum scene retries ({context.max_scene_retry}) exceeded. Failed to place objects after {context.max_scene_retry} scene reloads.")
@@ -1112,6 +1112,7 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
             orchestrator.task.scene_retry_count += 1
             print(f"All object placement retries failed, reloading entire model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
             # orchestrator.task = LwLabTaskBase()
+            OBJECT_INFO_CACHE.clear()
             orchestrator.scene.setup_env_config(orchestrator)
             orchestrator.task.setup_env_config(orchestrator)
             return orchestrator.task.object_placements
@@ -1120,6 +1121,7 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
             placed_objects=orchestrator.scene.fxtr_placements,
             max_attempts=15000,
         )
+
     except SamplingError as e:
         error_message = str(e)
 
@@ -1136,6 +1138,7 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
                 orchestrator.task.scene_retry_count += 1
                 print(f"Failed to replace object {failed_obj_name}, reloading model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
                 # orchestrator.task = LwLabTaskBase()
+                OBJECT_INFO_CACHE.clear()
                 orchestrator.scene.setup_env_config(orchestrator)
                 orchestrator.task.setup_env_config(orchestrator)
                 return orchestrator.task.object_placements
@@ -1144,6 +1147,7 @@ def sample_object_placements(orchestrator, need_retry=True) -> dict:
             orchestrator.task.scene_retry_count += 1
             print(f"Reloading model (scene retry {orchestrator.task.scene_retry_count}/{context.max_scene_retry})")
             # orchestrator.task = LwLabTaskBase()
+            OBJECT_INFO_CACHE.clear()
             orchestrator.scene.setup_env_config(orchestrator)
             orchestrator.task.setup_env_config(orchestrator)
             return orchestrator.task.object_placements

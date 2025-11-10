@@ -57,7 +57,7 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
         # usd simplify
         if self.context.usd_simplify:
             from lwlab.utils.usd_utils import OpenUsd as usd
-            new_stage = usd.usd_simplify(self.scene.lwlab_arena.stage, self.fixture_refs)
+            new_stage = usd.usd_simplify(self.scene.lwlab_arena.stage, [ref.name for ref in self.fixture_refs.values()])
             self.scene.scene_type
             self.scene.scene_usd_path = self.scene.scene_usd_path.replace(".usd", "_simplified.usd")
             new_stage.GetRootLayer().Export(self.scene.scene_usd_path)
