@@ -91,7 +91,9 @@ def reset_and_keep_to(env, episode_data, target_frame_index, payload):
     # 3. Reset environment to target state
     try:
         target_state = convert_list_to_2d_tensor(target_state)
-        env.reset_to_check_state(target_state, torch.tensor([0], device=env.device), is_relative=True)
+        from lwlab.utils.place_utils.env_utils import reset_physx
+        reset_physx(env)
+        env.reset_to_check_state(target_state, torch.tensor([0], device=env.device), seed=env.cfg.seed, is_relative=True)
         print(f"[reset_and_keep_to] Environment reset to frame {target_frame_index}")
     except Exception as e:
         print(f"[reset_and_keep_to] Error resetting environment: {e}")
@@ -105,6 +107,7 @@ def reset_and_keep_to(env, episode_data, target_frame_index, payload):
                 truncated_data = _truncate_episode_data(episodes_backup[env_id], target_frame_index + 1)
                 ep_data._data = truncated_data
                 print(f"[reset_and_keep_to] Restored episode data for env {env_id} up to frame {target_frame_index}")
+            update_checkpoint_to_hdf5(env, target_frame_index, env_id)
     except Exception as e:
         print(f"[reset_and_keep_to] Error restoring episode data: {e}")
         # Even if data restoration fails, environment is reset, so partial success
@@ -200,6 +203,7 @@ def _save_checkpoint_to_hdf5(env, frame_index, payload):
         # Create checkpoint data dictionary
         checkpoint_data = {
             "frame_index": frame_index,
+            "frame_index_triggered": 0
         }
 
         # Add action manager terms data
@@ -227,6 +231,89 @@ def _save_checkpoint_to_hdf5(env, frame_index, payload):
 
     except Exception as e:
         print(f"[checkpoint] HDF5 save failed: {e}")
+
+
+def update_checkpoint_to_hdf5(env, frame_index=None, env_id=0):
+    """
+    Update the most recent checkpoint's frame_index_triggered to 1 in HDF5.
+
+    Args:
+        env: The environment
+        frame_index: Optional specific frame index to mark as triggered.
+                     If None, marks the most recent checkpoint as triggered.
+        env_id: The environment ID to update. Defaults to 0.
+
+    Example:
+        # Mark the most recent checkpoint as triggered
+        update_checkpoint_to_hdf5(env)
+
+        # Mark a specific frame index as triggered
+        update_checkpoint_to_hdf5(env, frame_index=100)
+
+        # Mark for a specific environment
+        update_checkpoint_to_hdf5(env, env_id=1)
+    """
+    try:
+        if not hasattr(env, 'recorder_manager') or len(env.recorder_manager.active_terms) == 0:
+            print("[checkpoint] HDF5 update skipped: recorder_manager not available")
+            return
+
+        episodes = getattr(env.recorder_manager, "_episodes", None)
+        if not isinstance(episodes, dict) or env_id not in episodes:
+            print(f"[checkpoint] update failed: recorder episode not ready (env_id={env_id})")
+            return
+
+        episode_data = episodes[env_id]
+
+        # Get checkpoint data - nested structure: data["checkpoints"]["frame_index_triggered"]
+        if "checkpoints" not in episode_data.data:
+            print(f"[checkpoint] update failed: no checkpoint data found")
+            return
+
+        checkpoint_data = episode_data.data["checkpoints"]
+
+        if "frame_index_triggered" not in checkpoint_data:
+            print(f"[checkpoint] update failed: frame_index_triggered not found in checkpoint data")
+            return
+
+        triggered_data = checkpoint_data["frame_index_triggered"]
+
+        if frame_index is not None:
+            # Find and update specific frame index
+            frame_indices = checkpoint_data.get("frame_index")
+            if frame_indices is not None:
+                # Convert to list if it's a tensor
+                if isinstance(frame_indices, torch.Tensor):
+                    indices = frame_indices.squeeze().tolist()
+                else:
+                    indices = frame_indices
+
+                try:
+                    idx = indices.index(frame_index)
+                    # Update at that specific index
+                    if isinstance(triggered_data, torch.Tensor):
+                        triggered_data[idx] = torch.tensor([1], device=env.device, dtype=torch.float32)
+                    else:
+                        triggered_data[idx] = torch.tensor([1], device=env.device, dtype=torch.float32)
+                    print(f"[checkpoint] Updated frame {frame_index} as triggered in HDF5")
+                except ValueError:
+                    print(f"[checkpoint] Frame {frame_index} not found in checkpoint data")
+        else:
+            # Update the most recent checkpoint
+            try:
+                if isinstance(triggered_data, torch.Tensor):
+                    if len(triggered_data.shape) > 0 and triggered_data.shape[0] > 0:
+                        triggered_data[-1] = torch.tensor([1], device=env.device, dtype=torch.float32)
+                        print(f"[checkpoint] Updated most recent checkpoint as triggered in HDF5")
+                elif isinstance(triggered_data, list):
+                    if len(triggered_data) > 0:
+                        triggered_data[-1] = torch.tensor([1], device=env.device, dtype=torch.float32)
+                        print(f"[checkpoint] Updated most recent checkpoint as triggered in HDF5")
+            except (IndexError, AttributeError) as e:
+                print(f"[checkpoint] Failed to update triggered data: {e}")
+
+    except Exception as e:
+        print(f"[checkpoint] HDF5 update failed: {e}")
 
 
 def save_checkpoint(env, checkpoint_path):

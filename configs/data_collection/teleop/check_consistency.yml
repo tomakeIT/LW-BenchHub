@@ -1,5 +1,5 @@
 _base_:
-  - teleop_base
+- teleop_base
 dataset_file: ./datasets/dataset.hdf5
 device: cpu
 disable_fabric: false
@@ -9,7 +9,7 @@ enable_multiple_viewports: false
 enable_optimization: true
 enable_pinocchio: false
 first_person_view: false
-layout: robocasakitchen-2-2
+layout: robocasakitchen-10-5
 max_object_placement_retry: 3
 max_scene_retry: 4
 num_demos: 1

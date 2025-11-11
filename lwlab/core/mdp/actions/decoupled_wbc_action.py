@@ -321,6 +321,24 @@ class G1DecoupledWBCAction(ActionTerm):
         """
         self._raw_actions[env_ids] = torch.zeros(self.action_dim, device=self.device)
 
+        # Reset upper body controller warmup state
+        self.upperbody_controller.in_warmup = True
+
+        # Reset body IK solver internal state (PINK IK configuration)
+        self.upperbody_controller.body_ik_solver.reset()
+
+        # Reset WBC policy internal state
+        # Lower body policy (G1HomiePolicy) has gait_indices, obs_history, etc.
+        if env_ids is not None:
+            env_ids_tensor = torch.tensor(env_ids, dtype=torch.int64)
+            # Reset lower body policy if it has a reset method
+            if hasattr(self.wbc_policy.lower_body_policy, 'reset'):
+                self.wbc_policy.lower_body_policy.reset(env_ids_tensor)
+
+        # Reset upper body policy (InterpolationPolicy) to clear trajectory state
+        if hasattr(self.wbc_policy.upper_body_policy, 'reset'):
+            self.wbc_policy.upper_body_policy.reset()
+
 
 @configclass
 class G1DecoupledWBCActionCfg(ActionTermCfg):

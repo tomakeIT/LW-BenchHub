@@ -315,9 +315,9 @@ class G1HomiePolicyV2(Policy):
         self.cmd[:] = self.config["cmd_init"]  # Copy values from config
         self.height_cmd = self.config["height_cmd"]
         self.freq_cmd = self.config["freq_cmd"]
-        self.roll_cmd = np.array([self.config["roll_cmd"]], dtype=np.float32)
-        self.pitch_cmd = np.array([self.config["pitch_cmd"]], dtype=np.float32)
-        self.yaw_cmd = np.array([self.config["yaw_cmd"]], dtype=np.float32)
+        self.roll_cmd = self.config["rpy_cmd"][0]
+        self.pitch_cmd = self.config["rpy_cmd"][1]
+        self.yaw_cmd = self.config["rpy_cmd"][2]
 
     def load_onnx_policy(self, model_path: str):
         print(f"Loading ONNX policy from {model_path}")

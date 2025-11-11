@@ -154,6 +154,22 @@ def compare_states(state_from_dataset, runtime_state, runtime_env_index) -> (boo
     return states_matched, output_log
 
 
+def get_active_check_points(episode_data):
+    """Get the active check points from the episode data."""
+    active_check_points = []
+    check_points = episode_data.data.get("checkpoints", {})
+    frame_index_triggered = check_points.get("frame_index_triggered")
+    frame_index = check_points.get("frame_index")
+
+    if frame_index_triggered is None or frame_index is None:
+        return active_check_points
+
+    for i in range(len(frame_index_triggered)):
+        if frame_index_triggered[i].item() > 0:
+            active_check_points.append(int(frame_index[i].item()))
+    return active_check_points
+
+
 def main():
     """Replay episodes loaded from a file."""
     from isaaclab.envs import ManagerBasedRLEnv
@@ -300,7 +316,7 @@ def main():
     settings = carb.settings.get_settings()
     settings.set_bool("/rtx/raytracing/fractionalCutoutOpacity", True)
     # reset before starting
-    env.reset()
+    env.reset(seed=env.cfg.seed)
     if app_launcher._enable_cameras and not args_cli.headless:
         teleop_interface.reset()
     font = ImageFont.load_default()
@@ -447,6 +463,11 @@ def main():
                             episode_data = dataset_file_handler.load_episode(
                                 episode_names[next_episode_index], env.device
                             )
+                            current_frame_index = 0
+                            env_episode_data_map[env_id] = episode_data
+                            active_check_points = get_active_check_points(episode_data)
+                            checkpoint_path = os.path.join(save_dir, f"isaac_replay_action_{args_cli.replay_mode}_checkpoint_{current_frame_index}.pt")
+                            print(f"---------- Active check points: {active_check_points} -------------")
                             env_episode_data_map[env_id] = episode_data
 
                             # if replayed_episode_count <= 1:
@@ -460,7 +481,9 @@ def main():
                                 raise ValueError(f"Invalid replay mode: {args_cli.replay_mode}, can only be 'action' or 'joint_target'")
                             # Set initial state for the new episode
                             initial_state = episode_data.get_initial_state()
-                            env.reset_to(initial_state, torch.tensor([env_id], device=env.device), is_relative=False)
+                            from lwlab.utils.place_utils.env_utils import reset_physx
+                            reset_physx(env)
+                            env.reset_to(initial_state, torch.tensor([env_id], device=env.device), seed=env.cfg.seed, is_relative=False)
 
                             # Get the first action for the new episode
                             env_next_action = env_episode_data_map[env_id].get_next_action()
@@ -488,7 +511,12 @@ def main():
 
                 obs, _, ter, _, _ = env.step(actions)
 
-                # Collect rigid object states - store in lists for batch processing
+                if current_frame_index in active_check_points:
+                    from lwlab.utils.teleop_utils import save_checkpoint, load_checkpoint
+                    save_checkpoint(env, checkpoint_path)
+                    load_checkpoint(env, checkpoint_path)
+                current_frame_index += 1
+
                 env_objs = env.scene.rigid_objects
                 all_keys = list(env_objs.keys())
 
@@ -614,6 +642,9 @@ def main():
             with open(replay_json_path, 'w') as f:
                 json.dump(success_info, f, indent=4)
 
+        if args_cli.record:
+            env.recorder_manager.export_episodes()
+
     print("Closing process start")
     # Wait for all video processing tasks to complete and cleanup
     if video_processor:
@@ -638,8 +669,6 @@ def main():
     # Close environment after replay in complete
     plural_trailing_s = "s" if replayed_episode_count > 1 else ""
     print(f"Finished replaying {replayed_episode_count} episode{plural_trailing_s}.", flush=True)
-    if args_cli.record:
-        env.recorder_manager.export_episodes()
 
     env.close()
     print("Close simulation env")
