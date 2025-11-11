@@ -45,18 +45,10 @@ SO101_FOLLOWER_CFG = ArticulationCfg(
             "shoulder_pan": 0.0,
             "shoulder_lift": 0.0,
             "elbow_flex": 0.0,
-            "wrist_flex": 0,
-            "wrist_roll": 0,
-            "gripper": -0.174,
+            "wrist_flex": np.pi / 2,
+            "wrist_roll": np.pi / 2,
+            "gripper": 0.87,
         }
-        # joint_pos={
-        #     "shoulder_pan": 0.0,
-        #     "shoulder_lift": 0.0,
-        #     "elbow_flex": 0.0,
-        #     "wrist_flex": 0.0,
-        #     "wrist_roll": 0.0,
-        #     "gripper": 0.0
-        # }
     ),
     actuators={
         "shoulder_pan": ImplicitActuatorCfg(
