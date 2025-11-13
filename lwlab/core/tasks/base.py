@@ -496,9 +496,10 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                                 if "anchor" in reset_regions:
                                     anchor_region = reset_regions["anchor"]
                                     merged_obj_cfg["placement"] = dict(
-                                        size=(anchor_region["size"][0], anchor_region["size"][1]),
+                                        size=(0.01, 0.01),
                                         pos=anchor_region["offset"],
                                         ensure_object_boundary_in_range=False,
+                                        ensure_valid_placement=False,
                                         sample_args=dict(
                                             reference=obj_cfg["name"],
                                             ref_fixture=obj_cfg["placement"]["fixture"],
