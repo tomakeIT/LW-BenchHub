@@ -25,6 +25,16 @@ class LSPickUpTheBlackBowlFromTableCenterAndPlaceItOnThePlate(PutBlackBowlOnPlat
     def _get_obj_cfgs(self):
         cfgs = super()._get_obj_cfgs()
 
+        # Shift parent objects to the right to open up the table center.
+        for cfg in cfgs:
+            placement = cfg.get("placement", {})
+            if cfg["name"] == self.cookies:
+                placement["pos"] = (0.85, 0.8)
+            elif cfg["name"] == self.plate:
+                placement["pos"] = (0.9, -0.9)
+            elif cfg["name"] == self.ramekin:
+                placement["pos"] = (0.8, 0.9)
+
         cfgs.append(
             dict(
                 name=self.bowl_target,
@@ -36,7 +46,7 @@ class LSPickUpTheBlackBowlFromTableCenterAndPlaceItOnThePlate(PutBlackBowlOnPlat
                 placement=dict(
                     fixture=self.dining_table,
                     size=(0.4, 0.4),
-                    pos=(-0.5, -1),
+                    pos=(0.0, -0.5),
                     ensure_valid_placement=False,
                 ),
             )
@@ -53,8 +63,8 @@ class LSPickUpTheBlackBowlFromTableCenterAndPlaceItOnThePlate(PutBlackBowlOnPlat
                 placement=dict(
                     fixture=self.dining_table,
                     size=(0.25, 0.25),
-                    pos=(0.0, -1),
-                    ensure_valid_placement=False,
+                    pos=(0.4, -0.5),
+                    ensure_valid_placement=True,
                 ),
             )
         )
