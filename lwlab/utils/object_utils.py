@@ -26,7 +26,7 @@ def array_to_string(array):
     return " ".join(["{}".format(x) for x in array])
 
 
-def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_check: bool = False, th=0.05) -> torch.Tensor:
+def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_check: bool = False, th=0.2) -> torch.Tensor:
     """
     whether an object (another mujoco object) is inside of fixture. applies for most fixtures
     """
@@ -47,12 +47,12 @@ def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_
             w = fixtr_pz[i] - fixtr_p0[i]
 
             # get the position and quaternion of object
-            if obj.asset_type == "fixtures":
+            if obj_name in env.scene.articulations:
                 obj_pos = env.scene.articulations[obj_name].data.body_com_pos_w[i, 0, :].cpu().numpy()
                 obj_quat = T.convert_quat(
                     env.scene.articulations[obj_name].data.body_com_quat_w[i, 0, :].cpu().numpy(), to="xyzw"
                 )
-            else:
+            elif obj_name in env.scene.rigid_objects:
                 obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w[i, 0, :].cpu().numpy()
                 obj_quat = T.convert_quat(
                     env.scene.rigid_objects[obj_name].data.body_com_quat_w[i, 0, :].cpu().numpy(), to="xyzw"
@@ -60,22 +60,30 @@ def obj_inside_of(env: ManagerBasedEnv, obj_name: str, fixture_id: str, partial_
 
             if partial_check:
                 obj_points_to_check = [obj_pos]
-                th = 0.0
+                th_u = th_v = th_w = 0.0
             else:
                 # calculate 8 boundary points of object
                 obj_points_to_check = obj.get_bbox_points(trans=obj_pos, rot=obj_quat)
                 # threshold to mitigate false negatives: even if the bounding box point is out of bounds,
-                # th = 0.05
+                base_alpha = th
+                min_th = 1e-4
+                lu = np.linalg.norm(u) if np.linalg.norm(u) > 0 else 0.0
+                lv = np.linalg.norm(v) if np.linalg.norm(v) > 0 else 0.0
+                lw = np.linalg.norm(w) if np.linalg.norm(w) > 0 else 0.0
+
+                th_u = max(min_th, lu * base_alpha)
+                th_v = max(min_th, lv * base_alpha)
+                th_w = max(min_th, lw * base_alpha)
 
             for obj_p in obj_points_to_check:
                 check1 = (
-                    np.dot(u, fixtr_p0[i]) - th <= np.dot(u, obj_p) <= np.dot(u, fixtr_px[i]) + th
+                    np.dot(u, fixtr_p0[i]) - th_u <= np.dot(u, obj_p) <= np.dot(u, fixtr_px[i]) + th_u
                 )
                 check2 = (
-                    np.dot(v, fixtr_p0[i]) - th <= np.dot(v, obj_p) <= np.dot(v, fixtr_py[i]) + th
+                    np.dot(v, fixtr_p0[i]) - th_v <= np.dot(v, obj_p) <= np.dot(v, fixtr_py[i]) + th_v
                 )
                 check3 = (
-                    np.dot(w, fixtr_p0[i]) - th <= np.dot(w, obj_p) <= np.dot(w, fixtr_pz[i]) + th
+                    np.dot(w, fixtr_p0[i]) - th_w <= np.dot(w, obj_p) <= np.dot(w, fixtr_pz[i]) + th_w
                 )
 
                 if not (check1 and check2 and check3):
@@ -365,7 +373,6 @@ def check_obj_in_receptacle(env: ManagerBasedEnv, obj_name: str, receptacle_name
     """
     check if object is in receptacle object based on threshold
     """
-    obj = env.cfg.isaaclab_arena_env.task.objects[obj_name]
     recep = env.cfg.isaaclab_arena_env.task.objects[receptacle_name]
     obj_contact_path = env.scene.sensors[f"{obj_name}_contact"].contact_physx_view.sensor_paths
     recep_contact_path = env.scene.sensors[f"{receptacle_name}_contact"].contact_physx_view.sensor_paths
@@ -386,8 +393,15 @@ def check_obj_in_receptacle(env: ManagerBasedEnv, obj_name: str, receptacle_name
             )
         is_contact = torch.tensor([False], device=env.device).repeat(env.scene.num_envs)  # (env_num, )
 
-    obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
-    recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    if obj_name in env.scene.articulations:
+        obj_pos = torch.mean(env.scene.articulations[obj_name].data.body_com_pos_w, dim=1)
+    elif obj_name in env.scene.rigid_objects:
+        obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    if receptacle_name in env.scene.articulations:
+        recep_pos = torch.mean(env.scene.articulations[receptacle_name].data.body_com_pos_w, dim=1)
+    elif receptacle_name in env.scene.rigid_objects:
+        recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+
     if th is None:
         th = recep.horizontal_radius
     is_closed = torch.norm(obj_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
@@ -446,9 +460,16 @@ def check_obj_in_receptacle_no_contact(env: ManagerBasedEnv, obj_name: str, rece
     check if object is in receptacle object based on threshold
     """
     recep = env.cfg.isaaclab_arena_env.task.objects[receptacle_name]
+    if obj_name in env.scene.articulations:
+        obj_pos = torch.mean(env.scene.articulations[obj_name].data.body_com_pos_w, dim=1)
+    elif obj_name in env.scene.rigid_objects:
+        obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
+    recep = env.cfg.objects[receptacle_name]
+    if receptacle_name in env.scene.articulations:
+        recep_pos = torch.mean(env.scene.articulations[receptacle_name].data.body_com_pos_w, dim=1)
+    elif receptacle_name in env.scene.rigid_objects:
+        recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
 
-    obj_pos = torch.mean(env.scene.rigid_objects[obj_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
-    recep_pos = torch.mean(env.scene.rigid_objects[receptacle_name].data.body_com_pos_w, dim=1)  # (env_num, 3)
     if th is None:
         th = recep.horizontal_radius * 0.7
     is_closed = torch.norm(obj_pos[:, :2] - recep_pos[:, :2], dim=-1) < th  # (env_num, )
@@ -497,7 +518,11 @@ def check_obj_grasped(env, obj_name, threshold=0.035):
     Check if the gripper has grasped the object by analyzing contact and proximity
     """
     robot_articulation = env.scene.articulations["robot"].data.joint_names
-    gripper_joints = ["right_hand_middle_0_joint", "right_hand_middle_1_joint"]
+    if "right_hand_midddle_0_joint" in robot_articulation:
+        gripper_joints = ["right_hand_middle_0_joint", "right_hand_middle_1_joint"]
+    elif "right_gripper1" in robot_articulation:
+        gripper_joints = ["right_gripper1", "right_gripper2"]
+
     joint_index = [robot_articulation.index(joint) for joint in gripper_joints]
     gripper_joint_positions = env.scene.articulations["robot"].data.joint_pos[:, joint_index]
     gripper_closed = (gripper_joint_positions < threshold).all()
@@ -514,7 +539,7 @@ def gripper_obj_far(env, obj_name="obj", th=0.25, eef_name=None, force_th=0.1) -
     """
 
     # Check if object is in rigid_objects
-    if obj_name in env.scene.rigid_objects:
+    if obj_name in env.cfg.objects and obj_name in env.scene.rigid_objects:
         obj_pos = env.scene.rigid_objects[obj_name].data.body_com_pos_w  # (num_envs, num_bodies, 3)
     else:
         # Articulation object: use all body centers of mass

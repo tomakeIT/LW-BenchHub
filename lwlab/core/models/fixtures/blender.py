@@ -61,7 +61,7 @@ class Blender(Fixture):
         self._env = env
 
     def get_reset_region_names(self):
-        return {"anchor", }
+        return {"anchor", "int"}
 
     # TODO: need to add env_nums
     def get_lid_closed_pos(self, env):
@@ -88,12 +88,19 @@ class Blender(Fixture):
             dist = torch.norm(curr_lid_pos - closed_lid_pos, dim=-1)
             self._lid_on_blender = (dist < self._BLENDER_LID_POS_THRESH)
 
-        button_pressed = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
-        for gripper_name in [name for name in list(env.scene.sensors.keys()) if "gripper" in name and "contact" in name]:
-            button_pressed |= OU.check_contact(env, gripper_name.replace("_contact", ""), self.power_button_name)
-        # since the state updates very often and the same button is used for turning on/off
-        # we look at the release of the button to determine the state. If we look at the press then
-        # the state will flicker between on and off
+        blender_articulation = env.scene.articulations[self.name]
+        body_names_blender = blender_articulation.body_names
+        has_physical_button = any("button" in name.lower() for name in body_names_blender)
+        if has_physical_button:
+            joint_names = blender_articulation.joint_names
+            power_joint_name = self._joint_names["power"]
+            if power_joint_name in joint_names:
+                power_joint_idx = joint_names.index(power_joint_name)
+                joint_pos = blender_articulation.data.joint_pos[:, power_joint_idx]
+                # A small positive value indicates the button is pressed.
+                press_threshold = 0.0001
+                button_pressed = joint_pos >= press_threshold
+
         switch_state = self._button_contact_prev_timestep & (~button_pressed)
 
         if not self._lid_on_blender:

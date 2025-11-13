@@ -79,7 +79,13 @@ def register_fixture_from_obj(obj, prim, fixtures_ref, num_envs, pos, rot):
         bool: True if fixture successfully registered, False otherwise
     """
     fixture_path = os.path.splitext(os.path.basename(obj["info"]["obj_path"]))[0]
-    fixture_name = ''.join([c for c in fixture_path if c.isalpha()])
+    fixture_name = ""
+    for c in fixture_path:
+        if c == "_":
+            break
+        elif c.isalpha():
+            fixture_name += c
+
     fixture_type = fixture_name if fixture_name in FIXTURES else "Accessory"
 
     if obj["name"] in fixtures_ref:

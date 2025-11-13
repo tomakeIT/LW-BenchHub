@@ -42,6 +42,41 @@ class Fridge(Fixture):
             reg_name for reg_name in self._regions.keys() if "freezer" in reg_name
         ]
 
+    def update_state(self, env):
+        """
+        Updates the interior bounding boxes of the drawer to be matched with
+        how open the drawer is. This is needed when determining if an object
+        is inside the drawer or when placing an object inside an open drawer.
+
+        TODO: (1) Drawer assets require inner volume and outer volume. (floorplan2usd)
+        TODO: (2) In runtime to get the world coordinates and dimensions of the geometric
+                  centroids of the inner and outer volumes in real time, and is to be time
+                  consuming small. (fixture controller)
+
+        Args:
+            env (ManagerBasedRLEnv): environment
+        """
+        drawer_regions = [
+            reg_name
+            for reg_name in self._regions.keys()
+            if "drawer" in reg_name
+        ]
+        for reg_name in drawer_regions:
+            matching_joints = [j for j in self._drawer_joint_names if reg_name in j]
+            if not matching_joints:
+                continue
+
+            joint_name = matching_joints[0]
+            try:
+                joint_id = env.scene.articulations[self.name].joint_names.index(joint_name)
+                qpos = env.scene.articulations[self.name].data.joint_pos[:, joint_id].cpu().numpy()
+                offset = np.stack([np.zeros_like(qpos), -qpos, np.zeros_like(qpos)], axis=-1)
+                if "per_env_offset" not in self._regions[reg_name]:
+                    self._regions[reg_name]["per_env_offset"] = np.zeros((self.num_envs, 3))
+                self._regions[reg_name]["per_env_offset"] = offset
+            except (ValueError, KeyError) as e:
+                pass
+
     def is_open(self, env, entity="fridge", th=0.9):
         joint_names = None
         if entity == "fridge":
@@ -137,6 +172,7 @@ class Fridge(Fixture):
                 self.set_joint_state(min=min, max=max, env=env, env_ids=env_ids, joint_names=drawer_joints)
         else:
             raise ValueError(f"Invalid reg_type: {reg_type}")
+        self.update_state(env)
 
     def close_door(self, env, env_ids=None, min=0, max=0, entity="fridge", reg_type="door", drawer_rack_index=None):
         if reg_type == "door":

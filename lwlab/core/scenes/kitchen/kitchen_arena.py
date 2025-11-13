@@ -43,13 +43,14 @@ class KitchenArena:
                  style_id: int | None = None,
                  floorplan_version: str | None = None,
                  exclude_layouts: list[int] | None = None,
+                 exclude_styles: list[int] | None = None,
                  enable_fixtures: list[str] | None = None,
                  movable_fixtures: list[str] | None = None,
                  scene_type: str | None = None,
                  local_scene_path: str | None = None
                  ):
         # download floorplan usd
-        self.load_floorplan(layout_id, style_id, floorplan_version, exclude_layouts, scene_type, local_scene_path)
+        self.load_floorplan(layout_id, style_id, floorplan_version, exclude_layouts, exclude_styles, scene_type, local_scene_path)
         self.stage = usd.get_stage(self.usd_path)
 
         # enable fixtures in usd
@@ -97,7 +98,7 @@ class KitchenArena:
 
         return fixture_cfgs
 
-    def load_floorplan(self, layout_id, style_id, floorplan_version, exclude_layouts, scene_type, local_scene_path):
+    def load_floorplan(self, layout_id, style_id, floorplan_version, exclude_layouts, exclude_styles, scene_type, local_scene_path):
         start_time = time.time()
         print(f"load floorplan usd", end="...")
 
@@ -109,11 +110,11 @@ class KitchenArena:
             self.version_id = None
         else:
             if layout_id is None:
-                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, version=floorplan_version, exclude_layout_ids=exclude_layouts)
+                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, version=floorplan_version, exclude_layout_ids=exclude_layouts, exclude_style_ids=exclude_styles)
             elif style_id is None:
-                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, layout_id=layout_id, version=floorplan_version, exclude_layout_ids=exclude_layouts)
+                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, layout_id=layout_id, version=floorplan_version, exclude_layout_ids=exclude_layouts, exclude_style_ids=exclude_styles)
             else:
-                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, layout_id=layout_id, style_id=style_id, version=floorplan_version, exclude_layout_ids=exclude_layouts)
+                res = floorplan_loader.acquire_usd(backend="robocasa", scene=scene_type, layout_id=layout_id, style_id=style_id, version=floorplan_version, exclude_layout_ids=exclude_layouts, exclude_style_ids=exclude_styles)
             usd_path, self.floorplan_meta = res.result()
             self.usd_path = str(usd_path)
             self.scene_type = self.floorplan_meta.get("scene")

@@ -159,7 +159,9 @@ class Drawer(Cabinet):
         if partial_open:
             min *= 0.3
             max *= 0.3
-        return super().open_door(env, min, max, env_ids=env_ids)
+        result = super().open_door(env, min, max, env_ids=env_ids)
+        self.update_state(env)
+        return result
 
     def set_door_state(self, min, max, env, env_ids=None):
         """
