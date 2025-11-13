@@ -19,7 +19,8 @@ dependencies = [
     "tqdm",
     "vuer[all]==0.0.60",
     "onnxruntime",
-    "zmq"
+    "zmq",
+    "lazy-import",
 ]
 
 [project.optional-dependencies]

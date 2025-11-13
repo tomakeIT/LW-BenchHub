@@ -38,6 +38,7 @@ from isaaclab_arena.utils.cameras import make_camera_observation_cfg
 from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from lwlab.utils.log_utils import get_camera_metadata, get_action_space_def
+from lwlab.utils.csv_loader import csv_loader
 
 
 @configclass
@@ -293,7 +294,16 @@ class LwLabEmbodimentBase(EmbodimentBase):
 
     def setup_env_config(self, orchestrator):
         if orchestrator.task.context.task_backend == "robocasa":
-            self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
+            robot_pos, robot_ori \
+                = csv_loader.load_robot_pose(orchestrator.embodiment.name,
+                                             orchestrator.scene.scene_name,
+                                             orchestrator.task.task_name)
+            if robot_pos is not None and robot_ori is not None:
+                orchestrator.task.resample_robot_placement_on_reset = False
+                self.init_robot_base_pos_anchor = np.array(robot_pos, dtype=np.float32)
+                self.init_robot_base_ori_anchor = np.array(robot_ori, dtype=np.float32)
+            else:
+                self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
             self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
             self.modify_observation_cameras(orchestrator.task.task_type)
             self._setup_camera_config(orchestrator.task.task_type)

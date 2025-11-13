@@ -24,7 +24,9 @@ from scipy.spatial.transform import Rotation as R
 from isaaclab.envs import ManagerBasedRLEnvCfg, ManagerBasedRLEnv
 from isaaclab.sensors import ContactSensorCfg
 
-import lwlab.utils.object_utils as OU
+# import lwlab.utils.object_utils as OU
+import lazy_import
+OU = lazy_import.lazy_module("lwlab.utils.object_utils")
 from lwlab.utils.usd_utils import OpenUsd as usd
 import lwlab.utils.math_utils.transform_utils.numpy_impl as T
 from lwlab.utils.errors import SamplingError

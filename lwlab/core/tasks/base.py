@@ -56,6 +56,7 @@ from isaaclab_arena.utils.pose import Pose
 from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 from lwlab.utils.usd_utils import OpenUsd as usd
 from lwlab.core.models.scenes.scene_parser import register_fixture_from_obj
+from lwlab.utils.csv_loader import csv_loader
 
 
 @configclass
@@ -877,6 +878,10 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self._setup_kitchen_references(orchestrator.scene)
         self._init_ref_fixtures()
         self._get_obj_cfgs()
+        self.object_init_offset \
+            = csv_loader.load_object_offset(orchestrator.embodiment.name,
+                                            orchestrator.scene.scene_name,
+                                            orchestrator.task.task_name)
         self._create_objects()
 
         self.object_placements = EnvUtils.sample_object_placements(orchestrator)
