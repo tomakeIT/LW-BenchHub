@@ -75,6 +75,9 @@ class ObjDropChecker(BaseChecker):
         if self._frame_counter <= 60:
             return self._last_result
 
+        if self._frame_counter <= 60:
+            return self._last_result
+
         result = self._check_obj_drop(env)
         self._last_result = result
         return result

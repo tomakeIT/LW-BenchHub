@@ -164,8 +164,8 @@ class ActionStateInconsistencyChecker(BaseChecker):
             )
             self._warning_frame_count = 1
 
-        success = num_major == 0
         metrics = self.get_consistency_metrics()
+        success = (metrics.get("major", 0) == 0)
         metrics["success"] = success
 
         result = {
