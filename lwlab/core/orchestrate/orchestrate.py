@@ -8,6 +8,7 @@ from lwlab.core.models.fixtures.fixture import Fixture as IsaacFixture
 import torch
 from lwlab.utils.place_utils import env_utils as EnvUtils
 import numpy as np
+from scipy.spatial.transform import Rotation as R
 from lwlab.utils.place_utils.env_utils import set_robot_to_position, sample_robot_base_helper
 import lwlab.utils.math_utils.transform_utils.numpy_impl as Tn
 import lwlab.utils.math_utils.transform_utils.torch_impl as Tt
@@ -118,12 +119,14 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
         else:
             reset_objs = updated_obj_names
         for obj_name in reset_objs:
-            obj_poses, obj_quat, _ = object_placements[obj_name]
+            obj_poses, obj_quat_xyzw, _ = object_placements[obj_name]
             obj_pos = torch.tensor(obj_poses, device=self.context.device, dtype=torch.float32) + env.scene.env_origins[env_ids]
-            obj_quat = Tt.convert_quat(torch.tensor(obj_quat, device=self.context.device, dtype=torch.float32), to="wxyz")
+            obj_quat = Tt.convert_quat(torch.tensor(obj_quat_xyzw, device=self.context.device, dtype=torch.float32), to="wxyz")
             obj_quat = obj_quat.unsqueeze(0).repeat(obj_pos.shape[0], 1)
             root_pos = torch.concatenate([obj_pos, obj_quat], dim=-1)
             if obj_name in self.task._articulation_assets:
+                self.fixture_refs[obj_name]._pos = obj_pos
+                self.fixture_refs[obj_name]._rot = R.from_quat(obj_quat_xyzw).as_euler('xyz', degrees=False)
                 env.scene.articulations[obj_name].write_root_pose_to_sim(
                     root_pos,
                     env_ids=env_ids

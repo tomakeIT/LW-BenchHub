@@ -51,6 +51,10 @@ class CSVLoader:
                 if not row.empty:
                     self.robot_pos = ast.literal_eval(row.iloc[0]['init_robot_base_pos'])
                     self.robot_ori = ast.literal_eval(row.iloc[0]['init_robot_base_ori'])
+                    print(
+                        f"[CSV Match] {robot_name} | {scene_name} | {task_name} | "
+                        f"Init Pos:{self.robot_pos} - Init Ori:{self.robot_ori}"
+                    )
                     return self.robot_pos, self.robot_ori
         return None, None
 
@@ -62,6 +66,9 @@ class CSVLoader:
                            (data['task'] == task_name)]
                 if not row.empty:
                     self.obj_offset = ast.literal_eval(row.iloc[0]['object_init_offset'])
+                    print(
+                        f"[CSV Match] Init Obj Offset:{self.obj_offset}"
+                    )
                     return self.obj_offset
         return np.zeros(2,)
 

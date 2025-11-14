@@ -770,7 +770,7 @@ class PnPCounterToOven(PnP):  # DONE
                     sample_region_kwargs=dict(
                         ref=self.oven,
                     ),
-                    size=(0.45, 0.30),
+                    size=(0.45, 0.40),
                     pos=("ref", -1.0),
                     try_to_place_in="plate",
                 ),
@@ -780,6 +780,7 @@ class PnPCounterToOven(PnP):  # DONE
             dict(
                 name="oven_tray",
                 obj_groups=("oven_tray"),
+                object_scale=0.9,
                 placement=dict(
                     fixture=self.oven,
                     sample_region_kwargs=dict(
@@ -1388,7 +1389,7 @@ class PnPToasterOvenToCounter(PnP):  # DONE
                         ref=self.toaster_oven,
                         loc="left_right",
                     ),
-                    size=(0.30, 0.30),
+                    size=(0.40, 0.40),
                     pos=("ref", -1.0),
                 ),
             )

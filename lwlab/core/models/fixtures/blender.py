@@ -91,6 +91,7 @@ class Blender(Fixture):
         blender_articulation = env.scene.articulations[self.name]
         body_names_blender = blender_articulation.body_names
         has_physical_button = any("button" in name.lower() for name in body_names_blender)
+        button_pressed = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         if has_physical_button:
             joint_names = blender_articulation.joint_names
             power_joint_name = self._joint_names["power"]

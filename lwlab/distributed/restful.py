@@ -35,12 +35,13 @@ def flask_handle_error(self: "RestfulEnvWrapper"):
         def wrapper(*args, **kwargs):
             try:
                 with self._locked_mainthread():
-                    res = func(self, *args, **kwargs)
+                    res = func(*args, **kwargs)
                     return jsonify(res)
             except APIError as e:
                 return self._error(str(e), e.code)
             except Exception as e:
                 return self._error(f"Internal server error: {e}", 500)
+        wrapper.__name__ = func.__name__
         return wrapper
     return outer_wrapper
 

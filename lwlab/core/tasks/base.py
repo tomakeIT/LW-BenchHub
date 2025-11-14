@@ -346,8 +346,8 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.env_instance = env
         # register placed fixture
         for name, articulation in self._articulation_assets.items():
-            pos = self.assets[name].initial_pose.position_xyz
-            rot = self.assets[name].initial_pose.rotation_wxyz
+            pos = self.object_placements[name][0]
+            rot = self.object_placements[name][1]  # xyzw
             prim = usd.get_prim_by_name(env.scene.stage.GetPseudoRoot(), name, only_xform=True)
             register_fixture_from_obj(
                 obj=articulation,

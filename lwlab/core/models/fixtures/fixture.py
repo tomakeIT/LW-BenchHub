@@ -100,7 +100,7 @@ class Fixture:
         self._pos = pos if pos is not None else np.array(list(prim.GetAttribute("xformOp:translate").Get()))
         self._scale = prim.GetAttribute("xformOp:scale").Get()
         self._scale = np.array(self._scale) if self._scale is not None else np.array([1, 1, 1])
-        euler_angles = R.from_quat([rot[1], rot[2], rot[3], rot[0]]).as_euler('xyz', degrees=True) if rot is not None else prim.GetAttribute("xformOp:rotateXYZ").Get()
+        euler_angles = R.from_quat(rot).as_euler('xyz', degrees=True) if rot is not None else prim.GetAttribute("xformOp:rotateXYZ").Get()
         if euler_angles is not None:
             euler_radians = np.radians(np.array(euler_angles))
             self.set_euler(euler_radians)
