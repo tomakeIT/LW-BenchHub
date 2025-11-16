@@ -256,24 +256,28 @@ class PandaOmronCameraCfg:
     eye_in_hand_camera: TiledCameraCfg = None
 
 
-from lwlab.core.robots.robot_arena_base import EmbodimentBasePolicyObservationCfg
+from lwlab.core.robots.robot_arena_base import EmbodimentGeneralObsCfg, EmbodimentBaseObservationCfg, EmbodimentBasePolicyObservationCfg
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 import lwlab.core.mdp as lwlab_mdp
 
 
 @configclass
-class PandaOmronObservationsCfg:
+class PandaOmronObservationsCfg(EmbodimentBaseObservationCfg):
     """Observation specifications for the MDP."""
-    pass
+
+    @configclass
+    class PandaOmronGeneralObsCfg(EmbodimentGeneralObsCfg):
+        eef_pos: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_pos)
+        eef_quat: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_quat)
+        gripper_pos: ObsTerm = ObsTerm(func=lwlab_mdp.gripper_pos)
+
+    embodiment_general_obs: PandaOmronGeneralObsCfg = PandaOmronGeneralObsCfg()
 
 
 @configclass
 class PandaOmronPolicyObservationsCfg(EmbodimentBasePolicyObservationCfg):
     """Observations for policy group with state values."""
-
-    eef_pos = ObsTerm(func=lwlab_mdp.ee_frame_pos)
-    eef_quat = ObsTerm(func=lwlab_mdp.ee_frame_quat)
-    gripper_pos = ObsTerm(func=lwlab_mdp.gripper_pos)
+    pass
 
 
 @configclass

@@ -566,8 +566,8 @@ def main():
                         else:
                             get_default_logger().warning(f"State index {current_state_idx} out of range for {obj_name} (total: {total_states})")
 
-                ee_poses.append(obs['policy']['eef_pos'].cpu().numpy())
-                joint_pos_list.append(obs["policy"]["joint_pos"].cpu().numpy())
+                ee_poses.append(obs['embodiment_general_obs']['eef_pos'].cpu().numpy())
+                joint_pos_list.append(obs['embodiment_general_obs']['joint_pos'].cpu().numpy())
                 if args_cli.replay_mode == "joint_target":
                     joint_target_list.append(get_robot_joint_target_from_scene(env.scene)["joint_pos_target"].cpu().numpy())
                     gt_actions = copy.deepcopy(actions)

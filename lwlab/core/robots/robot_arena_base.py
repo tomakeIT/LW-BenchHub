@@ -141,20 +141,26 @@ class EmbodimentBaseSceneCfg:
 
 
 @configclass
+class EmbodimentGeneralObsCfg(ObsGroup):
+    actions: ObsTerm = ObsTerm(func=lwlab_mdp.last_action)
+    joint_pos: ObsTerm = ObsTerm(func=lwlab_mdp.joint_pos_rel)
+    joint_vel: ObsTerm = ObsTerm(func=lwlab_mdp.joint_vel_rel)
+
+    def __post_init__(self):
+        self.concatenate_terms = False
+
+
+@configclass
 class EmbodimentBaseObservationCfg:
     """Observations for policy group."""
-    pass
+
+    embodiment_general_obs: EmbodimentGeneralObsCfg = EmbodimentGeneralObsCfg()
 
 
 @configclass
 class EmbodimentBasePolicyObservationCfg(ObsGroup):
     """Observations for policy group."""
-    actions = ObsTerm(func=lwlab_mdp.last_action)
-    joint_pos = ObsTerm(func=lwlab_mdp.joint_pos_rel)
-    joint_vel = ObsTerm(func=lwlab_mdp.joint_vel_rel)
-
-    def __post_init__(self):
-        self.concatenate_terms = False
+    pass
 
 
 class LwLabEmbodimentBase(EmbodimentBase):
@@ -304,6 +310,7 @@ class LwLabEmbodimentBase(EmbodimentBase):
                 self.init_robot_base_ori_anchor = np.array(robot_ori, dtype=np.float32)
             else:
                 self.init_robot_base_pos_anchor, self.init_robot_base_ori_anchor = self.get_robot_anchor(orchestrator)
+            self.scene_config.robot.init_state.pos = self.init_robot_base_pos_anchor
             self.scene_config.robot.init_state.rot = Tn.convert_quat(Tn.mat2quat(Tn.euler2mat(self.init_robot_base_ori_anchor)), to="wxyz")
             self.modify_observation_cameras(orchestrator.task.task_type)
             self._setup_camera_config(orchestrator.task.task_type)
@@ -317,10 +324,10 @@ class LwLabEmbodimentBase(EmbodimentBase):
             robot_base_ori_anchor,
         ) = EnvUtils.init_robot_base_pose(orchestrator)
 
-        if hasattr(orchestrator, "robot_base_offset"):
+        if hasattr(orchestrator.embodiment, "robot_base_offset"):
             try:
-                robot_base_pos_anchor += np.array(orchestrator.robot_base_offset["pos"])
-                robot_base_ori_anchor += np.array(orchestrator.robot_base_offset["rot"])
+                robot_base_pos_anchor += np.array(orchestrator.embodiment.robot_base_offset["pos"])
+                robot_base_ori_anchor += np.array(orchestrator.embodiment.robot_base_offset["rot"])
             except KeyError:
                 raise ValueError("offset value is not correct !! please make sure offset has key pos and rot !!")
 

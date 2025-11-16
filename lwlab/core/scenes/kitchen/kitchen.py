@@ -135,7 +135,7 @@ class LwLabScene(Scene, NoDeepcopyMixin):
             raise ValueError(f"Layout {self.lwlab_arena.layout_id} is excluded in task {self.task_name}")
 
         background = Background(
-            name=self.scene_type,
+            name="Scene",
             usd_path=self.scene_usd_path,
             object_min_z=0.1,
         )

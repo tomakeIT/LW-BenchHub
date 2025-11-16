@@ -4,6 +4,7 @@ _base_:
 task: OpenDrawer               # Task name
 layout: robocasakitchen-3-3  # Scene layout
 robot: G1-RL                   # Robot type
+rl: G1OpenDrawerRL            # RL cfg name
 usd_simplify: true # USD simplify enable
 # Reinforcement Learning Settings
 max_iterations: 2         # Max RL policy training iterations

@@ -1289,7 +1289,7 @@ def check_valid_robot_pose(env: ManagerBasedRLEnv, robot_pos, env_ids=None):
     robot_bbox = calculate_robot_bbox(env, robot_pos)
     scene_prim = None
     for prim in env.sim.stage.Traverse():
-        if prim.IsValid() and prim.GetName().lower() == env.cfg.isaaclab_arena_env.scene.scene_type:
+        if prim.IsValid() and prim.GetName().lower() == "scene":
             scene_prim = prim
             break
     scene_bbox = OpenUsd.get_prim_aabb_bounding_box(scene_prim) if scene_prim else None

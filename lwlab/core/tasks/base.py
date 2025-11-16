@@ -78,18 +78,21 @@ class TaskBasePolicyObservationCfg(ObsGroup):
 class EventCfg:
     """Configuration for events."""
 
-    robot_physics_material: EventTerm = EventTerm(
-        func=mdp.randomize_rigid_body_material,
-        mode="startup",
-        params={
-            "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
-            "static_friction_range": (0.8, 1.25),
-            "dynamic_friction_range": (0.8, 1.25),
-            "restitution_range": (0.0, 0.0),
-            "num_buckets": 16,
-        },
-    )
+    # robot_physics_material: EventTerm = EventTerm(
+    #     func=mdp.randomize_rigid_body_material,
+    #     mode="startup",
+    #     params={
+    #         "asset_cfg": SceneEntityCfg("robot", body_names=".*"),
+    #         "static_friction_range": (0.8, 1.25),
+    #         "dynamic_friction_range": (0.8, 1.25),
+    #         "restitution_range": (0.0, 0.0),
+    #         "num_buckets": 16,
+    #     },
+    # )
+
     init_task: EventTerm = MISSING
+
+    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
 
     # cabinet_physics_material = EventTerm(
     #     func=mdp.randomize_rigid_body_material,
@@ -103,16 +106,14 @@ class EventCfg:
     #     },
     # )
 
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
-    reset_robot_joints = EventTerm(
-        func=mdp.reset_joints_by_offset,
-        mode="reset",
-        params={
-            "position_range": (0.0, 0.0),
-            "velocity_range": (0.0, 0.0),
-        },
-    )
+    # reset_robot_joints = EventTerm(
+    #     func=mdp.reset_joints_by_offset,
+    #     mode="reset",
+    #     params={
+    #         "position_range": (0.0, 0.0),
+    #         "velocity_range": (0.0, 0.0),
+    #     },
+    # )
 
 
 @configclass
@@ -227,6 +228,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     layout_registry_names: list[str | FixtureType | int] | None = None
 
     def __init__(self):
+        super().__init__()
         self.context = get_context()
         self.task_backend = self.context.task_backend
         self.usd_simplify = self.context.usd_simplify
@@ -609,14 +611,14 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                     name=obj_cfg["info"]["task_name"],
                     tags=["object"],
                     usd_path=obj_cfg["info"]["obj_path"],
-                    prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{obj_cfg['info']['task_name']}",
+                    prim_path=f"{{ENV_REGEX_NS}}/Scene/{obj_cfg['info']['task_name']}",
                     object_type=object_type,
                 )
             )
             self.add_contact_sensor_cfg(
                 name=f"{obj_cfg['info']['task_name']}_contact",
                 cfg=ContactSensorCfg(
-                    prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{obj_cfg['info']['task_name']}/{obj_cfg['info']['name']}",
+                    prim_path=f"{{ENV_REGEX_NS}}/Scene/{obj_cfg['info']['task_name']}/{obj_cfg['info']['name']}",
                     update_period=0.0,
                     history_length=6,
                     debug_vis=False,
@@ -854,8 +856,8 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                 ObjectReference(
                     name=fixtr.name,
                     object_type=object_type,
-                    prim_path=f"{{ENV_REGEX_NS}}/{self.scene_type}/{fixtr.name}",
-                    parent_asset=self.scene_assets[self.scene_type],
+                    prim_path=f"{{ENV_REGEX_NS}}/Scene/{fixtr.name}",
+                    parent_asset=self.scene_assets['Scene'],
                 )
             )
         for fixtr in self.fixture_refs.values():
@@ -863,6 +865,17 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                 fixtr.setup_cfg(self)
 
     def _apply_object_placements(self, object_placements):
+        if self.fix_object_pose_cfg is not None:
+            for obj_name, obj_placement in self.object_placements.items():
+                if obj_name in self.fix_object_pose_cfg:
+                    obj_pos = obj_placement[0]
+                    obj_rot = obj_placement[1]
+                    if "pos" in self.fix_object_pose_cfg[obj_name]:
+                        obj_pos = self.fix_object_pose_cfg[obj_name]["pos"]
+                    if "rot" in self.fix_object_pose_cfg[obj_name]:
+                        obj_rot = self.fix_object_pose_cfg[obj_name]["rot"]
+                    self.object_placements[obj_name] = (obj_pos, obj_rot, obj_placement[2])
+
         for obj_pos, obj_quat, obj in object_placements.values():
             if obj.task_name in self.assets:
                 obj_quat_wxyz = Tn.convert_quat(obj_quat, to="wxyz")
@@ -871,7 +884,6 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
     def setup_env_config(self, orchestrator):
         self.scene_assets = orchestrator.scene.assets
-        self.scene_type = orchestrator.scene.scene_type
         self.fixtures = orchestrator.scene.fixtures
         self.scene_retry_count = 0
         self.object_retry_count = 0
@@ -887,14 +899,6 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
 
         self.object_placements = EnvUtils.sample_object_placements(orchestrator)
         self._apply_object_placements(self.object_placements)
-
-        self._set_reward_joint_names(
-            orchestrator.embodiment.reward_gripper_joint_names,
-            orchestrator.embodiment.reward_arm_joint_names
-        )
-
-    def _set_reward_joint_names(self, gripper_joint_names, arm_joint_names):
-        pass
 
     def get_ep_meta(self):
         ep_meta = {}

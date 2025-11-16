@@ -19,7 +19,6 @@
 
 import argparse
 import os
-
 from isaaclab.app import AppLauncher
 
 from lwlab.utils.config_loader import config_loader
@@ -200,7 +199,7 @@ def main():
             else:
                 actions = outputs[-1].get("mean_actions", outputs[0])
             # env stepping
-            obs, _, terminated, truncated, _ = env.step(actions)
+            obs, _, terminated, _, extras = env.step(actions)
         if args_cli.video:
             timestep += 1
             # exit the play loop after recording one video
@@ -208,8 +207,8 @@ def main():
                 break
         # get success rate
         if args_cli.check_success:
-            success_count += terminated.sum().item()
-            episode_count += (terminated | truncated).sum().item()
+            success_count += extras["is_success"].sum().item()
+            episode_count += terminated.sum().item()
             print(f"episode_count: {episode_count}")
             print(f"Success rate: {success_count / (episode_count + 1e-8):.2%}")
         # time delay for real-time evaluation

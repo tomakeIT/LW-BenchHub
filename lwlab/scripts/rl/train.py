@@ -133,8 +133,6 @@ def main():
                 agent_cfg = load_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}", agent_cfg_entry_point)
 
     env_cfg.observations.policy.concatenate_terms = True
-    # modify configuration
-    env_cfg.terminations.time_out = None
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)  # .unwrapped
     set_seed(env_cfg.seed, env.unwrapped)

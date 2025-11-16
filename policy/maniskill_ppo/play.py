@@ -96,8 +96,6 @@ def main(args):
         )
 
     env_cfg.observations.policy.concatenate_terms = False
-    # modify configuration
-    env_cfg.terminations.time_out = None
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
     set_seed(env_cfg.seed, env.unwrapped, args.torch_deterministic)
@@ -126,12 +124,12 @@ def main(args):
         for _ in tqdm(range(eval_iter), desc="Evaluation Progress"):
             action = agent.agent.get_action(next_obs, deterministic=True)
             # action = torch.zeros_like(action, device=env_cfg.sim.device)
-            next_obs, _, terminations, truncations, _ = env.step(action)
+            next_obs, _, terminations, _, extras = env.step(action)
             next_obs = observation(next_obs['policy'])
 
             if args_cli.check_success:
-                success_count += terminations.sum().item()
-                episode_count += (terminations | truncations).sum().item()
+                success_count += extras["is_success"].sum().item()
+                episode_count += terminations.sum().item()
         if args_cli.check_success:
             success_rate = success_count / (episode_count + 1e-8)
             parent_dir = os.path.dirname(args_cli.checkpoint)

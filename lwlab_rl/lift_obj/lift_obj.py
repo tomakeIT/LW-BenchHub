@@ -64,28 +64,25 @@ class CommandsCfg:
 
 
 @configclass
-class LiftObjPolicyObsCfg(RlBasePolicyObservationCfg):
+class G1LiftObjPolicyObsCfg(RlBasePolicyObservationCfg):
+    joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+    joint_vel = ObsTerm(func=mdp.joint_vel_rel)
     target_object_position = ObsTerm(func=mdp.generated_commands, params={"command_name": "object_pose"})
+    actions = ObsTerm(func=mdp.last_action)
+
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = True
 
 
-# state-based observations
+# g1 state-based observations
 @configclass
-class G1LiftObjStatePolicyObsCfg(LiftObjPolicyObsCfg):
+class G1LiftObjStatePolicyObsCfg(G1LiftObjPolicyObsCfg):
     """Observations for policy group."""
     obj_pos = ObsTerm(func=mdp.object_position_in_robot_root_frame, params={"object_cfg": SceneEntityCfg("object")})
 
 
-@configclass
-class LeRobotLiftObjStatePolicyObsCfg(G1LiftObjStatePolicyObsCfg):
-    target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
-    delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
-
-    def __post_init__(self):
-        self.enable_corruption = True
-        self.concatenate_terms = False
-
-
-# visual-based observations
+# g1 visual-based observations
 @configclass
 class G1LiftObjVisualPolicyObsCfg(G1LiftObjStatePolicyObsCfg):
     image_hand = ObsTerm(
@@ -110,7 +107,25 @@ class G1LiftObjVisualPolicyObsCfg(G1LiftObjStatePolicyObsCfg):
 
 
 @configclass
-class LeRobotLiftObjVisualPolicyObsCfg(LeRobotLiftObjStatePolicyObsCfg):
+class LeRobotLiftObjPolicyObsCfg(RlBasePolicyObservationCfg):
+    joint_pos = ObsTerm(func=mdp.joint_pos)
+    target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
+    delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
+
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = False
+
+
+# lerobot state-based observations
+@configclass
+class LeRobotLiftObjStatePolicyObsCfg(LeRobotLiftObjPolicyObsCfg):
+    obj_pos = ObsTerm(func=mdp.object_position_in_robot_root_frame, params={"object_cfg": SceneEntityCfg("object")})
+
+
+# lerobot visual-based observations
+@configclass
+class LeRobotLiftObjVisualPolicyObsCfg(LeRobotLiftObjPolicyObsCfg):
     image_global = ObsTerm(
         func=mdp.image,
         params={
@@ -124,7 +139,7 @@ class LeRobotLiftObjVisualPolicyObsCfg(LeRobotLiftObjStatePolicyObsCfg):
 @configclass
 class EventCfg:
     """Configuration for events."""
-    reset_object_position = EventTerm(
+    reset_object_position: EventTerm = EventTerm(
         func=mdp.reset_root_state_uniform,
         mode="reset",
         params={
@@ -135,7 +150,7 @@ class EventCfg:
         },
     )
 
-    reset_dome_lighting = EventTerm(
+    reset_dome_lighting: EventTerm = EventTerm(
         func=mdp.randomize_scene_lighting,
         mode="reset",
         params={
@@ -235,24 +250,6 @@ class G1LiftObjStateRL(LwLabRL):
         orchestrator.task.termination_cfg.object_dropping = DoneTerm(
             func=mdp.root_height_below_minimum, params={"minimum_height": 0.9, "asset_cfg": SceneEntityCfg("object")}, time_out=True  # TODO
         )
-
-    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
-        """Post initialization."""
-        super().modify_env_cfg(env_cfg)
-        # general settings
-        env_cfg.viewer.eye = (-2.0, 2.0, 2.0)
-        env_cfg.viewer.lookat = (0.8, 0.0, 0.5)
-        # simulation settings
-        env_cfg.decimation = 5
-        env_cfg.episode_length_s = 3.2
-        # simulation settings
-        env_cfg.sim.dt = 0.01  # 100Hz
-        env_cfg.sim.render_interval = env_cfg.decimation
-        env_cfg.sim.physx.bounce_threshold_velocity = 0.2
-        env_cfg.sim.physx.bounce_threshold_velocity = 0.01
-        env_cfg.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4 * 4
-        env_cfg.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 16 * 1024
-        env_cfg.sim.physx.friction_correlation_distance = 0.00625
 
 
 class G1LiftObjVisualRL(G1LiftObjStateRL):

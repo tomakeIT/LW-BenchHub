@@ -29,7 +29,7 @@ from lwlab.core.models.grippers.dex3 import Dex3GripperCfg, BaseGripperCfg
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 import lwlab.core.mdp as lwlab_mdp
-from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase, EmbodimentBaseObservationCfg, EmbodimentBasePolicyObservationCfg
+from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase, EmbodimentGeneralObsCfg, EmbodimentBaseObservationCfg, EmbodimentBasePolicyObservationCfg
 from isaaclab_arena.utils.pose import Pose
 from lwlab.utils.env import ExecuteMode
 
@@ -216,14 +216,19 @@ class G1CameraCfg:
 class G1ObservationsCfg(EmbodimentBaseObservationCfg):
     """Observation specifications for the MDP."""
 
+    @configclass
+    class G1GeneralObsCfg(EmbodimentGeneralObsCfg):
+        eef_pos: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_pos)
+        eef_quat: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_quat)
+        gripper_pos: ObsTerm = ObsTerm(func=lwlab_mdp.gripper_pos)
+
+    embodiment_general_obs: G1GeneralObsCfg = G1GeneralObsCfg()
+
 
 @configclass
 class G1PolicyObservationsCfg(EmbodimentBasePolicyObservationCfg):
     """Observations for policy group with state values."""
-
-    eef_pos = ObsTerm(func=lwlab_mdp.ee_frame_pos)
-    eef_quat = ObsTerm(func=lwlab_mdp.ee_frame_quat)
-    gripper_pos = ObsTerm(func=lwlab_mdp.gripper_pos)
+    pass
 
 
 class UnitreeG1EnvCfg(LwLabEmbodimentBase):
@@ -943,7 +948,7 @@ class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
         self.action_config = G1RLActionsCfg()
         self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
         self.robot_to_fixture_dist = 0.20
-        self.robot_base_offset = {"pos": [0.0, 0.2, 0.92], "rot": [0.0, 0.0, 0.0]}
+        self.robot_base_offset = {"pos": [-0.2, 0.1, 0.92], "rot": [0.0, 0.0, 0.0]}
         self.reward_gripper_joint_names = ["right_hand_.*"]
         self.reward_arm_joint_names = ["right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
                                        "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint"]

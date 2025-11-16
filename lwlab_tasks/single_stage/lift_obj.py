@@ -2,74 +2,17 @@
 # All rights reserved.
 #
 # SPDX-License-Identifier: BSD-3-Clause
-import os
 import torch
 import isaaclab.sim as sim_utils
-from isaaclab.utils import configclass
 from lwlab.core.models.fixtures import FixtureType
 from lwlab.core.tasks.base import LwLabTaskBase
 from lwlab.utils.env import ExecuteMode
-from isaaclab.managers import ObservationTermCfg as ObsTerm
-from isaaclab.managers import ObservationGroupCfg as ObsGroup
 
 ##
 # Scene definition
 ##
 # Increase PhysX GPU aggregate pairs capacity to avoid simulation errors
 sim_utils.simulation_context.gpu_total_aggregate_pairs_capacity = 160000
-
-from isaaclab.managers import EventTermCfg as EventTerm
-import lwlab_rl.lift_obj.mdp as mdp
-from isaaclab.managers import SceneEntityCfg
-
-
-@configclass
-class EventCfg:
-    """Configuration for events."""
-
-    reset_all = EventTerm(func=mdp.reset_scene_to_default, mode="reset")
-
-    reset_object_position = EventTerm(
-        func=mdp.reset_root_state_uniform,
-        mode="reset",
-        params={
-            # "pose_range": {"x": (-0.1, 0.1), "y": (0, 0.25), "z": (0.0, 0.0)},
-            "pose_range": {"x": (-0.08, 0.08), "y": (-0.08, 0.08), "z": (0.0, 0.0), "yaw": (0.0, 90.0)},
-            "velocity_range": {},
-            "asset_cfg": SceneEntityCfg("object", body_names="BuildingBlock003"),
-        },
-    )
-
-    # reset_dome_lighting = EventTerm(
-    #     func=mdp.randomize_scene_lighting,
-    #     mode="reset",
-    #     params={
-    #         "intensity_range": (50.0, 800.0),
-    #         "color_variation": 0.35,
-    #         "default_intensity": 800.0,
-    #         "default_color": (0.75, 0.75, 0.75),
-    #         "asset_cfg": SceneEntityCfg("light"),
-    #     },
-    # )
-
-
-@configclass
-class LeRobotVisualObservationsCfg:
-    """Observation specifications for the MDP."""
-
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
-
-        joint_pos = ObsTerm(func=mdp.joint_pos)
-        target_qpos = ObsTerm(func=mdp.get_target_qpos, params={"action_name": 'arm_action'})
-        delta_reset_qpos = ObsTerm(func=mdp.get_delta_reset_qpos, params={"action_name": 'arm_action'})
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = False
-
-    policy: PolicyCfg = PolicyCfg()
 
 
 class LiftObj(LwLabTaskBase):
@@ -96,7 +39,7 @@ class LiftObj(LwLabTaskBase):
         """
         super()._setup_kitchen_references(scene)
 
-        self.counter = self.register_fixture_ref("counter", dict(id=self.counter_id, fix_id=0))
+        self.counter = self.register_fixture_ref("counter", dict(id=self.counter_id, fix_id=2))
         # self.useful_fixture_names = [self.counter.name]
         self.init_robot_base_ref = self.counter
 
@@ -119,7 +62,7 @@ class LiftObj(LwLabTaskBase):
 
         return cfgs
 
-    def quat_to_rotation_matrix(quat):
+    def quat_to_rotation_matrix(self, quat):
         w, x, y, z = quat[..., 0], quat[..., 1], quat[..., 2], quat[..., 3]
 
         xx, yy, zz = x * x, y * y, z * z
@@ -134,7 +77,7 @@ class LiftObj(LwLabTaskBase):
 
         return rot_matrix
 
-    def normalize_vector(x: torch.Tensor, eps=1e-6):
+    def normalize_vector(self, x: torch.Tensor, eps=1e-6):
         """normalizes a given torch tensor x and if the norm is less than eps, set the norm to 0"""
         norm = torch.linalg.norm(x, axis=1)
         norm[norm < eps] = 1

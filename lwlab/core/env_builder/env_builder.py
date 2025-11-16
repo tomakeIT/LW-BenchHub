@@ -7,9 +7,12 @@ from isaaclab_arena.environments.isaaclab_arena_manager_based_env import (
 )
 from isaaclab_arena.utils.configclass import combine_configclass_instances
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
+from isaaclab.scene import InteractiveSceneCfg
 
 
 class LwLabEnvBuilder(ArenaEnvBuilder):
+
+    DEFAULT_SCENE_CFG = InteractiveSceneCfg(num_envs=4096, env_spacing=30.0)
 
     def __init__(self, arena_env: IsaacLabArenaEnvironment, args: argparse.Namespace, rl_env: LwLabRL):
         super().__init__(arena_env, args)
@@ -21,9 +24,9 @@ class LwLabEnvBuilder(ArenaEnvBuilder):
             self.rl_env.setup_env_config(self.arena_env.orchestrator)
 
     def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg) -> IsaacLabArenaManagerBasedRLEnvCfg:
-        super().modify_env_cfg(env_cfg)
+        env_cfg = super().modify_env_cfg(env_cfg)
         if self.rl_env:
-            self.rl_env.modify_env_cfg(env_cfg)
+            env_cfg = self.rl_env.modify_env_cfg(env_cfg)
         return env_cfg
 
     def compose_manager_cfg(self) -> IsaacLabArenaManagerBasedRLEnvCfg:

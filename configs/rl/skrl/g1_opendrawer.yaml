@@ -2,4 +2,5 @@ _base_:
   - rl_base
 task: OpenDrawer          # Task name
 robot: G1-RL                 # Robot type
+rl: G1OpenDrawerRL           # RL cfg name
 layout: robocasakitchen-1-8  # Scene layout

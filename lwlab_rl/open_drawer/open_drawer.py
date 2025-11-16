@@ -26,12 +26,16 @@ from isaaclab.utils import configclass
 from isaaclab.markers.config import FRAME_MARKER_CFG  # isort: skip
 
 from dataclasses import MISSING
+from lwlab.core.robots.robot_arena_base import EmbodimentBaseObservationCfg
 from lwlab_tasks.single_stage.kitchen_drawer import OpenDrawer
-from lwlab.core.rl.base import LwLabRLTaskBase
+from lwlab.core.rl.base import LwLabRL
 from lwlab.core.robots.unitree.g1 import UnitreeG1HandEnvRLCfg
 # from lwlab.core.robots.compositional.pandaomron import PandaOmronRLEnvCfg
-from lwlab.utils.usd_utils import OpenUsdWrapper as Usd
 from . import mdp
+from lwlab.core.rl.base import RlBasePolicyObservationCfg
+from lwlab.utils.decorators import rl_on
+from lwlab.utils.usd_utils import OpenUsd as Usd
+from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
 
 ##
 # Pre-defined configs
@@ -47,43 +51,35 @@ FRAME_MARKER_SMALL_CFG.markers["frame"].scale = (0.10, 0.10, 0.10)
 
 
 @configclass
-class ObservationsCfg:
+class G1OpenDrawerPolicyObsCfg(RlBasePolicyObservationCfg):
     """Observation specifications for the MDP."""
+    joint_pos = ObsTerm(func=mdp.joint_pos_rel)
+    joint_vel = ObsTerm(func=mdp.joint_vel_rel)
+    cabinet_joint_pos = ObsTerm(
+        func=mdp.joint_pos_rel,
+        params={"asset_cfg": SceneEntityCfg(MISSING, joint_names=MISSING)},
+    )
+    cabinet_joint_vel = ObsTerm(
+        func=mdp.joint_vel_rel,
+        params={"asset_cfg": SceneEntityCfg(MISSING, joint_names=MISSING)},
+    )
+    rel_ee_drawer_distance = ObsTerm(
+        func=mdp.rel_ee_drawer_distance,
+        params={'target_frame': MISSING}
+    )
 
-    @configclass
-    class PolicyCfg(ObsGroup):
-        """Observations for policy group."""
+    actions = ObsTerm(func=mdp.last_action)
 
-        joint_pos = ObsTerm(func=mdp.joint_pos_rel)
-        joint_vel = ObsTerm(func=mdp.joint_vel_rel)
-        cabinet_joint_pos = ObsTerm(
-            func=mdp.joint_pos_rel,
-            params={"asset_cfg": SceneEntityCfg(MISSING, joint_names=MISSING)},
-        )
-        cabinet_joint_vel = ObsTerm(
-            func=mdp.joint_vel_rel,
-            params={"asset_cfg": SceneEntityCfg(MISSING, joint_names=MISSING)},
-        )
-        rel_ee_drawer_distance = ObsTerm(
-            func=mdp.rel_ee_drawer_distance,
-            params={'target_frame': MISSING}
-        )
-
-        actions = ObsTerm(func=mdp.last_action)
-
-        def __post_init__(self):
-            self.enable_corruption = True
-            self.concatenate_terms = True
-
-    # observation groups
-    policy: PolicyCfg = PolicyCfg()
+    def __post_init__(self):
+        self.enable_corruption = True
+        self.concatenate_terms = True
 
     def set_missing_params(self, asset_name, handle_frame_name, joint_names):
-        self.policy.cabinet_joint_pos.params["asset_cfg"].name = asset_name
-        self.policy.cabinet_joint_vel.params["asset_cfg"].name = asset_name
-        self.policy.rel_ee_drawer_distance.params["target_frame"] = handle_frame_name
-        self.policy.cabinet_joint_pos.params["asset_cfg"].joint_names = joint_names
-        self.policy.cabinet_joint_vel.params["asset_cfg"].joint_names = joint_names
+        self.cabinet_joint_pos.params["asset_cfg"].name = asset_name
+        self.cabinet_joint_vel.params["asset_cfg"].name = asset_name
+        self.rel_ee_drawer_distance.params["target_frame"] = handle_frame_name
+        self.cabinet_joint_pos.params["asset_cfg"].joint_names = joint_names
+        self.cabinet_joint_vel.params["asset_cfg"].joint_names = joint_names
 
 
 @configclass
@@ -129,7 +125,7 @@ class EventCfg:
         mode="reset",
         params={
             "asset_cfg": SceneEntityCfg(MISSING, joint_names=MISSING),
-            "position_range": (0.0, 0.2),
+            "position_range": (0.0, 0.1),
             "velocity_range": (0.0, 0.0),
         },
     )
@@ -207,8 +203,9 @@ class RewardsCfg:
         self.target_qpos_reward.params["target_qpos"] = target_qpos
 
 
-class BaseOpenDrawerRlCfg(LwLabRLTaskBase, OpenDrawer):
-    # a LwLabRLTaskBase has to inherit from LwLabRLTaskBase and the robot and task cfg.
+@rl_on(task=OpenDrawer)
+@rl_on(embodiment=UnitreeG1HandEnvRLCfg)
+class G1OpenDrawerRl(LwLabRL):
     """
     Class encapsulating the open drawer task.
     The robot is a G1.
@@ -219,45 +216,55 @@ class BaseOpenDrawerRlCfg(LwLabRLTaskBase, OpenDrawer):
 
         exclude_obj_groups (str): Object groups to exclude from sampling the target object.
     """
-    observations: ObservationsCfg = ObservationsCfg()
-    # MDP settings
-    rewards: RewardsCfg = RewardsCfg()
-    events: EventCfg = EventCfg()
-    # adjust the robot base offset for RL
 
-    def _get_obj_cfgs(self):
-        """
-        Override the _get_obj_cfgs method in OpenDrawer.
-        During RL training, we only need to sample the drawer.
-        No need to sample the distractors.
-        """
-        return []
+    def __init__(self):
+        super().__init__()
+        self.policy_observation_cfg = G1OpenDrawerPolicyObsCfg()
+        self.rewards_cfg = RewardsCfg()
+        self.events_cfg = EventCfg()
 
-    def set_reward_joint_names(self, gripper_joint_names, arm_joint_names):
-        self.rewards.grasp_handle.params["asset_cfg"].joint_names = gripper_joint_names
-        self.rewards.target_qpos_reward.params["asset_cfg"].joint_names = arm_joint_names
+    def _set_reward_joint_names(self, gripper_joint_names, arm_joint_names):
+        super()._set_reward_joint_names(gripper_joint_names, arm_joint_names)
+        self.rewards_cfg.grasp_handle.params["asset_cfg"].joint_names = gripper_joint_names
+        self.rewards_cfg.target_qpos_reward.params["asset_cfg"].joint_names = arm_joint_names
 
-    def __post_init__(self):
-        """Post initialization."""
-        # general settings
-        super().__post_init__()
-        name = self.drawer.name
-        usd = Usd(self.usd_path)
-        prim = usd.get_prim_by_name(name)[0]
-        joint_prims = usd.get_all_joints_without_fixed(prim)
-        joint_names = [joint_prim.GetName() for joint_prim in joint_prims]
+    def setup_env_config(self, orchestrator):
+        super().setup_env_config(orchestrator)
+        orchestrator.task.resample_robot_placement_on_reset = False
+        orchestrator.task.resample_objects_placement_on_reset = False
+        self.drawer_name = orchestrator.task.drawer.name
+        self.handle_frame_name = f"{self.drawer_name}_frame"
+        self.joint_names = orchestrator.task.drawer.door_joint_names
+        self.base_link_name = 'corpus'
+        self.target_link_name = Usd.get_prim_by_suffix(prim=orchestrator.task.drawer.prim, suffix='handle')[0].GetName()
 
-        base_link = 'corpus'
-        target_link = usd.get_prim_by_suffix('handle', prim=prim)[0].GetName()
+        self.rewards_cfg.set_missing_params(
+            asset_name=self.drawer_name,
+            handle_frame_name=self.handle_frame_name,
+            joint_names=self.joint_names,
+            target_qpos=torch.tensor([-24, -50, 42.0, 50.5, -27.5, -5.0, -30.0]) * torch.pi / 180
+        )
+        self.events_cfg.set_missing_params(
+            asset_name=self.drawer_name,
+            target_link=self.target_link_name,
+            joint_names=self.joint_names
+        )
+        self.policy_observation_cfg.set_missing_params(
+            asset_name=self.drawer_name,
+            handle_frame_name=self.handle_frame_name,
+            joint_names=self.joint_names
+        )
 
+    def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
+        env_cfg = super().modify_env_cfg(env_cfg)
         frame_cfg = FrameTransformerCfg(
-            prim_path=f"{{ENV_REGEX_NS}}/Scene/{name}/{base_link}",
+            prim_path=f"{{ENV_REGEX_NS}}/Scene/{self.drawer_name}/{self.base_link_name}",
             debug_vis=True,
             visualizer_cfg=FRAME_MARKER_SMALL_CFG.replace(prim_path="/Visuals/CabinetFrameTransformer"),
             target_frames=[
                 FrameTransformerCfg.FrameCfg(
-                    prim_path=f"{{ENV_REGEX_NS}}/Scene/{name}/{target_link}",
-                    name=target_link,
+                    prim_path=f"{{ENV_REGEX_NS}}/Scene/{self.drawer_name}/{self.target_link_name}",
+                    name=self.target_link_name,
                     offset=OffsetCfg(
                         pos=(0.0, 0.0, 0.0),
                         rot=(0.0, 0.0, 0.7071, 0.7071),  # align with end-effector frame
@@ -265,33 +272,5 @@ class BaseOpenDrawerRlCfg(LwLabRLTaskBase, OpenDrawer):
                 ),
             ],
         )
-
-        handle_frame_name = f"{name}_frame"
-        setattr(self.scene, handle_frame_name, frame_cfg)
-
-        self.rewards.set_missing_params(
-            asset_name=name,
-            handle_frame_name=handle_frame_name,
-            joint_names=joint_names,
-            target_qpos=torch.tensor([-24, -50, 42.0, 50.5, -27.5, -5.0, -30.0]) * torch.pi / 180
-        )
-        self.events.set_missing_params(
-            asset_name=name,
-            target_link=target_link,
-            joint_names=joint_names
-        )
-        self.observations.set_missing_params(
-            asset_name=name,
-            handle_frame_name=handle_frame_name,
-            joint_names=joint_names
-        )
-
-
-class OpenDrawerG1RlCfg(UnitreeG1HandEnvRLCfg, BaseOpenDrawerRlCfg):
-    """Open drawer task configuration for G1 robot."""
-    robot_base_offset = {"pos": [0.0, -0.3, 0.83], "rot": [0.0, 0.0, 0.0]}
-
-
-# class OpenDrawerPandaOmrRlCfg(PandaOmronRLEnvCfg, BaseOpenDrawerRlCfg):
-#     """Open drawer task configuration for Panda OMR robot."""
-#     robot_base_offset = {"pos": [0.0, -0.3, 0.83], "rot": [0.0, 0.0, 0.0]}
+        setattr(env_cfg.scene, self.handle_frame_name, frame_cfg)
+        return env_cfg

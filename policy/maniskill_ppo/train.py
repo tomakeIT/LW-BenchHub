@@ -30,6 +30,7 @@ from lwlab import CONFIGS_PATH
 
 from lwlab.utils.config_loader import config_loader
 
+
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Keyboard teleoperation for Isaac Lab environments.")
 parser.add_argument("--task_config", type=str, default="default", help="task config")
@@ -86,6 +87,7 @@ def main(args):
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.TRAIN,
             usd_simplify=args_cli.usd_simplify,
+            rl_variant=args_cli.variant,
             seed=args_cli.seed,
             sources=args_cli.sources,
             object_projects=args_cli.object_projects,
@@ -101,8 +103,7 @@ def main(args):
             disable_env_checker=True,
         )
 
-    # modify configuration
-    env_cfg.terminations.time_out = None
+    env_cfg.observations.policy.concatenate_terms = False
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
     set_seed(env_cfg.seed, env.unwrapped, args.torch_deterministic)
@@ -149,10 +150,10 @@ def main(args):
             for _ in tqdm(range(eval_iter), desc="Evaluation Progress"):
                 action = agent.agent.get_action(next_obs, deterministic=True)
                 # action = torch.zeros_like(action, device=env_cfg.sim.device)
-                next_obs, _, terminations, truncations, _ = env.step(action)
+                next_obs, _, terminations, _, extras = env.step(action)
                 next_obs = observation(next_obs['policy'])
-                success_count += terminations.sum().item()
-                episode_count += (terminations | truncations).sum().item()
+                success_count += extras["is_success"].sum().item()
+                episode_count += terminations.sum().item()
 
             success_rate = success_count / (episode_count + 1e-8)
             parent_dir = os.path.dirname(checkpoint_path)

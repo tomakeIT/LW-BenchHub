@@ -71,6 +71,15 @@ gym.register(
     disable_env_checker=True,
 )
 
+gym.register(
+    id="Robocasa-Rl-G1OpenDrawerRL",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.open_drawer.open_drawer:G1OpenDrawerRl",
+    },
+    disable_env_checker=True,
+)
+
 register_rl_env(
     robot_name="G1-RL",
     task_name="OpenDrawer",

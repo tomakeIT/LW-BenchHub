@@ -21,6 +21,17 @@
             "justMyCode": false,
         },
         {
+            "name": "eval_rl",
+            "type": "python",
+            "request": "launch",
+            "args": [
+                "--task_config=lerobot_liftobj_state_play",
+            ],
+            "program": "${workspaceFolder}/lwlab/scripts/rl/play.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+        },
+        {
             "name": "camera_alignment",
             "type": "python",
             "request": "launch",

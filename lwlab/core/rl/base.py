@@ -11,33 +11,13 @@ from lwlab.core.robots.robot_arena_base import LwLabEmbodimentBase
 from isaaclab.managers import ObservationGroupCfg as ObsGroup
 from isaaclab.managers import ObservationTermCfg as ObsTerm
 from lwlab.utils.isaaclab_utils import NoDeepcopyMixin
+from isaaclab_arena.utils.configclass import combine_configclass_instances
 
 
 @configclass
 class RlBasePolicyObservationCfg(ObsGroup):
     """Observations for policy group."""
-
-    joint_pos = ObsTerm(func=mdp.joint_pos)
-    joint_vel = ObsTerm(func=mdp.joint_vel)
-    joint_pos_rel = ObsTerm(func=mdp.joint_pos_rel)
-    joint_vel_rel = ObsTerm(func=mdp.joint_vel_rel)
-    ee_pose = ObsTerm(func=mdp.ee_pose)
-
-    # cabinet_joint_pos = ObsTerm(
-    #     func=mdp.joint_pos_rel,
-    #     params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["corpus_to_drawer_0_0"])},
-    # )
-    # cabinet_joint_vel = ObsTerm(
-    #     func=mdp.joint_vel_rel,
-    #     params={"asset_cfg": SceneEntityCfg("cabinet", joint_names=["corpus_to_drawer_0_0"])},
-    # )
-    # rel_ee_drawer_distance = ObsTerm(func=mdp.rel_ee_drawer_distance)
-
-    actions = ObsTerm(func=mdp.last_action)
-
-    def __post_init__(self):
-        self.enable_corruption = True
-        self.concatenate_terms = False
+    pass
 
 
 class LwLabRL(NoDeepcopyMixin):
@@ -52,17 +32,24 @@ class LwLabRL(NoDeepcopyMixin):
         self.commands_cfg = None
         self.policy_observation_cfg = RlBasePolicyObservationCfg()
 
+    def _set_reward_joint_names(self, gripper_joint_names, arm_joint_names):
+        pass
+
     def setup_env_config(self, orchestrator):
         assert type(orchestrator.task) in self._rl_on_tasks, f"task {type(orchestrator.task)} is not in {self._rl_on_tasks}"
         assert type(orchestrator.embodiment) in self._rl_on_embodiments, f"embodiment {type(orchestrator.embodiment)} is not in {self._rl_on_embodiments}"
+        self._set_reward_joint_names(orchestrator.embodiment.reward_gripper_joint_names, orchestrator.embodiment.reward_arm_joint_names)
         # no rewards / curriculum / commands in task
         orchestrator.task.rewards_cfg = self.rewards_cfg
         orchestrator.task.curriculum_cfg = self.curriculum_cfg
         orchestrator.task.commands_cfg = self.commands_cfg
         # event / observation already in task
         if self.events_cfg:
-            for key, value in self.events_cfg.__dict__.items():
-                setattr(orchestrator.task.events_cfg, key, value)
+            orchestrator.task.events_cfg = combine_configclass_instances(
+                "EventCfg",
+                orchestrator.task.events_cfg,
+                self.events_cfg,
+            )
 
         # TODO(xiaowei.song, 2025.10.24): only check success in eval mode, need verified
         # if orchestrator.task.context.execute_mode == ExecuteMode.TRAIN:
@@ -79,6 +66,13 @@ class LwLabRL(NoDeepcopyMixin):
         env_cfg.sim.physx.bounce_threshold_velocity = 0.2
         env_cfg.sim.physx.bounce_threshold_velocity = 0.01
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
+        env_cfg.decimation = 5
+        env_cfg.episode_length_s = 3.2
+        env_cfg.sim.dt = 0.01  # 100Hz
+        env_cfg.sim.render_interval = env_cfg.decimation
+        env_cfg.sim.physx.gpu_found_lost_aggregate_pairs_capacity = 1024 * 1024 * 4 * 4
+        env_cfg.sim.physx.gpu_total_aggregate_pairs_capacity = 16 * 16 * 1024
+        return env_cfg
 
     def get_policy_observation_cfg(self):
         return self.policy_observation_cfg
