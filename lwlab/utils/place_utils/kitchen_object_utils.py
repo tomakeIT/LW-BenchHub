@@ -284,11 +284,14 @@ def recreate_object(orchestrator, failed_obj_name):
         obj_cfg["info"] = info
         orchestrator.task.objects[model.task_name] = model
         orchestrator.task.assets[info["task_name"]].usd_path = info["obj_path"]
+        orchestrator.task.contact_sensors[f"{info['task_name']}_contact"].prim_path = f"{{ENV_REGEX_NS}}/Scene/{info['task_name']}/{info['name']}"
 
         for obj_version in orchestrator.task.objects_version:
             if failed_obj_name in obj_version:
                 obj_version.update({failed_obj_name: info.get("obj_version", None)})
                 break
+
+        orchestrator.task.placement_initializer = EnvUtils._get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, orchestrator.context.seed)
 
         print(f"Successfully replaced object: {failed_obj_name} with {model.name} (from {info.get('source', 'unknown')})")
         return True

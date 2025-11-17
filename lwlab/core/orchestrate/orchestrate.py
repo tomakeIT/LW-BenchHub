@@ -119,24 +119,23 @@ class LwLabBaseOrchestrator(OrchestratorBase, NoDeepcopyMixin):
         else:
             reset_objs = updated_obj_names
         for obj_name in reset_objs:
-            obj_poses, obj_quat_xyzw, _ = object_placements[obj_name]
-            obj_pos = torch.tensor(obj_poses, device=self.context.device, dtype=torch.float32) + env.scene.env_origins[env_ids]
+            obj_pos, obj_quat_xyzw, _ = object_placements[obj_name]
+            obj_pos_multienv = torch.tensor(obj_pos, device=self.context.device, dtype=torch.float32) + env.scene.env_origins[env_ids]
             obj_quat = Tt.convert_quat(torch.tensor(obj_quat_xyzw, device=self.context.device, dtype=torch.float32), to="wxyz")
-            obj_quat = obj_quat.unsqueeze(0).repeat(obj_pos.shape[0], 1)
-            root_pos = torch.concatenate([obj_pos, obj_quat], dim=-1)
+            obj_quat = obj_quat.unsqueeze(0).repeat(obj_pos_multienv.shape[0], 1)
+            root_pos_multienv = torch.concatenate([obj_pos_multienv, obj_quat], dim=-1)
             if obj_name in self.task._articulation_assets:
-                self.fixture_refs[obj_name]._pos = obj_pos
+                self.fixture_refs[obj_name]._pos = obj_pos_multienv
                 self.fixture_refs[obj_name]._rot = R.from_quat(obj_quat_xyzw).as_euler('xyz', degrees=False)
                 env.scene.articulations[obj_name].write_root_pose_to_sim(
-                    root_pos,
+                    root_pos_multienv,
                     env_ids=env_ids
                 )
             else:
                 env.scene.rigid_objects[obj_name].write_root_pose_to_sim(
-                    root_pos,
+                    root_pos_multienv,
                     env_ids=env_ids
                 )
-        env.sim.forward()
 
         if self.task.resample_robot_placement_on_reset:
             # TODO:(ju.zheng) need to update this

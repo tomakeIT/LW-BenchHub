@@ -1084,7 +1084,8 @@ def reset_obj_cache():
 def sample_object_placements(orchestrator, need_retry=True) -> dict:
     try:
         context = orchestrator.task.context
-        orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
+        if not hasattr(orchestrator.task, "placement_initializer"):
+            orchestrator.task.placement_initializer = _get_placement_initializer(orchestrator, orchestrator.task.object_cfgs, context.seed)
 
         if orchestrator.scene.is_replay_mode:
             return orchestrator.task._load_placement()

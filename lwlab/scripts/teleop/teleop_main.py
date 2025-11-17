@@ -66,7 +66,6 @@ from collections.abc import Callable
 from lwlab.utils.log_utils import log_scene_rigid_objects, handle_exception_and_log, get_default_logger
 from lwlab.utils.env import ExecuteMode
 from isaaclab.app import AppLauncher
-from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
 
 
 from lwlab.utils.profile_utils import trace_profile, DEBUG_FRAME_ANALYZER, debug_print
@@ -1177,6 +1176,7 @@ def main():
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab.envs.ui import ViewportCameraController
     from isaaclab.managers import TerminationTermCfg as DoneTerm
+    from isaaclab.utils.datasets import EpisodeData, HDF5DatasetFileHandler
     import isaaclab_tasks  # noqa: F401
     from isaaclab_tasks.manager_based.manipulation.lift import mdp
     from isaaclab.devices.teleop_device_factory import create_teleop_device
