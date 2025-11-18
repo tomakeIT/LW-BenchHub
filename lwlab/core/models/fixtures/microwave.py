@@ -184,16 +184,18 @@ class Microwave(Fixture):
         assert button in ["start_button", "stop_button"]
         ee_pos = env.scene["ee_frame"].data.target_pos_w  # (env_num, ee_num, 3)
         button_prims = self.button_infos[button]
-        button_pos = []
-        for button_prim in button_prims:
-            pos, _ = usd.get_prim_pos_rot_in_world(button_prim)
-            button_pos.append(torch.tensor(pos, dtype=torch.float32, device=env.device))
-        button_pos = torch.stack(button_pos, dim=0)  # (env_num, 1, 3)
-
-        dist = torch.norm(button_pos - ee_pos, dim=-1)  # (env_num, ee_num)
-        dist = torch.min(dist, dim=-1).values  # (env_num, )
-
-        return dist > th
+        button_pos_list = []
+        for prim in button_prims:
+            pos, _, _ = usd.get_prim_pos_rot_in_world(prim)
+            button_pos_list.append(pos)  # just append raw (3,)
+        # shape = (num_buttons, 3)
+        button_pos = torch.tensor(button_pos_list, dtype=torch.float32, device=env.device)
+        button_pos = button_pos.unsqueeze(0).repeat(env.num_envs, 1, 1)
+        diff = button_pos[:, :, None, :] - ee_pos[:, None, :, :]  # broadcast
+        dist = torch.norm(diff, dim=-1)  # (num_envs, num_buttons, ee_num)
+        # take min among buttons & ee
+        dist_min = dist.min(dim=-1).values.min(dim=-1).values  # (env_num,)
+        return dist_min > th
 
     @cached_property
     def button_infos(self):

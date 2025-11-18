@@ -85,17 +85,26 @@ class USDObject():
         reg_bboxes = usd.get_prim_by_prefix("reg_", only_xform=False) if not fxtr2obj else OpenUsd.get_prim_by_prefix(usd, "reg_", only_xform=False)
         for reg_bbox in reg_bboxes:
             reg_dict = dict()
-            if reg_bbox.GetTypeName() == "Cylinder" or reg_bbox.GetTypeName() == "Mesh" or reg_bbox.GetTypeName() == "Sphere":
-                reg_halfsize = np.array(reg_bbox.GetAttribute("extent").Get()[1])
+            if fxtr2obj:
+                reg_pos, _, reg_scale = OpenUsd.get_prim_pos_rot_in_world(reg_bbox)
+                reg_halfsize = np.array(reg_scale)
             else:
+                reg_pos, _, reg_scale = usd.get_prim_pos_rot_in_world(reg_bbox)
                 reg_halfsize = np.array(reg_bbox.GetAttribute("xformOp:scale").Get())
-            reg_pos, _ = usd.get_prim_pos_rot_in_world(reg_bbox) if not fxtr2obj else (np.array([0, 0, 0]), None)
+                if reg_bbox.GetTypeName() == "Cylinder":
+                    height = np.array(reg_bbox.GetAttribute("height").Get())
+                    radius = np.array(reg_bbox.GetAttribute("radius").Get())
+                    reg_halfsize = np.array([height / 2, radius, radius]) * np.array(reg_scale)
+                if reg_bbox.GetTypeName() == "Sphere":
+                    reg_halfsize = np.array(reg_bbox.GetAttribute("radius").Get()) * np.array(reg_scale)
+                if reg_bbox.GetTypeName() == "Mesh":
+                    reg_halfsize = np.array(reg_bbox.GetAttribute("extent").Get()[1])
             reg_offset = reg_bbox.GetAttribute("xformOp:translate").Get()
             if reg_offset is None:
                 reg_offset = np.array([0, 0, 0])
             else:
                 reg_offset = np.array(reg_offset)
-            if reg_pos is None:
+            if reg_pos is None or fxtr2obj:
                 reg_pos = np.array([0, 0, 0])
             else:
                 reg_pos = np.array(reg_pos)

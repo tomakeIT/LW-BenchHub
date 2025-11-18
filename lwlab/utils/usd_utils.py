@@ -171,12 +171,13 @@ class OpenUsd:
             return None, None
         matrix = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         try:
-            pos, rot, _ = UsdSkel.DecomposeTransform(matrix)
+            pos, rot, scale = UsdSkel.DecomposeTransform(matrix)
             # pos = matrix.ExtractTranslation()
             # rot = matrix.ExtractRotationQuat()
             pos_list = list(pos)
             quat_list = [rot.GetReal(), rot.GetImaginary()[0], rot.GetImaginary()[1], rot.GetImaginary()[2]]  # wxyz
-            return pos_list, quat_list
+            scale_list = list(scale)
+            return pos_list, quat_list, scale_list
         except Exception as e:
             print(f"Error decomposing transform for {prim.GetName()}: {e}")
             return None, None

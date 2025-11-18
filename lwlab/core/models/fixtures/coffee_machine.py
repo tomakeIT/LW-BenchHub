@@ -263,7 +263,7 @@ class CoffeeMachine(Fixture):
         for _ in range(parent_level):
             target_prim = target_prim.GetParent()
 
-        target_usd_pos, target_usd_quat = usd.get_prim_pos_rot_in_world(target_prim)
+        target_usd_pos, target_usd_quat, _ = usd.get_prim_pos_rot_in_world(target_prim)
         target_sim_pose = self._env.scene[target_prim.GetName()].data.root_com_pose_w
         target_sim_pos, target_sim_quat = target_sim_pose[env_index, :3], target_sim_pose[env_index, 3:7]
         relative_pos, relative_quat = math_utils.subtract_frame_transforms(
@@ -273,7 +273,7 @@ class CoffeeMachine(Fixture):
             target_sim_quat.unsqueeze(0),
         )
 
-        prim_usd_pos, prim_usd_quat = usd.get_prim_pos_rot_in_world(prim)
+        prim_usd_pos, prim_usd_quat, _ = usd.get_prim_pos_rot_in_world(prim)
         prim_sim_pos, prim_sim_quat = math_utils.combine_frame_transforms(
             torch.tensor(prim_usd_pos, device=self._env.device).unsqueeze(0),
             torch.tensor(prim_usd_quat, device=self._env.device).unsqueeze(0),

@@ -93,33 +93,47 @@ class StandMixer(Fixture):
         joint_names = env.scene.articulations[self.name].data.joint_names
         if not hasattr(self, "_lifting"):
             self._lifting = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+        if not hasattr(self, "_button_head_lock"):
+            self._button_head_lock = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
+
         # read power button
         btn = self._joint_names["button_head_lock"]
         if btn in joint_names:
-            pos = self.get_joint_state(env, [btn])[btn]
+            pos = self.get_joint_state(env, [btn])[btn]  # (num_envs,)
             self._button_head_lock = pos > 0.75
 
-        # head is lifting slowly when button_head_lock is pressed
-        self._lifting = self._lifting | self._button_head_lock
-        if getattr(self, "_lifting", False):
+        # update lifting
+        self._lifting = self._lifting | self._button_head_lock   # (num_envs,)
+
+        env_id = torch.where(self._lifting)[0]  # tensor of indices
+
+        if len(env_id) > 0:
             head_joint_name = self._joint_names["head"]
             if head_joint_name in joint_names:
-                current_head_val = self.get_joint_state(env, [head_joint_name])[head_joint_name]
-                target_val = torch.ones_like(current_head_val, device=self.device)
-                new_head_val = torch.lerp(current_head_val, target_val, 0.1)
-                new_head_val = torch.where(self._lifting, new_head_val, current_head_val)
+                current_head_val = self.get_joint_state(env, [head_joint_name])[head_joint_name]  # (num_envs,)
+                target_val = torch.ones_like(current_head_val)
+
+                # compute only on active envs
+                new_head_val = current_head_val.clone()
+                new_head_val[env_id] = torch.lerp(
+                    current_head_val[env_id],
+                    target_val[env_id],
+                    0.1,
+                )
                 new_head_val = torch.clamp(new_head_val, 0.0, 1.0)
                 self.set_joint_state(
                     env=env,
-                    min=new_head_val,
-                    max=new_head_val,
+                    min=new_head_val[env_id],
+                    max=new_head_val[env_id],
                     joint_names=[head_joint_name],
+                    env_ids=env_id,
                 )
                 self._head_value = new_head_val
-                lift_finished = torch.allclose(new_head_val, target_val, atol=1e-3)
-                if lift_finished:
-                    self._lifting = torch.zeros(self.num_envs, dtype=torch.bool, device=self.device)
-                    self._button_head_lock = torch.tensor([False], device=self.device).repeat(self.num_envs)
+                # decide which envs finished lifting
+                lift_finished = torch.isclose(new_head_val, target_val, atol=1e-3)
+                # reset only finished envs
+                self._lifting = self._lifting & (~lift_finished)
+                self._button_head_lock = self._button_head_lock & (~lift_finished)
 
         # sync positions back into internal values
         mapping = {

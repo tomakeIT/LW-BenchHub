@@ -82,16 +82,14 @@ class Blender(Fixture):
     def update_state(self, env):
         curr_lid_pos = self.get_curr_lid_pos(env)
         if curr_lid_pos is None:
-            self._lid_on_blender = torch.tensor([False], dtype=torch.bool).repeat(env.num_envs)
+            self._lid_on_blender = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
         else:
             closed_lid_pos = self.get_lid_closed_pos(env)
             dist = torch.norm(curr_lid_pos - closed_lid_pos, dim=-1)
             self._lid_on_blender = (dist < self._BLENDER_LID_POS_THRESH)
-
         blender_articulation = env.scene.articulations[self.name]
         body_names_blender = blender_articulation.body_names
         has_physical_button = any("button" in name.lower() for name in body_names_blender)
-        button_pressed = torch.zeros(env.num_envs, dtype=torch.bool, device=env.device)
         if has_physical_button:
             joint_names = blender_articulation.joint_names
             power_joint_name = self._joint_names["power"]
@@ -101,13 +99,12 @@ class Blender(Fixture):
                 # A small positive value indicates the button is pressed.
                 press_threshold = 0.0001
                 button_pressed = joint_pos >= press_threshold
-
         switch_state = self._button_contact_prev_timestep & (~button_pressed)
 
-        if not self._lid_on_blender:
-            self._turned_on = torch.tensor([False], dtype=torch.bool, device=env.device).repeat(env.num_envs)
-        else:
-            self._turned_on[switch_state] = ~self._turned_on[switch_state]
+        self._turned_on[~self._lid_on_blender] = False
+
+        self._turned_on[switch_state & self._lid_on_blender] = ~self._turned_on[switch_state & self._lid_on_blender]
+
         self._button_contact_prev_timestep = button_pressed
 
     def get_state(self):

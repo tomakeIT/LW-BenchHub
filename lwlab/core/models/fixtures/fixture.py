@@ -116,7 +116,7 @@ class Fixture:
                 continue
             reg_dict = {}
             g_name = geom_prim.GetName()
-            reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(geom_prim)
+            reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(geom_prim)[:2]
             if reg_pos is None or reg_quat is None:
                 print(f"Error getting prim pos, rot, scale for {g_name} / {prim.GetName()}")
                 continue
@@ -146,7 +146,7 @@ class Fixture:
             self._regions[g_name.replace("reg_", "")] = reg_dict
 
         # add outer bounding box region(reg_main)
-        reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(prim)
+        reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(prim)[:2]
         if reg_pos is None or reg_quat is None:
             print(f"Error getting prim pos, rot, scale for main / {prim.GetName()}")
         else:
@@ -271,11 +271,11 @@ class Fixture:
                 world_corners = []
                 for env_idx in env_ids:
                     pos = body_pos[env_idx].cpu().numpy()
-                    body_quat = body_quat[env_idx].cpu().numpy()  # w,x,y,z - body relative to articulation root
+                    quat = body_quat[env_idx].cpu().numpy()  # w,x,y,z - body relative to articulation root
 
                     fixture_rotation = R.from_euler('xyz', self._rot, degrees=False)
 
-                    body_quat_scipy = [body_quat[1], body_quat[2], body_quat[3], body_quat[0]]
+                    body_quat_scipy = [quat[1], quat[2], quat[3], quat[0]]
 
                     body_rotation = R.from_quat(body_quat_scipy)
 

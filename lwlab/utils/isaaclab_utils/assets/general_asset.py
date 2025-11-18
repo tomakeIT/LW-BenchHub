@@ -33,7 +33,7 @@ class GeneralAsset(AssetBase):
 
     def _make_articulation_cfg(self, prim):
         from isaaclab.assets.articulation.articulation_cfg import ArticulationCfg
-        pos, quat = usd.get_prim_pos_rot_in_world(prim)
+        pos, quat, _ = usd.get_prim_pos_rot_in_world(prim)
         if pos is None or quat is None:
             print(f"GeneralAsset: {prim.GetName()} none pos or quat")
             return None
@@ -56,7 +56,7 @@ class GeneralAsset(AssetBase):
 
     def _make_rigidbody_cfg(self, prim):
         from isaaclab.assets.rigid_object.rigid_object_cfg import RigidObjectCfg
-        pos, quat = usd.get_prim_pos_rot_in_world(prim)
+        pos, quat, _ = usd.get_prim_pos_rot_in_world(prim)
         if pos is None or quat is None:
             print(f"GeneralAsset: {prim.GetName()} none pos or quat")
             return None

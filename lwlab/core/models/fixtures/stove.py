@@ -292,7 +292,7 @@ class Stove(Fixture):
             if site is None:
                 continue
 
-            reg_pos, reg_quat = usd.get_prim_pos_rot_in_world(site)
+            reg_pos, reg_quat, _ = usd.get_prim_pos_rot_in_world(site)
             reg_pos = torch.tensor(reg_pos, device=self.device)
             reg_quat = torch.tensor(reg_quat, device=self.device)
             reg_rel_pos = T.quat2mat(T.convert_quat(reg_quat, to="xyzw")).T @ (reg_pos - prim_pos)
