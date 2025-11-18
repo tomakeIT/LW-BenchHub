@@ -218,8 +218,6 @@ class G1ObservationsCfg(EmbodimentBaseObservationCfg):
 
     @configclass
     class G1GeneralObsCfg(EmbodimentGeneralObsCfg):
-        eef_pos: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_pos)
-        eef_quat: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_quat)
         gripper_pos: ObsTerm = ObsTerm(func=lwlab_mdp.gripper_pos)
 
     embodiment_general_obs: G1GeneralObsCfg = G1GeneralObsCfg()

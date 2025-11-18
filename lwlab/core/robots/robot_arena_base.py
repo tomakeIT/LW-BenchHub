@@ -145,6 +145,8 @@ class EmbodimentGeneralObsCfg(ObsGroup):
     actions: ObsTerm = ObsTerm(func=lwlab_mdp.last_action)
     joint_pos: ObsTerm = ObsTerm(func=lwlab_mdp.joint_pos_rel)
     joint_vel: ObsTerm = ObsTerm(func=lwlab_mdp.joint_vel_rel)
+    eef_pos: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_pos)
+    eef_quat: ObsTerm = ObsTerm(func=lwlab_mdp.ee_frame_quat)
 
     def __post_init__(self):
         self.concatenate_terms = False
