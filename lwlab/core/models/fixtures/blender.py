@@ -22,7 +22,7 @@ import torch
 
 class Blender(Fixture):
     fixture_types = [FixtureType.BLENDER]
-    _BLENDER_LID_POS_THRESH = 0.04
+    _BLENDER_LID_POS_THRESH = 0.05
 
     def __init__(self, name, prim, num_envs, **kwargs):
         super().__init__(name, prim, num_envs, **kwargs)

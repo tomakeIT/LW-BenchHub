@@ -777,11 +777,18 @@ def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_ax
 
     # Get object positions - use torch.mean for multi-body objects like check_obj_in_receptacle
     if obj1 in env.cfg.isaaclab_arena_env.task.objects:
-        obj1_obj = env.cfg.isaaclab_arena_env.task.objects[obj1]
-        obj1_pos = torch.mean(env.scene.rigid_objects[obj1].data.body_com_pos_w, dim=1)  # (num_envs, 3)
-        obj1_vel = torch.mean(env.scene.rigid_objects[obj1].data.body_com_vel_w, dim=1)  # (num_envs, 3)
-        obj1_quat = torch.mean(env.scene.rigid_objects[obj1].data.body_com_quat_w, dim=1)  # (num_envs, 4)
-        obj1_rot_mat = matrix_from_quat(obj1_quat)  # (num_envs, 3, 3)
+        if obj1 in env.scene.rigid_objects:
+            obj1_obj = env.cfg.isaaclab_arena_env.task.objects[obj1]
+            obj1_pos = torch.mean(env.scene.rigid_objects[obj1].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+            obj1_vel = torch.mean(env.scene.rigid_objects[obj1].data.body_com_vel_w, dim=1)  # (num_envs, 3)
+            obj1_quat = torch.mean(env.scene.rigid_objects[obj1].data.body_com_quat_w, dim=1)  # (num_envs, 4)
+            obj1_rot_mat = matrix_from_quat(obj1_quat)  # (num_envs, 3, 3)
+        elif obj1 in env.scene.articulations:
+            obj1_obj = env.cfg.isaaclab_arena_env.task.objects[obj1]
+            obj1_pos = torch.mean(env.scene.articulations[obj1].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+            obj1_vel = torch.mean(env.scene.articulations[obj1].data.body_com_vel_w, dim=1)  # (num_envs, 3)
+            obj1_quat = torch.mean(env.scene.articulations[obj1].data.body_com_quat_w, dim=1)  # (num_envs, 4)
+            obj1_rot_mat = matrix_from_quat(obj1_quat)  # (num_envs, 3, 3)
     else:
         obj1_name = obj1 if isinstance(obj1, str) else obj1.name
         obj1_pos = env.scene.state['articulation'][obj1_name]['root_pose'][:, :3]  # (num_envs, 3)
@@ -790,8 +797,12 @@ def check_place_obj1_on_obj2(env: ManagerBasedEnv, obj1: str, obj2: str, th_z_ax
         obj1_vel = env.scene.state['articulation'][obj1_name]['root_velocity'][:, :3]  # (num_envs, 3)
 
     if obj2 in env.cfg.isaaclab_arena_env.task.objects:
-        obj2_obj = env.cfg.isaaclab_arena_env.task.objects[obj2]
-        obj2_pos = torch.mean(env.scene.rigid_objects[obj2].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        if obj2 in env.scene.rigid_objects:
+            obj2_obj = env.cfg.isaaclab_arena_env.task.objects[obj2]
+            obj2_pos = torch.mean(env.scene.rigid_objects[obj2].data.body_com_pos_w, dim=1)  # (num_envs, 3)
+        elif obj2 in env.scene.articulations:
+            obj2_obj = env.cfg.isaaclab_arena_env.task.objects[obj2]
+            obj2_pos = torch.mean(env.scene.articulations[obj2].data.body_com_pos_w, dim=1)  # (num_envs, 3)
     else:
         obj2_obj = obj2
         obj2_name = obj2 if isinstance(obj2, str) else obj2.name
