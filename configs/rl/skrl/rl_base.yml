@@ -20,7 +20,7 @@ task: null                   # Task cfg name
 rl: null                     # RL cfg name
 variant: null                # RL variant name, define when register the RL config
 usd_simplify: false          # USD simplify enable
-use_fabric: true    # Use fabric
+enable_rendering_optimization: true    # Enable optimization
 
 # Asset and Export Paths
 export_base_path: null       # Export base path (replace with actual ASSET_PATH if defined in code)

@@ -524,7 +524,7 @@ def main():
 
         new_env.reset(seed=new_env.cfg.seed)
 
-        if args_cli.enable_optimization:
+        if args_cli.enable_rendering_optimization:
             optimize_rendering(new_env)
         if teleop_interface is not None:
             teleop_interface.refresh_env(new_env)
@@ -897,7 +897,7 @@ def main():
 
     env = create_env_config()
 
-    if args_cli.enable_optimization:
+    if args_cli.enable_rendering_optimization:
         optimize_rendering(env)
 
     get_default_logger().info(f"env_cfg: {env.cfg}")

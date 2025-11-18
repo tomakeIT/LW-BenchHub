@@ -187,13 +187,35 @@ class LwLabScene(Scene, NoDeepcopyMixin):
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
         env_cfg.sim.render.enable_translucency = True
 
-        # add light in scene(if never added)
-        if not hasattr(env_cfg.scene, "light"):
-            light = AssetBaseCfg(
-                prim_path="{ENV_REGEX_NS}/light",
-                spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=9000.0),
+        if env_cfg.scene_backend == "robocasa":
+            env_cfg.scene_range = env_cfg.isaaclab_arena_env.scene.fixtures["floor_room"].pos[:2] * 2
+        elif env_cfg.scene_backend == "local":
+            env_cfg.scene_range = [0.0, 0.0]
+
+        # add room light in scene(if never added)
+        if not hasattr(env_cfg.scene, "room_light"):
+            room_light = AssetBaseCfg(
+                prim_path="{ENV_REGEX_NS}/room_light",
+                spawn=sim_utils.SphereLightCfg(
+                    radius=0.4,
+                    color=(0.75, 0.75, 0.75),
+                    intensity=50000.0,
+                ),
+                init_state=AssetBaseCfg.InitialStateCfg(pos=(env_cfg.scene_range[0] / 2, env_cfg.scene_range[1] / 2, 3.0)),
             )
-            setattr(env_cfg.scene, "light", light)
+            setattr(env_cfg.scene, "room_light", room_light)
+
+        # add global light in scene(if never added)
+        if not hasattr(env_cfg.scene, "global_light"):
+            global_light = AssetBaseCfg(
+                prim_path="/World/global_light",
+                spawn=sim_utils.DomeLightCfg(
+                    color=(0.75, 0.75, 0.75),
+                    intensity=500.0,
+                    visible_in_primary_ray=False,
+                ),
+            )
+            setattr(env_cfg.scene, "global_light", global_light)
 
         if self.context.execute_mode == ExecuteMode.TELEOP:
             env_cfg.ui_window_class_type = None

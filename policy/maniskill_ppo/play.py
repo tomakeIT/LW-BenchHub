@@ -57,6 +57,7 @@ def main(args):
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab_tasks.utils import parse_env_cfg
     from lwlab.utils.place_utils.env_utils import set_seed
+    from lwlab.utils.render_utils import optimize_rendering
 
     if "-" in args_cli.task:
         env_cfg = parse_env_cfg(
@@ -99,6 +100,10 @@ def main(args):
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
     set_seed(env_cfg.seed, env.unwrapped, args.torch_deterministic)
+
+    if args_cli.enable_rendering_optimization:
+        optimize_rendering(env.unwrapped, args_cli)
+
     from policy.maniskill_ppo.agent import PPOArgs, PPO, observation
 
     # override configurations with non-hydra CLI arguments

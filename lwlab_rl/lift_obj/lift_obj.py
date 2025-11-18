@@ -150,15 +150,12 @@ class EventCfg:
         },
     )
 
-    reset_dome_lighting: EventTerm = EventTerm(
+    randomize_scene_lighting: EventTerm = EventTerm(
         func=mdp.randomize_scene_lighting,
         mode="reset",
         params={
-            "intensity_range": (50.0, 800.0),
-            "color_variation": 0.35,
-            "default_intensity": 800.0,
-            "default_color": (0.75, 0.75, 0.75),
-            "asset_cfg": SceneEntityCfg("light"),
+            "intensity_range": (50000.0, 60000.0),
+            "asset_name": "room_light",
         },
     )
 

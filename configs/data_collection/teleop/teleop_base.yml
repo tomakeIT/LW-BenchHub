@@ -27,7 +27,6 @@ sources:
   - aigen_objs
 object_projects: []
 usd_simplify: false
-use_fabric: false
 seed: 0
 
 # =========================
@@ -46,7 +45,7 @@ enable_pinocchio: false
 teleop_device: keyboard
 relative_control: false
 first_person_view: false
-enable_optimization: true
+enable_rendering_optimization: true
 enable_multiple_viewports: false
 action_delay_async: false
 action_delay_time_s: 0

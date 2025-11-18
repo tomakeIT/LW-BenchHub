@@ -1,5 +1,5 @@
 import torch
-import math
+import random
 
 from typing import Literal
 
@@ -7,6 +7,7 @@ import isaaclab.utils.math as math_utils
 from isaaclab.managers import SceneEntityCfg
 from isaaclab.sensors import Camera
 from isaaclab.envs import ManagerBasedRLEnv
+from isaaclab.assets import AssetBase
 
 try:
     from pxr import Gf
@@ -56,38 +57,39 @@ def randomize_scene_lighting(
     env: ManagerBasedRLEnv,
     env_ids: torch.Tensor,
     intensity_range: tuple[float, float] = (400.0, 1200.0),
-    color_variation: float = 0.1,
-    default_intensity: float = 800.0,
-    default_color: tuple[float, float, float] = (0.75, 0.75, 0.75),
-    asset_cfg: SceneEntityCfg = SceneEntityCfg("light"),
+    color_range: tuple[float, float] = (0.0, 2.0),
+    asset_name: str = "light",
 ):
+    scene_range_x, scene_range_y = env.cfg.scene_range[0], env.cfg.scene_range[1]
+    for env_id in env_ids:
+        scene_env_prefix = env.scene.env_prim_paths[env_id]
+        prim_path = scene_env_prefix + "/" + asset_name
+        prim = env.scene.stage.GetPrimAtPath(prim_path)
+        position_attr = prim.GetAttribute("xformOp:translate")
+        intensity_attr = prim.GetAttribute("inputs:intensity")
+        color_attr = prim.GetAttribute("inputs:color")
+        new_position_x = _sample_random_value(0.3 * scene_range_x, 0.7 * scene_range_x, 1)[0]
+        new_position_y = _sample_random_value(0.3 * scene_range_y, 0.7 * scene_range_y, 1)[0]
+        new_position = (new_position_x, new_position_y, 3.0)
+        position_attr.Set(new_position)
 
-    from isaaclab.assets import AssetBase
-    import random
+        new_intensity = _sample_random_value(intensity_range[0], intensity_range[1], 1)[0]
+        intensity_attr.Set(new_intensity)
 
-    asset: AssetBase = env.scene[asset_cfg.name]
-    light_prim = asset.prims[0]
-    intensity_attr = light_prim.GetAttribute("inputs:intensity")
-    color_attr = light_prim.GetAttribute("inputs:color")
-
-    intensity_attr.Set(default_intensity)
-    color_attr.Set(default_color)
-
-    new_intensity = random.uniform(intensity_range[0], intensity_range[1])
-    intensity_attr.Set(new_intensity)
-
-    new_color = _sample_random_color(base=default_color, variation=color_variation)
-    color_attr.Set(new_color)
+        new_color = _sample_random_value(color_range[0], color_range[1])
+        color_attr.Set(new_color)
 
 
-def _sample_random_color(base=(0.75, 0.75, 0.75), variation=0.1):
+def _sample_random_value(min: float, max: float, n: float = 3):
+    """Sample a random value from the given range.
 
-    import random
-
-    offsets = [random.uniform(-variation, variation) for _ in range(3)]
-    avg_offset = sum(offsets) / 3
-    balanced_offsets = [offset - avg_offset for offset in offsets]
-    new_color = tuple(max(0, min(1, base_component + offset))
-                      for base_component, offset in zip(base, balanced_offsets))
-
-    return new_color
+    Args:
+        min: The minimum value.
+        max: The maximum value.
+        n: The number of values to sample.
+    """
+    old_state = random.getstate()
+    random.seed(None)
+    result = tuple(random.random() * (max - min) + min for _ in range(n))
+    random.setstate(old_state)
+    return result

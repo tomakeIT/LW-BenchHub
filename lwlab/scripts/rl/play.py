@@ -67,6 +67,7 @@ from policy.skrl.env_wrapper import SkrlVecEnvWrapper
 import isaaclab_tasks  # noqa: F401
 from isaaclab_tasks.utils import get_checkpoint_path, load_cfg_from_registry, parse_env_cfg
 from lwlab.utils.place_utils.env_utils import set_seed
+from lwlab.utils.render_utils import optimize_rendering
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
@@ -141,6 +142,9 @@ def main():
     # create isaac environment
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     set_seed(env_cfg.seed, env.unwrapped)
+
+    if args_cli.enable_rendering_optimization:
+        optimize_rendering(env.unwrapped, args_cli)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv) and algorithm in ["ppo"]:

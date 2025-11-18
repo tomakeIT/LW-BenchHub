@@ -22,41 +22,6 @@ from isaaclab.managers import TerminationTermCfg as DoneTerm
 
 from lwlab.utils.isaaclab_utils.assets import GeneralAssetCfg
 from isaaclab_arena.environments.isaaclab_arena_manager_based_env import IsaacLabArenaManagerBasedRLEnvCfg
-
-
-@configclass
-class USDSceneCfg(InteractiveSceneCfg):
-    """Configuration for the kitchen scene with a robot and a kitchen.
-
-    This is the abstract base implementation, the exact scene is defined in the derived classes
-    which need to set the robot and end-effector frames
-    """
-    _usd_path: str = MISSING
-    main_scene: GeneralAssetCfg = None  # will be populated at __post_init__
-
-    def __post_init__(self):
-        super().__post_init__()
-
-        self.main_scene = GeneralAssetCfg(
-            prim_path="{ENV_REGEX_NS}/Scene",
-            # Make sure to set the correct path to the generated scene
-            spawn=sim_utils.UsdFileCfg(usd_path=self._usd_path, activate_contact_sensors=False),
-        )
-
-    # robots, Will be populated by agent env cfg
-    robot: ArticulationCfg = MISSING
-
-    # lights
-    light = AssetBaseCfg(
-        prim_path="{ENV_REGEX_NS}/light",
-        spawn=sim_utils.DomeLightCfg(color=(0.75, 0.75, 0.75), intensity=9000.0),
-    )
-
-
-# monkey patch to add the _usd_path field to the InteractiveSceneCfg class,
-# so that InteractiveSceneCfg._add_entities_from_cfg can ignore _usd_path
-# InteractiveSceneCfg.__dataclass_fields__["_usd_path"] = USDSceneCfg.__dataclass_fields__["_usd_path"]
-
 from isaaclab_arena.scene.scene import Scene
 from isaaclab_arena.assets.background import Background
 from lwlab.core.context import get_context

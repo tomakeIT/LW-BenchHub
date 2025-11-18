@@ -111,6 +111,7 @@ def main():
     from isaaclab_tasks.manager_based.manipulation.lift import mdp
     from isaaclab_tasks.utils import parse_env_cfg
     from multiprocessing import Process, shared_memory
+    from lwlab.utils.render_utils import optimize_rendering
 
     if "-" in args_cli.task:
         env_cfg = parse_env_cfg(
@@ -194,6 +195,9 @@ def main():
     env_cfg.observations.policy.concatenate_terms = True
     env = gym.make(task_name, cfg=env_cfg, render_mode="rgb_array" if args_cli.video else None)
     set_seed(env_cfg.seed, env.unwrapped)
+
+    if args_cli.enable_rendering_optimization:
+        optimize_rendering(env.unwrapped, args_cli)
 
     # convert to single-agent instance if required by the RL algorithm
     if isinstance(env.unwrapped, DirectMARLEnv):

@@ -8,7 +8,6 @@ robot: null                  # Robot cfg name
 task: null                   # Task cfg name
 variant: null                # RL variant name, define when register the RL config
 usd_simplify: false          # USD simplify enable
-use_fabric: true    # Use fabric
 sources:
   - objaverse
   - lightwheel
