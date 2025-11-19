@@ -1120,3 +1120,29 @@ def calculate_contact_force(env: ManagerBasedEnv, geom: str | USDObject | Fixtur
         return torch.max(env.scene.sensors[f"{geom}_contact"].data.net_forces_w, dim=-1).values
     else:
         return torch.tensor([0.0], device=env.device).repeat(env.num_envs)
+
+
+def set_obj_rgb(env, obj_name, rgb_value):
+    """
+    Set the RGB color of an object in the USD stage.
+    """
+    obj = env.cfg.objects[obj_name]
+    obj_usd = usd(obj.obj_path)
+    obj_usd.set_rgb(usd.stage.GetPseudoRoot(), rgb=rgb_value)
+
+
+def add_obj_liquid_site(env, obj_name, liquid_rgba):
+    """
+    Set the liquid site rgb for an object in the USD stage.
+    """
+    obj = env.cfg.objects[obj_name]
+    obj_usd = usd(obj.obj_path)
+    site_prims = obj_usd.get_all_prims(obj_usd.stage)
+    liquid_sites = [site for site in site_prims if site is not None and site.IsValid() and "liquid" in site.GetName()]
+    Site_prim = obj_usd.get_prim_by_name(prim=obj_usd.stage.GetPseudoRoot(), name="Sites", only_xform=False)[0]
+    for site in liquid_sites:
+        Site_prim.GetAttribute("visibility").Set("inherited")
+        Site_prim.GetAttribute("purpose").Set("default")
+        site.GetAttribute("visibility").Set("inherited")
+        site.GetAttribute("purpose").Set("default")
+        site.GetAttribute("primvars:displayColor").Set(liquid_rgba)  # liquid_rgba is a list of 3 floats,such as [(0.0, 0.0, 1.0)],which means blue color
