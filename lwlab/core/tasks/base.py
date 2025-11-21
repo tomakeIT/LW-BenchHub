@@ -519,14 +519,14 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                 # check and create merged object if needed
                 if obj_cfg.get("merged_obj", None):
                     base_obj_dir = os.path.dirname(model.obj_path)
-                    pattern = os.path.join(base_obj_dir, f"{model.name}*/{model.name}*.usd")
+                    pattern = os.path.join(base_obj_dir, f"{model.name}_*/{model.name}_*.usd")
                     merged_obj_files = glob.glob(pattern)
                     if merged_obj_files:
                         for merged_obj_path in merged_obj_files:
                             merged_obj_name = os.path.basename(os.path.dirname(merged_obj_path))
 
                             merged_obj_cfg = deepcopy(obj_cfg)
-                            merged_obj_cfg["name"] = f"{obj_cfg['name']}_{merged_obj_name.lower().split('_')[-1]}"
+                            merged_obj_cfg["name"] = f"{obj_cfg['name']}_{merged_obj_name.lower().split('_')[1]}"
                             merged_obj_cfg["obj_groups"] = merged_obj_path
                             merged_obj_cfg["type"] = "object"
 
