@@ -12,15 +12,12 @@ from typing import Dict, Any
 current_file_path = os.path.abspath(__file__)
 parent_directory = os.path.dirname(current_file_path)
 sys.path.append(parent_directory)
-
+from policy.base import BasePolicy
 try:
     from openpi.policies import policy_config as _policy_config
     from openpi.training import config as _config
 except ImportError as e:
-    print(f"gr00t not found, please install gr00t first: {e}")
-
-
-from policy.base import BasePolicy
+    print(f"PI not found, please install PI first: {e} , if you not run pi policy, please ignore this error")
 
 
 class PIPolicy(BasePolicy):
@@ -62,6 +59,10 @@ class PIPolicy(BasePolicy):
                 obs_window[key] = obs[mapping]
         return obs_window
 
+    def piper_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
+        action[..., -1] = -action[..., -1]
+        return action
+
     def eval(self, task_env: Any, observation: Dict[str, Any],
              usr_args: Dict[str, Any], video_writer: Any) -> bool:
         """Evaluate PI policy"""
@@ -70,9 +71,10 @@ class PIPolicy(BasePolicy):
             actions = self.get_action()
             chunk = actions.shape[0]
             actions = torch.from_numpy(actions).float().cuda()
-
+            actions = self.piper_action_mapping(actions)
             for i in range(chunk):
-                observation, terminated = self.step_environment(task_env, actions[i], usr_args)
+                action = actions[i]
+                observation, terminated = self.step_environment(task_env, action.unsqueeze(0), usr_args)
                 self.add_video_frame(video_writer, observation, usr_args['record_camera'])
                 if terminated:
                     return terminated

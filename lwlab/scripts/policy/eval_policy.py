@@ -25,16 +25,11 @@ import tqdm
 
 # add argparse arguments
 parser = argparse.ArgumentParser(description="Eval policy in Isaac Lab environments.")
-parser.add_argument("--config", type=str, default="/home/zsy/workspace/opensource/lwlab/policy/GR00T/deploy_policy_lerobot.yml")
-parser.add_argument("--camera_config", type=str, default="lift-cube")
+parser.add_argument("--config", type=str, default="/home/zsy/workspace/lwlab-private/third_party/lwlab/policy/PI/deploy_policy_lerobot.yml")
 parser.add_argument("--overrides", nargs=argparse.REMAINDER)
 
 # parse the arguments
 args_cli = parser.parse_args()
-
-import yaml
-with open(f"configs/policy/{args_cli.camera_config}.yml", 'r') as file:
-    cam_config = yaml.safe_load(file)
 
 """Rest everything follows."""
 import contextlib
@@ -74,6 +69,31 @@ def main(usr_args):
 
     from lwlab.distributed.proxy import RemoteEnv
     env = RemoteEnv.make(address=('127.0.0.1', 50000), authkey=b'lightwheel')
+    from lwlab.distributed.restful import DotDict
+    if "env_cfg" in usr_args and usr_args["env_cfg"]:
+        env_cfg = DotDict(usr_args["env_cfg"])
+        defaults = {
+            "scene_backend": "robocasa",
+            "task_backend": "robocasa",
+            "device": "cuda:0",
+            "robot_scale": 1.0,
+            "first_person_view": False,
+            "disable_fabric": False,
+            "num_envs": 1,
+            "usd_simplify": False,
+            "video": False,
+            "for_rl": False,
+            "variant": "Visual",
+            "concatenate_terms": False,
+            "distributed": False,
+            "seed": 42,
+            "sources": None,
+            "object_projects": None,
+        }
+        for key, value in defaults.items():
+            if key not in env_cfg:
+                env_cfg[key] = value
+    env.attach(env_cfg)
     env = env.unwrapped
 
     policy_name = usr_args["policy_name"]
@@ -83,7 +103,6 @@ def main(usr_args):
 
     usr_args['actions_dim'] = env.action_space.shape[1]
     usr_args['decimation'] = env.cfg.decimation
-    usr_args.update(cam_config)
 
     has_success = False
 
@@ -103,6 +122,7 @@ def main(usr_args):
                     suc_num += 1
     print(f"Success rate: {suc_num / test_num}")
     env.close()
+    env.detach()
 
 
 if __name__ == "__main__":

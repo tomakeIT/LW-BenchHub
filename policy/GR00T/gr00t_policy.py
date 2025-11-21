@@ -13,10 +13,11 @@ from typing import Dict, Any
 from policy.base import BasePolicy
 
 try:
+    from policy.GR00T.data_config.data_config import LW_DATA_CONFIG_MAP
     from gr00t.experiment.data_config import DATA_CONFIG_MAP
     from gr00t.model.policy import Gr00tPolicy
 except ImportError as e:
-    print(f"gr00t not found, please install gr00t first: {e}")
+    print(f"gr00t not found, please install gr00t first: {e},if you not run gr00t policy, please ignore this error")
 
 
 class GR00TPolicy(BasePolicy):
@@ -30,6 +31,8 @@ class GR00TPolicy(BasePolicy):
         # Use the same data preprocessor as the loaded fine-tuned ckpts
         if self.usr_args["data_config"] in DATA_CONFIG_MAP:
             self.data_config = DATA_CONFIG_MAP[self.usr_args["data_config"]]
+        elif self.usr_args["data_config"] in LW_DATA_CONFIG_MAP:
+            self.data_config = LW_DATA_CONFIG_MAP[self.usr_args["data_config"]]
 
         modality_config = self.data_config.modality_config()
         modality_transform = self.data_config.transform()
@@ -57,10 +60,10 @@ class GR00TPolicy(BasePolicy):
             if isinstance(mapping, dict):
                 obs_window[key] = obs[next(iter(mapping.keys()))][..., next(iter(mapping.values()))]
                 obs_window[key] = obs_window[key][None, ...]  # N, env, ...
-            elif key == "joint_pos":
+            elif key == "joint_pos" or key == "eef_base":
                 joint_order = [i for i in range(len(self.data_config.state_keys))] if not mapping else mapping
                 for idx, key in enumerate(self.data_config.state_keys):
-                    obs_window[key] = obs["joint_pos"][0][joint_order[idx]]
+                    obs_window[key] = obs[key][0][joint_order[idx]]
                     obs_window[key] = obs_window[key][None, ...]  # N, env, ...
                     obs_window[key] = obs_window[key][None, ...]  # N, env, ...
                     obs_window[key] = obs_window[key][None, ...]  # N, env, ...
@@ -86,11 +89,21 @@ class GR00TPolicy(BasePolicy):
         robot_actions = self._mapping_action(robot_action_policy)
         return robot_actions
 
+    def x7s_obs_mapping(self, obs):
+        obs['state.gripper'] = obs['state.gripper'] / 0.044
+        return obs
+
+    def x7s_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
+        action[..., -1] = -action[..., -1]
+        return action
+
     def eval(self, task_env: Any, observation: Dict[str, Any],
              usr_args: Dict[str, Any], video_writer: Any) -> bool:
         for _ in range(usr_args['time_out_limit']):
             observation = self.encode_obs(observation)
+            observation = self.x7s_obs_mapping(observation)
             actions = self.get_action(observation)  # env, horizon, action_dim
+            actions = self.x7s_action_mapping(actions)
             for i in range(self.usr_args["num_feedback_actions"]):
                 observation, terminated = self.step_environment(task_env, actions[:, i], usr_args)
                 self.add_video_frame(video_writer, observation, usr_args['record_camera'])

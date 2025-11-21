@@ -107,3 +107,25 @@ def gripper_pos(env: ManagerBasedRLEnv, robot_cfg: SceneEntityCfg = SceneEntityC
     finger_joint_2 = -1 * robot.data.joint_pos[:, -2].clone().unsqueeze(1)
 
     return torch.cat((finger_joint_1, finger_joint_2), dim=1)
+
+
+from isaaclab.utils.math import subtract_frame_transforms
+
+
+def get_eef_base(env: ManagerBasedRLEnv, base_link_name: str = 'dummy_link', eef_link_name: str = 'hand_link') -> torch.Tensor:
+    robot = env.scene.articulations['robot']
+    hand_ids, _ = robot.find_bodies(eef_link_name)
+    base_link_ids, _ = robot.find_bodies(base_link_name)
+    hand_idx = hand_ids[0]
+    base_link_idx = base_link_ids[0]
+    hand_pose_w = robot.data.body_link_pose_w[0, hand_idx, :]
+    base_link_pose_w = robot.data.body_link_pose_w[0, base_link_idx, :]
+    hand_pos_base, hand_quat_base = subtract_frame_transforms(
+        base_link_pose_w[:3].unsqueeze(0),   # base position in world
+        base_link_pose_w[3:].unsqueeze(0),   # base quaternion [w,x,y,z] in world
+        hand_pose_w[:3].unsqueeze(0),   # left hand position in world
+        hand_pose_w[3:].unsqueeze(0)    # left hand quaternion in world
+    )
+
+    eef_base = torch.cat([hand_pos_base, hand_quat_base], dim=-1)
+    return eef_base

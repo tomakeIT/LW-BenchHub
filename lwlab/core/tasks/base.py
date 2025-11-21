@@ -338,6 +338,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         env_cfg.sim.physx.bounce_threshold_velocity = 0.2
         env_cfg.sim.physx.bounce_threshold_velocity = 0.01
         env_cfg.sim.physx.friction_correlation_distance = 0.00625
+        env_cfg.rerender_on_reset = True
         return env_cfg
 
     def get_termination_cfg(self):
