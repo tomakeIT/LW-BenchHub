@@ -238,7 +238,7 @@ def sample_kitchen_object(
         if merged_obj_files:
             for merged_obj_path in merged_obj_files:
                 merged_obj_name = os.path.basename(os.path.dirname(merged_obj_path))
-                OBJECT_INFO_CACHE[f"{cache_key}_{merged_obj_name.lower().split('_')[1]}"] = {
+                OBJECT_INFO_CACHE[f"{cache_key}_{merged_obj_name.lower().split('_')[-1]}"] = {
                     'obj_path': merged_obj_path,
                     'obj_name': merged_obj_name,
                     'obj_res': obj_res,

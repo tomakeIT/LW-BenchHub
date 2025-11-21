@@ -167,7 +167,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
     task_type: str = "teleop"
     resample_objects_placement_on_reset: bool = True
     resample_robot_placement_on_reset: bool = True
-    EMPTY_EXCLUDE_LAYOUTS: list = []
+    EXCLUDE_LAYOUTS: list = []
     OVEN_EXCLUDED_LAYOUTS: list = [1, 3, 5, 6, 8, 10, 11, 13, 14, 16, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 30, 32, 33, 36, 38, 40, 41, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60]
     DOUBLE_CAB_EXCLUDED_LAYOUTS: list = [32, 41, 59]
     DINING_COUNTER_EXCLUDED_LAYOUTS: list = [1, 3, 5, 6, 18, 20, 36, 39, 40, 43, 47, 50, 52]
@@ -274,7 +274,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
         self.context = get_context()
         self.task_backend = self.context.task_backend
         self.usd_simplify = self.context.usd_simplify
-        self.exclude_layouts = self.EMPTY_EXCLUDE_LAYOUTS
+        self.exclude_layouts = self.EXCLUDE_LAYOUTS
         self.cache_usd_version = self.context.ep_meta.get("cache_usd_version", {})
         self.objects_version = self.cache_usd_version.get("objects_version", None)
         self.sources = self.context.sources
@@ -526,7 +526,7 @@ class LwLabTaskBase(TaskBase, NoDeepcopyMixin):
                             merged_obj_name = os.path.basename(os.path.dirname(merged_obj_path))
 
                             merged_obj_cfg = deepcopy(obj_cfg)
-                            merged_obj_cfg["name"] = f"{obj_cfg['name']}_{merged_obj_name.lower().split('_')[1]}"
+                            merged_obj_cfg["name"] = f"{obj_cfg['name']}_{merged_obj_name.lower().split('_')[-1]}"
                             merged_obj_cfg["obj_groups"] = merged_obj_path
                             merged_obj_cfg["type"] = "object"
 
