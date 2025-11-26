@@ -48,7 +48,7 @@ class BasePolicy(ABC):
         """Add video frame"""
         if video_writer is not None:
             camera_images = [
-                obs['policy'][[key for key in obs['policy'].keys() if key.startswith(cam)][0]].cpu().numpy()[0] 
+                obs['policy'][[key for key in obs['policy'].keys() if key.startswith(cam)][0]].cpu().numpy()[0]
                 for cam in camera_key if any(key.startswith(cam) for key in obs['policy'].keys())
             ]
             combined_image = np.concatenate(camera_images, axis=1)
@@ -79,7 +79,7 @@ class BasePolicy(ABC):
         Returns:
             Processed observation data
         """
-        merged_dict = observation['policy'].copy() 
+        merged_dict = observation['policy'].copy()
         merged_dict.update(observation['embodiment_general_obs'])
         observation = merged_dict
         for name, obs in observation.items():

@@ -14,7 +14,6 @@ if TYPE_CHECKING:
     from isaaclab.envs import ManagerBasedEnv
 from .base import BaseDistributedEnv
 from flask import Flask, request, jsonify
-import sys
 
 
 class DotDict(dict):
@@ -29,12 +28,12 @@ class DotDict(dict):
 
             if (isinstance(base_reduce, tuple) and len(base_reduce) >= 2 and
                 isinstance(base_reduce[1], tuple) and len(base_reduce[1]) > 0 and
-                base_reduce[1][0] is dict):
-                
+                    base_reduce[1][0] is dict):
+
                 new_args = (DotDict,) + base_reduce[1][1:]
                 new_reduce = (base_reduce[0], new_args) + base_reduce[2:]
                 return new_reduce
-            
+
             return base_reduce
 
 

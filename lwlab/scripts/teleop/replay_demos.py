@@ -226,7 +226,7 @@ def main():
         video_width = max_cameras_in_row * args_cli.width
 
         # Calculate product video dimensions
-        product_camera_names = [n for n, c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.values() if "product" in c.get("tags", [])]
+        product_camera_names = [n for n, c in env.cfg.isaaclab_arena_env.embodiment.observation_cameras.items() if "product" in c.get("tags", [])]
         product_mp4_path = None
         if product_camera_names:
             product_num_cameras = len(product_camera_names)
@@ -291,7 +291,10 @@ def main():
                 env.sim.render()
                 next_state = env_episode_data_map[env_id].get_next_state()
                 step_count += 1
-                ee_poses.append(obs['policy']['ee_pose'].cpu().numpy())
+                ee_pos = obs['embodiment_general_obs']['eef_pos']
+                ee_quat = obs['embodiment_general_obs']['eef_quat']
+                eef_pose = torch.cat([ee_pos, ee_quat], dim=-1)
+                ee_poses.append(eef_pose.cpu().numpy())
                 if app_launcher._enable_cameras and video_processor:
                     # Add frame to video processing queue
                     camera_names = env.cfg.isaaclab_arena_env.embodiment.active_observation_camera_names

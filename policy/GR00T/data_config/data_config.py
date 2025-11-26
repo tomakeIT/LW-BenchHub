@@ -171,7 +171,8 @@ class Piper0DataConfig(BaseDataConfig):
             ),
         ]
         return ComposedModalityTransform(transforms=transforms)
-     
+
+
 LW_DATA_CONFIG_MAP = {
     "x7s": X7SDataConfig(),
     "piper": Piper0DataConfig()
