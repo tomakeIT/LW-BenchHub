@@ -27,6 +27,7 @@ class BaseTask(LwLabTaskBase):
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
         ep_meta["lang"] = "base task"
+        ep_meta["object_cfgs"] = {}
         return ep_meta
 
 
@@ -40,6 +41,7 @@ class RobocasaBaseTask(LwLabTaskBase):
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
         ep_meta["lang"] = "robocasa base task"
+        ep_meta["object_cfgs"] = {}
         return ep_meta
 
     def _check_success(self, env):
