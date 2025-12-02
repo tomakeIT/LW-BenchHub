@@ -162,6 +162,12 @@ gym.register(
 )
 
 gym.register(
+    id="Robocasa-Task-CupcakeCleanup",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={"env_cfg_entry_point": f"{__name__}.baking.cupcake_cleanup:CupcakeCleanup"},
+)
+
+gym.register(
     id="Robocasa-Task-SpicyMarinade",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={"env_cfg_entry_point": f"{__name__}.mixing_and_blending.spicy_marinade:SpicyMarinade"},
