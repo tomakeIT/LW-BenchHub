@@ -187,6 +187,15 @@ gym.register(
 )
 
 gym.register(
+    id="Robocasa-Task-TurnOnElectricKettle",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_electric_kettle:TurnOnElectricKettle",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
     id="Robocasa-Task-OpenOven",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
@@ -291,6 +300,150 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kitchen_doors:CloseDishwasher",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-StartCoffeeMachine",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_coffee:StartCoffeeMachine",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CoffeeServeMug",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_coffee:CoffeeServeMug",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CoffeeSetupMug",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_coffee:CoffeeSetupMug",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CoffeeSetupMug-Mimic",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_coffee:CoffeeSetupMugMimic",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOnMicrowave",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_microwave:TurnOnMicrowave",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOffMicrowave",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_microwave:TurnOffMicrowave",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOnSinkFaucet",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_sink:TurnOnSinkFaucet",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOffSinkFaucet",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_sink:TurnOffSinkFaucet",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnSinkSpout",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_sink:TurnSinkSpout",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-OpenStandMixerHead",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_stand_mixer:OpenStandMixerHead",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-CloseStandMixerHead",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_stand_mixer:CloseStandMixerHead",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOnStove",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_stove:TurnOnStove",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOffStove",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_stove:TurnOffStove",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-AdjustToasterOvenTemperature",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_toaster_oven:AdjustToasterOvenTemperature",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOnToasterOven",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_toaster_oven:TurnOnToasterOven",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-TurnOnToaster",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_toaster:TurnOnToaster",
     },
     disable_env_checker=True,
 )
