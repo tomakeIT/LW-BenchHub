@@ -440,10 +440,46 @@ gym.register(
 )
 
 gym.register(
+    id="Robocasa-Task-SlideToasterOvenRack",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_toaster_oven:SlideToasterOvenRack",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
     id="Robocasa-Task-TurnOnToaster",
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.kitchen_toaster:TurnOnToaster",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-NavigateKitchen",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_navigate:NavigateKitchen",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-PreheatOven",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_oven:PreheatOven",
+    },
+    disable_env_checker=True,
+)
+
+gym.register(
+    id="Robocasa-Task-SlideOvenRack",
+    entry_point="isaaclab.envs:ManagerBasedRLEnv",
+    kwargs={
+        "env_cfg_entry_point": f"{__name__}.kitchen_oven:SlideOvenRack",
     },
     disable_env_checker=True,
 )

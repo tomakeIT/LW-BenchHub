@@ -14,6 +14,7 @@ class PreSoakPan(LwLabTaskBase):
         Pick the pan and sponge and place them into the sink. Then turn on the sink.
     """
 
+    layout_registry_names: list[int] = [FixtureType.COUNTER, FixtureType.SINK]
     task_name: str = "PreSoakPan"
 
     def _setup_kitchen_references(self, scene):
@@ -86,4 +87,10 @@ class PreSoakPan(LwLabTaskBase):
         water_on = handle_state["water_on"]
         pan_in_sink = OU.obj_inside_of(env, "obj1", self.sink, partial_check=False)
         sponge_in_sink = OU.obj_inside_of(env, "obj2", self.sink, partial_check=False)
-        return water_on & pan_in_sink & sponge_in_sink & OU.gripper_obj_far(env, "obj1") & OU.gripper_obj_far(env, "obj2")
+        return (
+            water_on
+            & pan_in_sink
+            & sponge_in_sink
+            & OU.gripper_obj_far(env, "obj1")
+            & OU.gripper_obj_far(env, "obj2")
+        )

@@ -42,10 +42,6 @@ class OpenElectricKettleLid(LwLabTaskBase):
     task_name: str = "OpenElectricKettleLid"
     enable_fixtures: list[str] = ["electric_kettle"]
 
-    def __init__(self, *args, **kwargs):
-        kwargs["enable_fixtures"] = ["electric_kettle"]
-        super().__init__(*args, **kwargs)
-
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)
 
