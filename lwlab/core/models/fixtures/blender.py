@@ -26,9 +26,6 @@ class Blender(Fixture):
 
     def __init__(self, name, prim, num_envs, **kwargs):
         super().__init__(name, prim, num_envs, **kwargs)
-        self._lid_on_blender = torch.tensor([False], dtype=torch.bool).repeat(num_envs)
-        self._turned_on = torch.tensor([False], dtype=torch.bool).repeat(num_envs)
-        self._button_contact_prev_timestep = torch.tensor([False], dtype=torch.bool).repeat(num_envs)
         self.blender_lid = None
         self.power_button_name = "power_button_main"
 
@@ -59,6 +56,12 @@ class Blender(Fixture):
     def setup_env(self, env: ManagerBasedRLEnv):
         super().setup_env(env)
         self._env = env
+        device = env.device
+        num_envs = env.num_envs
+
+        self._lid_on_blender = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        self._turned_on = torch.zeros(num_envs, dtype=torch.bool, device=device)
+        self._button_contact_prev_timestep = torch.zeros(num_envs, dtype=torch.bool, device=device)
 
     def get_reset_region_names(self):
         return {"anchor", "int"}

@@ -123,9 +123,9 @@ class Stove(Fixture):
                 joint_val = self.rng.uniform(self.STOVE_HIGH_MIN, joint_max)
             else:
                 if self.rng.uniform() < 0.5:
-                    joint_val = self.rng.uniform(0.50, np.pi / 2)
+                    joint_val = self.rng.uniform(0.5, np.pi / 4)
                 else:
-                    joint_val = self.rng.uniform(2 * np.pi - np.pi / 2, 2 * np.pi - 0.50)
+                    joint_val = self.rng.uniform(np.pi / 4, np.pi / 2)
 
             env.scene.articulations[self.name].write_joint_position_to_sim(
                 torch.tensor([[joint_val]]).to(env.device),
