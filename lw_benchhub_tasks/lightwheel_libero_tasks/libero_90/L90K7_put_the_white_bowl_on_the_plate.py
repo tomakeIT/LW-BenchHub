@@ -17,6 +17,7 @@ import lw_benchhub.utils.object_utils as OU
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub.core.models.fixtures import FixtureType
 
+
 class L90K7PutTheWhiteBowlOnThePlate(LwTaskBase):
     """
     L90K7PutTheWhiteBowlOnThePlate: put the white bowl on the plate

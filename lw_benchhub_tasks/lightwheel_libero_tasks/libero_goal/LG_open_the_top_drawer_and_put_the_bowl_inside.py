@@ -19,6 +19,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_goal_tasks_base import LiberoGoalTasksBase
 
+
 class LGOpenTheTopDrawerAndPutTheBowlInside(LiberoGoalTasksBase):
     """
     LGOpenTheTopDrawerAndPutTheBowlInside: open the top layer of the drawer and put the bowl inside

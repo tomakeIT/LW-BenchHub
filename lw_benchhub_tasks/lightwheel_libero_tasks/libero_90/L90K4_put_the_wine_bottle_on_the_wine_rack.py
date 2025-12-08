@@ -17,6 +17,7 @@ import lw_benchhub.utils.object_utils as OU
 from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 
+
 class L90K4PutTheWineBottleOnTheWineRack(LwTaskBase):
     task_name: str = "L90K4PutTheWineBottleOnTheWineRack"
     enable_fixtures = ["winerack", "storage_furniture"]

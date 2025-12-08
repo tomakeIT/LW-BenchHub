@@ -18,6 +18,7 @@ import lw_benchhub.utils.object_utils as OU
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_spatial.libero_put_black_bowl_on_plate import PutBlackBowlOnPlate
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_spatial.LS_pick_up_the_black_bowl_on_the_cookie_box_and_place_it_on_the_plate import LSPickUpTheBlackBowlOnTheCookieBoxAndPlaceItOnThePlate
 
+
 class LSPickUpTheBlackBowlOnTheRamekinAndPlaceItOnThePlate(LSPickUpTheBlackBowlOnTheCookieBoxAndPlaceItOnThePlate):
     task_name: str = 'LSPickUpTheBlackBowlOnTheRamekinAndPlaceItOnThePlate'
     EXCLUDE_LAYOUTS: list = [63, 64]

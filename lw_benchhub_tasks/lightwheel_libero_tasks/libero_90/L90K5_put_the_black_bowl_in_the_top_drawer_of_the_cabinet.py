@@ -18,6 +18,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_drawer_tasks_base import LiberoDrawerTasksBase
 
+
 class L90K5PutTheBlackBowlInTheTopDrawerOfTheCabinet(LiberoDrawerTasksBase):
     """
     L90K5PutTheBlackBowlInTheTopDrawerOfTheCabinet: put the black bowl in the top drawer of the cabinet

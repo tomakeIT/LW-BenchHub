@@ -17,6 +17,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_black_bowl_and_plate_base import LiberoBlackBowlAndPlateBase
 
+
 class L90K2StackTheMiddleBlackBowlOnTheBackBlackBowl(LiberoBlackBowlAndPlateBase):
     """
     L90K2StackTheMiddleBlackBowlOnTheBackBlackBowl: put the black bowl in the middle on the front bowl

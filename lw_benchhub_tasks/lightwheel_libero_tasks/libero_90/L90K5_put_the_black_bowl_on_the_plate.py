@@ -17,6 +17,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_black_bowl_and_plate_base import LiberoBlackBowlAndPlateBase
 
+
 class L90K5PutTheBlackBowlOnThePlate(LiberoBlackBowlAndPlateBase):
     """
     L90K5PutTheBlackBowlOnThePlate: put the black bowl on the plate

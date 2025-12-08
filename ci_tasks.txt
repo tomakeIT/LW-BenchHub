@@ -3,7 +3,6 @@ bash -i /workspace/lw_benchhub/ci_run/replay.sh /data/ceph_hdd/main/artifactory/
 bash -i /workspace/lw_benchhub/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/ci_task_0917/G1_Controller/OpenToasterOvenDoor/dataset.hdf5 action
 bash -i /workspace/lw_benchhub/ci_run/replay.sh /data/ceph_hdd/main/artifactory/isaac_robocasa_assets/robocasa/new/hdf5/ci_task_0917/G1_Controller/OpenToasterOvenDoor/dataset.hdf5 action
 bash /workspace/lw_benchhub/ci_run/train_ci.sh ci_lerobot_liftobj_state
-bash /workspace/lw_benchhub/ci_run/train_ci.sh ci_open_draw
 python3  /workspace/lw_benchhub/ci_run/teleop_ci.py --task OpenToasterOvenDoor
 python3  /workspace/lw_benchhub/ci_run/teleop_ci.py --task CloseToasterOvenDoor
 python3  /workspace/lw_benchhub/ci_run/teleop_ci.py --task OpenDishwasher

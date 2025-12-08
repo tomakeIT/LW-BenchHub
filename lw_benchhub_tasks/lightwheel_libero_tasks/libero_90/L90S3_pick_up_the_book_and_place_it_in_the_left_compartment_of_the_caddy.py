@@ -18,6 +18,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90S2_pick_up_the_book_and_place_it_in_the_right_compartment_of_the_caddy import L90S2PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy
 
+
 class L90S3PickUpTheBookAndPlaceItInTheLeftCompartmentOfTheCaddy(L90S2PickUpTheBookAndPlaceItInTheRightCompartmentOfTheCaddy):
 
     task_name: str = "L90S3PickUpTheBookAndPlaceItInTheLeftCompartmentOfTheCaddy"

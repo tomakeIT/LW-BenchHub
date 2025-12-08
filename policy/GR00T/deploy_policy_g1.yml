@@ -1,6 +1,6 @@
 # Basic experiment configuration (keep unchanged)
 policy_name: 'GR00TPolicy'
-ckpt_setting: '/home/zsy/groot_ckpts/checkpoint-10000' # 'nvidia/GR00T-N1.5-3B' # To be provided by the user
+checkpoint: '/path/to/your/checkpoint' # 'nvidia/GR00T-N1.5-3B' # To be provided by the user
 seed: 0
 
 # Add Parameters You Need

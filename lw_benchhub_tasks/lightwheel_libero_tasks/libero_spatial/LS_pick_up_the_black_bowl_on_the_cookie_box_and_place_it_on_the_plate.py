@@ -17,6 +17,7 @@ import copy
 import lw_benchhub.utils.object_utils as OU
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_spatial.libero_put_black_bowl_on_plate import PutBlackBowlOnPlate
 
+
 class LSPickUpTheBlackBowlOnTheCookieBoxAndPlaceItOnThePlate(PutBlackBowlOnPlate):
 
     task_name: str = 'LSPickUpTheBlackBowlOnTheCookieBoxAndPlaceItOnThePlate'

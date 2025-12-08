@@ -1,8 +1,0 @@
-_base_: [rl_base]
-robot: G1-FullHand
-task: CoffeeSetupMug
-layout: robocasakitchen-11-11
-enable_cameras: true
-num_envs: 1
-width: 224
-height: 224

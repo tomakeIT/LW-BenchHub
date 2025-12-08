@@ -16,6 +16,7 @@ import lw_benchhub.utils.object_utils as OU
 from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 
+
 class L90L4PickUpTheChocolatePuddingAndPutItInTheTray(LwTaskBase):
     task_name: str = "L90L4PickUpTheChocolatePuddingAndPutItInTheTray"
     EXCLUDE_LAYOUTS: list = [63, 64]

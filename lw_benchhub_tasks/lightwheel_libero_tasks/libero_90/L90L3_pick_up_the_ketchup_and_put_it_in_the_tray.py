@@ -15,6 +15,7 @@
 import lw_benchhub.utils.object_utils as OU
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90L3_pick_up_the_tomato_sauce_and_put_it_in_the_tray import L90L3PickUpTheTomatoSauceAndPutItInTheTray
 
+
 class L90L3PickUpTheKetchupAndPutItInTheTray(L90L3PickUpTheTomatoSauceAndPutItInTheTray):
     """
     L90L3PickUpTheKetchupAndPutItInTheTray: pick up the ketchup and put it in the wooden_tray

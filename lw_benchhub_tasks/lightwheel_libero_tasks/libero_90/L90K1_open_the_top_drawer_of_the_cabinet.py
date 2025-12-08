@@ -17,6 +17,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K1_open_the_bottom_drawer_of_the_cabinet import L90K1OpenTheBottomDrawerOfTheCabinet
 
+
 class L90K1OpenTheTopDrawerOfTheCabinet(L90K1OpenTheBottomDrawerOfTheCabinet):
     task_name: str = "L90K1OpenTheTopDrawerOfTheCabinet"
 

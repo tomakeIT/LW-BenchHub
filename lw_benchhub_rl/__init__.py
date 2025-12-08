@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from .open_drawer import agents as open_drawer_agents
 from .lift_obj import agents as lift_obj_agents
 
 import gymnasium as gym
@@ -78,17 +77,6 @@ gym.register(
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobot100LiftObjStateRL",
         "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
         "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-    },
-    disable_env_checker=True,
-)
-
-gym.register(
-    id="Robocasa-Rl-G1OpenDrawerRL",
-    entry_point="isaaclab.envs:ManagerBasedRLEnv",
-    kwargs={
-        "env_cfg_entry_point": f"{__name__}.open_drawer.open_drawer:G1OpenDrawerRl",
-        "skrl_cfg_entry_point": f"{open_drawer_agents.__name__}:skrl_ppo_cfg.yaml",
-        "rsl_rl_cfg_entry_point": f"{open_drawer_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )

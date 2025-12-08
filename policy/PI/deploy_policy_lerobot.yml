@@ -1,9 +1,9 @@
 # Basic experiment configuration (keep unchanged)
 policy_name: PIPolicy
 
-train_config_name: pi05_lora_lw_benchhub_so101_pick_orange
-checkpoint: /home/zsy/pi05_checkpoints/pi05_lora_lw_benchhub_so101_pick_orange/lw_benchhub_pi05_lora_so101_pick_orange/29999
-instruction: "PnPOrange"
+train_config_name: your_train_config_name
+checkpoint: /path/to/your/checkpoint
+instruction: "your_instruction"
 
 observation_config:
   custom_mapping:

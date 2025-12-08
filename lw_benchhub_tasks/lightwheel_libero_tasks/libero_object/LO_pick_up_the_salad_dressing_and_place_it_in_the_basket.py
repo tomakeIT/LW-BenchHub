@@ -16,6 +16,7 @@ import lw_benchhub.utils.object_utils as OU
 from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_put_object_in_basket_base import PutObjectInBasketBase
 
+
 class LOPickUpTheSaladDressingAndPlaceItInTheBasket(PutObjectInBasketBase):
 
     task_name: str = f"LOPickUpTheSaladDressingAndPlaceItInTheBasket"

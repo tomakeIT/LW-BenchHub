@@ -16,6 +16,7 @@ import torch
 import lw_benchhub.utils.object_utils as OU
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_put_object_in_basket_base import PutObjectInBasketBase
 
+
 class LOPickUpTheChocolatePuddingAndPlaceItInTheBasket(PutObjectInBasketBase):
 
     task_name: str = f"LOPickUpTheChocolatePuddingAndPlaceItInTheBasket"

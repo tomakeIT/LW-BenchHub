@@ -19,6 +19,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K6_put_the_yellow_and_white_mug_to_the_front_of_the_white_mug import L90K6PutTheYellowAndWhiteMugToTheFrontOfTheWhiteMug
 
+
 class L90K6CloseTheMicrowave(L90K6PutTheYellowAndWhiteMugToTheFrontOfTheWhiteMug):
     task_name: str = "L90K6CloseTheMicrowave"
 

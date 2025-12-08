@@ -19,6 +19,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K3_turn_on_the_stove import L90K3TurnOnTheStove
 
+
 class L90K3TurnOnTheStoveAndPutTheFryingPanOnIt(L90K3TurnOnTheStove):
     task_name: str = "L90K3TurnOnTheStoveAndPutTheFryingPanOnIt"
 

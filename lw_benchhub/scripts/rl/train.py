@@ -168,7 +168,7 @@ def main():
     env_cfg.seed = agent_cfg["seed"]
 
     # specify directory for logging experiments
-    log_root_path = os.path.join("policy/skrl/logs", agent_cfg["agent"]["experiment"]["directory"])
+    log_root_path = os.path.join("lw_benchhub_logs/skrl", agent_cfg["agent"]["experiment"]["directory"])
     log_root_path = os.path.abspath(log_root_path)
     print(f"[INFO] Logging experiment in directory: {log_root_path}")
     # specify directory for logging runs: {time-stamp}_{run_name}

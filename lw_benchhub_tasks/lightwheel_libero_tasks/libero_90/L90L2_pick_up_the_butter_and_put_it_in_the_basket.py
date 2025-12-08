@@ -18,6 +18,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_put_object_in_basket_base import PutObjectInBasketBase
 
+
 class L90L2PickUpTheButterAndPutItInTheBasket(LwTaskBase):
     task_name: str = f"L90L2PickUpTheButterAndPutItInTheBasket"
     enable_fixtures = ["ketchup"]

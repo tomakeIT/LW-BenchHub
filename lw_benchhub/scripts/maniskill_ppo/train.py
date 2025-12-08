@@ -57,6 +57,7 @@ def main(args):
     from isaaclab.envs import ViewerCfg, ManagerBasedRLEnv
     from isaaclab_tasks.utils import parse_env_cfg
     from lw_benchhub.utils.place_utils.env_utils import set_seed
+    from lw_benchhub.core.context import get_context
     from lw_benchhub.utils.render_utils import optimize_rendering
 
     if "-" in args_cli.task:
@@ -79,7 +80,7 @@ def main(args):
             device=args_cli.device, num_envs=args_cli.num_envs, use_fabric=not args_cli.disable_fabric,
             first_person_view=args_cli.first_person_view,
             enable_cameras=app_launcher._enable_cameras,
-            execute_mode=ExecuteMode.EVAL,
+            execute_mode=ExecuteMode.TRAIN,
             usd_simplify=args_cli.usd_simplify,
             seed=args_cli.seed,
             sources=args_cli.sources,
@@ -104,7 +105,7 @@ def main(args):
     if args_cli.enable_rendering_optimization:
         optimize_rendering(env.unwrapped, args_cli)
 
-    from policy.maniskill_ppo.agent import PPOArgs, PPO, observation
+    from lw_benchhub.scripts.maniskill_ppo.agent import PPOArgs, PPO, observation
 
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -118,35 +119,53 @@ def main(args):
     next_obs, _ = env.reset()
     next_obs = observation(next_obs['policy'])
     args.num_envs = args_cli.num_envs
-    agent = PPO(env, next_obs, args, env_cfg.sim.device, train=False)
+    agent = PPO(env, next_obs, args, env_cfg.sim.device)
     if args_cli.checkpoint:
         agent.load_model(args_cli.checkpoint)
+    next_done = torch.zeros(args_cli.num_envs, device=env_cfg.sim.device)
+    num_iterations = args_cli.max_iterations if args_cli.max_iterations is not None else agent.num_iterations
 
-    eval_iter = 640
-    success_count = 0
-    episode_count = 0
-    with torch.inference_mode():
-        for _ in tqdm(range(eval_iter), desc="Evaluation Progress"):
-            action = agent.agent.get_action(next_obs, deterministic=True)
-            # action = torch.zeros_like(action, device=env_cfg.sim.device)
-            next_obs, _, terminations, _, extras = env.step(action)
-            next_obs = observation(next_obs['policy'])
+    pbar = tqdm(range(1, num_iterations + 1), desc="Training Progress")
+    for iteration in pbar:
+        if args.save_model and iteration % args.save_model_freq == 1:
+            agent.save_model(iteration)
+        if args.anneal_lr:
+            agent.anneal_lr(iteration)
+        next_obs, next_done = agent.collect_data(next_obs, next_done)
 
-            if args_cli.check_success:
+        agent.update(next_obs, next_done)
+    if args.save_model:
+        checkpoint_path = agent.save_model(iteration)
+
+    if hasattr(args_cli, "check_success") and args_cli.check_success:
+        get_context().execute_mode = ExecuteMode.EVAL
+        next_obs, _ = env.reset()
+        next_obs = observation(next_obs['policy'])
+        eval_iter = 640
+        success_count = 0
+        episode_count = 0
+        with torch.inference_mode():
+            for _ in tqdm(range(eval_iter), desc="Evaluation Progress"):
+                action = agent.agent.get_action(next_obs, deterministic=True)
+                # action = torch.zeros_like(action, device=env_cfg.sim.device)
+                next_obs, _, terminations, _, extras = env.step(action)
+                next_obs = observation(next_obs['policy'])
                 success_count += extras["is_success"].sum().item()
                 episode_count += terminations.sum().item()
-        if args_cli.check_success:
+
             success_rate = success_count / (episode_count + 1e-8)
-            parent_dir = os.path.dirname(args_cli.checkpoint)
+            parent_dir = os.path.dirname(checkpoint_path)
             result_path = os.path.join(parent_dir, "result.json")
             print(f"success_rate: {success_rate}")
             with open(result_path, "w") as f:
-                json.dump({"success_rate": success_rate}, f)
+                json.dump({"success_rate": success_rate, "ci_success": success_rate >= 0.7}, f)
+
+    # close the simulator
     env.close()
     simulation_app.close()
 
 
-from policy.maniskill_ppo.agent import PPOArgs
+from lw_benchhub.scripts.maniskill_ppo.agent import PPOArgs
 
 
 @dataclass

@@ -105,7 +105,6 @@ omni_cache/
 /assets
 
 .vscode/*
-policy/skrl/task_config/default.yml
 
 
 # lerobot calibration cache

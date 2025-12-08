@@ -129,7 +129,7 @@ def layer_init(layer, std=np.sqrt(2), bias_const=0.0):
 
 
 def get_logger(args):
-    writer = SummaryWriter(f"policy/maniskill_ppo/logs/runs/{args.exp_name}")
+    writer = SummaryWriter(f"lw_benchhub_logs/maniskill_ppo/runs/{args.exp_name}")
     writer.add_text(
         "hyperparameters",
         "|param|value|\n|-|-|\n%s" % ("\n".join([f"|{key}|{value}|" for key, value in vars(args).items()])),
@@ -351,7 +351,7 @@ class PPO():
         self.agent.load_state_dict(torch.load(pt_path))
 
     def save_model(self, iteration):
-        model_path = f"policy/maniskill_ppo/logs/runs/{self.args.exp_name}/ckpt_{iteration}.pt"
+        model_path = f"lw_benchhub_logs/maniskill_ppo/runs/{self.args.exp_name}/ckpt_{iteration}.pt"
         torch.save(self.agent.state_dict(), model_path)
         print(f"model saved to {model_path}")
         return model_path

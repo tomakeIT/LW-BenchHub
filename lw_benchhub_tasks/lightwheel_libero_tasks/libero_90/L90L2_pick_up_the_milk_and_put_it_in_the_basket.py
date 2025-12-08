@@ -16,6 +16,7 @@ import lw_benchhub.utils.object_utils as OU
 from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 
+
 class L90L2PickUpTheMilkAndPutItInTheBasket(LwTaskBase):
     task_name: str = f"L90L2PickUpTheMilkAndPutItInTheBasket"
     enable_fixtures: list[str] = ["ketchup"]

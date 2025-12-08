@@ -52,7 +52,7 @@ class GR00TPolicy(BasePolicy):
         modality_transform = self.data_config.transform()
         # load the policy
         return Gr00tPolicy(
-            model_path=self.usr_args["ckpt_setting"],
+            model_path=self.usr_args["checkpoint"],
             modality_config=modality_config,
             modality_transform=modality_transform,
             embodiment_tag=self.usr_args["embodiment_tag"],
@@ -104,21 +104,23 @@ class GR00TPolicy(BasePolicy):
         robot_actions = self._mapping_action(robot_action_policy)
         return robot_actions
 
-    def x7s_obs_mapping(self, obs):
-        obs['state.gripper'] = obs['state.gripper'] / 0.044
+    def custom_obs_mapping(self, obs):
+        # define your own obs mapping here
         return obs
 
-    def x7s_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
-        action[..., -1] = -action[..., -1]
+    def custom_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
+        # define your own action mapping here
         return action
 
     def eval(self, task_env: Any, observation: Dict[str, Any],
              usr_args: Dict[str, Any], video_writer: Any) -> bool:
         for _ in range(usr_args['time_out_limit']):
             observation = self.encode_obs(observation)
-            # observation = self.x7s_obs_mapping(observation)
+
+            observation = self.custom_obs_mapping(observation)
             actions = self.get_action(observation)  # env, horizon, action_dim
-            actions = self.x7s_action_mapping(actions)
+            actions = self.custom_action_mapping(actions)
+
             for i in range(self.usr_args["num_feedback_actions"]):
                 observation, terminated = self.step_environment(task_env, actions[:, i], usr_args)
                 self.add_video_frame(video_writer, observation, usr_args['record_camera'])

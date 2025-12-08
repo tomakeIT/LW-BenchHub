@@ -17,6 +17,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K2_put_the_black_bowl_at_the_back_on_the_plate import L90K2PutTheBlackBowlAtTheBackOnThePlate
 
+
 class L90K2OpenTheTopDrawerOfTheCabinet(L90K2PutTheBlackBowlAtTheBackOnThePlate):
     task_name: str = "L90K2OpenTheTopDrawerOfTheCabinet"
 

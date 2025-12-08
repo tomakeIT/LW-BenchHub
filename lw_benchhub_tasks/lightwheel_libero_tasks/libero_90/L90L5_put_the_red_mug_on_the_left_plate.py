@@ -19,6 +19,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.base.libero_mug_placement_base import LiberoMugPlacementBase
 
+
 class L90L5PutTheRedMugOnTheLeftPlate(LiberoMugPlacementBase):
     """
     L90L5PutTheRedMugOnTheLeftPlate: put the red mug on the left plate

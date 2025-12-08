@@ -72,19 +72,27 @@ class PIPolicy(BasePolicy):
                 obs_window[key] = obs[mapping]
         return obs_window
 
-    def piper_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
-        action[..., -1] = -action[..., -1]
+    def custom_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
+        # define your own action mapping here
         return action
+
+    def custom_obs_mapping(self, obs):
+        # define your own obs mapping here
+        return obs
 
     def eval(self, task_env: Any, observation: Dict[str, Any],
              usr_args: Dict[str, Any], video_writer: Any) -> bool:
         """Evaluate PI policy"""
         for _ in range(usr_args['time_out_limit']):
             self.observation_window = self.encode_obs(observation)
+
+            self.observation_window = self.custom_obs_mapping(self.observation_window)
             actions = self.get_action()
+            actions = self.custom_action_mapping(actions)
+
             chunk = actions.shape[0]
             actions = torch.from_numpy(actions).float().cuda()
-            actions = self.piper_action_mapping(actions)
+
             for i in range(chunk):
                 action = actions[i]
                 observation, terminated = self.step_environment(task_env, action.unsqueeze(0), usr_args)

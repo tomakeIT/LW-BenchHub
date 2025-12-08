@@ -15,6 +15,7 @@
 import lw_benchhub.utils.object_utils as OU
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_10.L10L2_put_objects_in_basket import Libero10PutInBasket
 
+
 class L90L3PickUpTheTomatoSauceAndPutItInTheTray(Libero10PutInBasket):
     """
     L90L3PickUpTheTomatoSauceAndPutItInTheTray: pick up the tomato_sauce and put it in the wooden_tray

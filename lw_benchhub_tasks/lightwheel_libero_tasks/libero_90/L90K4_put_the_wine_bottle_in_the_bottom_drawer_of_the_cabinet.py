@@ -18,6 +18,7 @@ from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K4_close_the_bottom_drawer_of_the_cabinet import L90K4CloseTheBottomDrawerOfTheCabinet
 
+
 class L90K4PutTheWineBottleInTheBottomDrawerOfTheCabinet(L90K4CloseTheBottomDrawerOfTheCabinet):
     task_name: str = "L90K4PutTheWineBottleInTheBottomDrawerOfTheCabinet"
 

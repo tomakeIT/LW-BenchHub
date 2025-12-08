@@ -20,6 +20,7 @@ import lw_benchhub.core.mdp as mdp
 import lw_benchhub.utils.object_utils as OU
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_10.L10L6_MugOnAndChocolateRightPlate import L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate
 
+
 class L90L5PutTheRedMugOnTheRightPlate(L10L6PutWhiteMugOnPlateAndPutChocolatePuddingToRightPlate):
 
     """

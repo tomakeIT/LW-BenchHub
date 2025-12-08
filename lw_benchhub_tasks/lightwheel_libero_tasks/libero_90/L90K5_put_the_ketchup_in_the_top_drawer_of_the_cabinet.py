@@ -18,6 +18,7 @@ from lw_benchhub.core.tasks.base import LwTaskBase
 import torch
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K5_put_the_black_bowl_on_the_plate import L90K5PutTheBlackBowlOnThePlate
 
+
 class L90K5PutTheKetchupInTheTopDrawerOfTheCabinet(L90K5PutTheBlackBowlOnThePlate):
     task_name: str = "L90K5PutTheKetchupInTheTopDrawerOfTheCabinet"
 

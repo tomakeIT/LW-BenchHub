@@ -42,7 +42,7 @@ def main(args_cli):
     import torch
     from lw_benchhub.sim2real.lerobot_follower.so100_follower import SO100Follower
     from lw_benchhub.sim2real.lerobot_follower.so101_follower import SO101Follower
-    from policy.maniskill_ppo.agent import PPOArgs, PPO, observation
+    from lw_benchhub.scripts.maniskill_ppo.agent import PPOArgs, PPO, observation
 
     def set_seed(seed, torch_deterministic):
         random.seed(seed)

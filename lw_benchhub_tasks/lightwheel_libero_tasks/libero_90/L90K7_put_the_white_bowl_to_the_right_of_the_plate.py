@@ -18,6 +18,7 @@ from lw_benchhub.core.tasks.base import LwTaskBase
 from lw_benchhub.core.models.fixtures import FixtureType
 from lw_benchhub_tasks.lightwheel_libero_tasks.libero_90.L90K7_put_the_white_bowl_on_the_plate import L90K7PutTheWhiteBowlOnThePlate
 
+
 class L90K7PutTheWhiteBowlToTheRightOfThePlate(L90K7PutTheWhiteBowlOnThePlate):
     task_name: str = "L90K7PutTheWhiteBowlToTheRightOfThePlate"
 

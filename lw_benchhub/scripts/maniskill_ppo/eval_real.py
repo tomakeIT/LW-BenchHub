@@ -177,7 +177,7 @@ def main(args):
     # create environment
     env: ManagerBasedRLEnv = gym.make(task_name, cfg=env_cfg)  # .unwrapped
     set_seed(env_cfg.seed, env.unwrapped, args.torch_deterministic)
-    from policy.maniskill_ppo.agent import PPOArgs, PPO, observation
+    from lw_benchhub.scripts.maniskill_ppo.agent import PPOArgs, PPO, observation
 
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = args_cli.num_envs if args_cli.num_envs is not None else env_cfg.scene.num_envs
@@ -286,7 +286,7 @@ def main(args):
                     break
 
 
-from policy.maniskill_ppo.agent import PPOArgs
+from lw_benchhub.scripts.maniskill_ppo.agent import PPOArgs
 
 
 @dataclass
