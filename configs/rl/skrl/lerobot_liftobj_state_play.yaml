@@ -1,11 +1,4 @@
 _base_:
-  - rl_base
-task: LiftObj                # Task name
-robot: LeRobot-RL                 # Robot type
-layout: robocasakitchen-9-8  # Scene layout
-rl: LeRobotLiftObjStateRL
+  - lerobot_liftobj_state
 num_envs: 1
-usd_simplify: true # USD simplify enable
-variant: State
-enable_cameras: false
 checkpoint: /your/path/to/checkpoints/best_agent.pt

@@ -2,5 +2,4 @@ _base_:
   - lerobot_liftobj_state
 rl: LeRobotLiftObjVisualRL
 num_envs: 200
-variant: Visual
 enable_cameras: true

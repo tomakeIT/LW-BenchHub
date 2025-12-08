@@ -10,7 +10,7 @@ name = "lw_benchhub"
 version = "0.1.0"
 description = "Isaac Lab based Benchmark for Robotics"
 dependencies = [
-    "lightwheel-sdk>=0.24",
+    "lightwheel-sdk>=1.0.0",
     "pin-pink==3.1.0",
     "grpcio>1.73",
     "protobuf>6",

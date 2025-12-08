@@ -12,7 +12,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from lw_benchhub.core.rl import register_rl_env
 from .open_drawer import agents as open_drawer_agents
 from .lift_obj import agents as lift_obj_agents
 
@@ -22,6 +21,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:G1LiftObjStateRL",
+        "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -31,6 +32,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:G1LiftObjVisualRL",
+        "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -40,6 +43,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjStateRL",
+        "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -49,6 +54,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjVisualRL",
+        "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -58,6 +65,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjDigitalTwin",
+        "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -67,6 +76,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.lift_obj.lift_obj:LeRobot100LiftObjStateRL",
+        "skrl_cfg_entry_point": f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
 )
@@ -76,85 +87,8 @@ gym.register(
     entry_point="isaaclab.envs:ManagerBasedRLEnv",
     kwargs={
         "env_cfg_entry_point": f"{__name__}.open_drawer.open_drawer:G1OpenDrawerRl",
+        "skrl_cfg_entry_point": f"{open_drawer_agents.__name__}:skrl_ppo_cfg.yaml",
+        "rsl_rl_cfg_entry_point": f"{open_drawer_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
     },
     disable_env_checker=True,
-)
-
-register_rl_env(
-    robot_name="G1-RL",
-    task_name="OpenDrawer",
-    env_cfg_entry_point=f"{__name__}.open_drawer.open_drawer:OpenDrawerG1RlCfg",
-    skrl_cfg_entry_point=f"{open_drawer_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{open_drawer_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="G1-RL",
-    task_name="LiftObj",
-    variant="State",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:G1StateLiftObjRLEnvCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="G1-RL",
-    task_name="LiftObj",
-    variant="Visual",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:G1VisualLiftObjRLEnvCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="LeRobot-RL",
-    task_name="LiftObj",
-    variant="State",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LeRobotStateLiftObjRLEnvCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="LeRobot-RL",
-    task_name="LiftObj",
-    variant="Visual",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LeRobotVisualLiftObjRLEnvCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-register_rl_env(
-    robot_name="LeRobot-RL",
-    task_name="LiftObjDigitalTwin",
-    variant="Visual",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LeRobotLiftObjDigitalTwinCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="LeRobot100-RL",
-    task_name="LiftObj",
-    variant="State",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LeRobot100StateLiftObjRLEnvCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="LeRobot100-RL",
-    task_name="LiftObj",
-    variant="Visual",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LeRobot100VisualLiftObjRLEnvCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
-)
-
-register_rl_env(
-    robot_name="LeRobot100-RL",
-    task_name="LiftObjDigitalTwin",
-    variant="Visual",
-    env_cfg_entry_point=f"{__name__}.lift_obj.lift_obj:LeRobot100LiftObjDigitalTwinCfg",
-    skrl_cfg_entry_point=f"{lift_obj_agents.__name__}:skrl_ppo_cfg.yaml",
-    rsl_rl_cfg_entry_point=f"{lift_obj_agents.__name__}.rsl_rl_ppo_cfg:PPORunnerCfg",
 )

@@ -18,7 +18,6 @@ debug_assets: null           # Debug assets name
 robot: null                  # Robot cfg name
 task: null                   # Task cfg name
 rl: null                     # RL cfg name
-variant: null                # RL variant name, define when register the RL config
 usd_simplify: false          # USD simplify enable
 enable_rendering_optimization: true    # Enable optimization
 

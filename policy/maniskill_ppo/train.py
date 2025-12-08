@@ -82,7 +82,6 @@ def main(args):
             enable_cameras=app_launcher._enable_cameras,
             execute_mode=ExecuteMode.TRAIN,
             usd_simplify=args_cli.usd_simplify,
-            rl_variant=args_cli.variant,
             seed=args_cli.seed,
             sources=args_cli.sources,
             object_projects=args_cli.object_projects,

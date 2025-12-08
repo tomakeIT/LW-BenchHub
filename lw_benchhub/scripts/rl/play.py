@@ -115,10 +115,7 @@ def main():
     # Load agent configuration
     from lw_benchhub.utils.env import load_cfg_cls_from_registry
     agent_cfg_entry_point = "skrl_cfg_entry_point" if algorithm in ["ppo"] else f"skrl_{algorithm}_cfg_entry_point"
-    if args_cli.variant:
-        agent_cfg = load_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}-{args_cli.variant}", agent_cfg_entry_point)
-    else:
-        agent_cfg = load_cfg_cls_from_registry('rl', f"{args_cli.robot}-{args_cli.task}", agent_cfg_entry_point)
+    agent_cfg = load_cfg_cls_from_registry('rl', args_cli.rl, agent_cfg_entry_point)
 
     # specify directory for logging experiments (load checkpoint)
     log_root_path = os.path.join("policy/skrl/logs", agent_cfg["agent"]["experiment"]["directory"])

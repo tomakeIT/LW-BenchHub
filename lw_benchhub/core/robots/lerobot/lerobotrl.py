@@ -271,7 +271,7 @@ class LeRobotRL(BaseLeRobot):
         super().__init__(enable_cameras, initial_pose)
         self.name = "LeRobot-RL"
         self.scene_config = LeRobotRLSceneCfg()
-        self.robot_base_offset = {"pos": [1.2, -0.8, 0.892], "rot": [0.0, 0.0, 0]}
+        self.robot_base_offset = {"pos": [1.2, -0.5, 0.892], "rot": [0.0, 0.0, 0]}
         self.viewport_cfg = {
             "offset": [-1.0, 0.0, 2.0],
             "lookat": [1.0, 0.0, -0.7]

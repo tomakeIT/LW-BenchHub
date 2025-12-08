@@ -956,7 +956,7 @@ class UnitreeG1HandEnvRLCfg(UnitreeG1HandEnvCfg):
         self.action_config = G1RLActionsCfg()
         self.action_config.right_hand_action = self.gripper_cfg.right_hand_action_cfg()[self.hand_action_mode]
         self.robot_to_fixture_dist = 0.20
-        self.robot_base_offset = {"pos": [-0.2, 0.1, 0.92], "rot": [0.0, 0.0, 0.0]}
+        self.robot_base_offset = {"pos": [1.45, -0.9, 0.9], "rot": [0.0, 0.0, -1.57]}
         self.reward_gripper_joint_names = ["right_hand_.*"]
         self.reward_arm_joint_names = ["right_shoulder_pitch_joint", "right_shoulder_roll_joint", "right_shoulder_yaw_joint",
                                        "right_elbow_joint", "right_wrist_roll_joint", "right_wrist_pitch_joint", "right_wrist_yaw_joint"]
