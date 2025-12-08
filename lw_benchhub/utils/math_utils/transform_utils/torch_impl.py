@@ -716,5 +716,146 @@ def rotate_2d_point(input, rot):
     input_x, input_y = input
     x = input_x * torch.cos(rot) - input_y * torch.sin(rot)
     y = input_x * torch.sin(rot) + input_y * torch.cos(rot)
-
     return torch.stack([x, y])
+
+
+def compute_delta_pose(cur: torch.Tensor, tgt: torch.Tensor) -> torch.Tensor:
+    """Compute relative pose: delta = tgt ∘ (cur)^(-1).
+
+    Args:
+        cur: Current pose tensor of shape (T, 7) [p_cur, q_cur].
+        tgt: Target pose tensor of shape (T, 7) [p_tgt, q_tgt].
+
+    Returns:
+        Relative pose tensor of shape (T, 7) [dp, dq].
+    """
+    p_cur = cur[:, :3]
+    q_cur = cur[:, 3:]
+    p_tgt = tgt[:, :3]
+    q_tgt = tgt[:, 3:]
+    p_cur_inv, q_cur_inv = se3_inverse(p_cur, q_cur)
+    dp, dq = se3_compose(p_cur_inv, q_cur_inv, p_tgt, q_tgt)
+    return torch.cat([dp, dq], dim=-1)
+
+
+def pose_left_multiply(a: torch.Tensor, b: torch.Tensor) -> torch.Tensor:
+    """Left multiply pose: T_curr = (ΔT)^(-1) ∘ T_target.
+
+    Args:
+        a: Target pose tensor of shape (T, 7) [p, q].
+        b: Relative pose tensor of shape (T, 7) [dp, dq].
+
+    Returns:
+        Current pose tensor of shape (T, 7) [p_curr, q_curr].
+    """
+    dp_rel = b[:, :3]
+    dq_rel = b[:, 3:]
+    p_tgt = a[:, :3]
+    q_tgt = a[:, 3:]
+    dp_rel_inv, dq_rel_inv = se3_inverse(dp_rel, dq_rel)
+    p_curr, q_curr = se3_compose(p_tgt, q_tgt, dp_rel_inv, dq_rel_inv)
+    return torch.cat([p_curr, q_curr], dim=-1)
+
+
+def se3_compose(p1: torch.Tensor, q1: torch.Tensor, p2: torch.Tensor, q2: torch.Tensor):
+    """Compose two SE(3) transformations: (p1, q1) ∘ (p2, q2).
+
+    Args:
+        p1: First translation tensor of shape (..., 3).
+        q1: First quaternion tensor of shape (..., 4) in wxyz format.
+        p2: Second translation tensor of shape (..., 3).
+        q2: Second quaternion tensor of shape (..., 4) in wxyz format.
+
+    Returns:
+        Tuple of (composed_translation, composed_quaternion).
+    """
+    R1 = quat_to_R(q1)
+    p = p1 + torch.einsum('...ij,...j->...i', R1, p2)
+    q = quat_mul(q1, q2)
+    return p, quat_normalize(q)
+
+
+def se3_inverse(p: torch.Tensor, q: torch.Tensor):
+    """Compute inverse of SE(3) transformation: (p, q)^(-1).
+
+    Args:
+        p: Translation tensor of shape (..., 3).
+        q: Quaternion tensor of shape (..., 4) in wxyz format.
+
+    Returns:
+        Tuple of (inverse_translation, inverse_quaternion).
+    """
+    R = quat_to_R(q)
+    Rt = torch.swapaxes(R, -1, -2)
+    p_inv = -torch.einsum('...ij,...j->...i', Rt, p)
+    q_inv = quat_conj(quat_normalize(q))
+    return p_inv, q_inv
+
+
+def quat_to_R(q: torch.Tensor) -> torch.Tensor:
+    """Convert quaternion to rotation matrix.
+
+    Args:
+        q: Quaternion tensor of shape (..., 4) in wxyz format.
+
+    Returns:
+        Rotation matrix tensor of shape (..., 3, 3).
+    """
+    q = quat_normalize(q)
+    w, x, y, z = torch.moveaxis(q, -1, 0)
+    R = torch.empty(q.shape[:-1] + (3, 3), dtype=q.dtype, device=q.device)
+    R[..., 0, 0] = 1 - 2 * (y * y + z * z)
+    R[..., 0, 1] = 2 * (x * y - z * w)
+    R[..., 0, 2] = 2 * (x * z + y * w)
+    R[..., 1, 0] = 2 * (x * y + z * w)
+    R[..., 1, 1] = 1 - 2 * (x * x + z * z)
+    R[..., 1, 2] = 2 * (y * z - x * w)
+    R[..., 2, 0] = 2 * (x * z - y * w)
+    R[..., 2, 1] = 2 * (y * z + x * w)
+    R[..., 2, 2] = 1 - 2 * (x * x + y * y)
+    return R
+
+
+def quat_mul(q1: torch.Tensor, q2: torch.Tensor) -> torch.Tensor:
+    """Multiply two quaternions.
+
+    Args:
+        q1: First quaternion tensor of shape (..., 4) in wxyz format.
+        q2: Second quaternion tensor of shape (..., 4) in wxyz format.
+
+    Returns:
+        Product quaternion q1 * q2 of shape (..., 4).
+    """
+    w1, x1, y1, z1 = torch.moveaxis(q1, -1, 0)
+    w2, x2, y2, z2 = torch.moveaxis(q2, -1, 0)
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+    return torch.stack([w, x, y, z], dim=-1)
+
+
+def quat_normalize(q: torch.Tensor) -> torch.Tensor:
+    """Normalize quaternion to unit length.
+
+    Args:
+        q: Quaternion tensor of shape (..., 4) in wxyz format.
+
+    Returns:
+        Normalized quaternion tensor of same shape.
+    """
+    q = q.to(dtype=torch.float64)
+    return q / torch.linalg.norm(q, dim=-1, keepdim=True)
+
+
+def quat_conj(q: torch.Tensor) -> torch.Tensor:
+    """Compute quaternion conjugate.
+
+    Args:
+        q: Quaternion tensor of shape (..., 4) in wxyz format.
+
+    Returns:
+        Conjugate quaternion [w, -x, -y, -z] of same shape.
+    """
+    w, x, y, z = torch.moveaxis(q, -1, 0)
+    return torch.stack([w, -x, -y, -z], dim=-1)

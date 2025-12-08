@@ -21,10 +21,10 @@ NOTE: Quaternion convention is (x, y, z, w)
 import math
 import numpy as np
 
+from .consts import _NEXT_AXIS, _AXES2TUPLE
+
 PI = np.pi
 EPS = np.finfo(np.float32).eps * 4.0
-
-from .consts import _NEXT_AXIS, _AXES2TUPLE
 
 
 def convert_quat(q, to="xyzw"):
@@ -733,5 +733,146 @@ def rotate_2d_point(input, rot):
     input_x, input_y = input
     x = input_x * np.cos(rot) - input_y * np.sin(rot)
     y = input_x * np.sin(rot) + input_y * np.cos(rot)
-
     return np.array([x, y])
+
+
+def compute_delta_pose(cur, tgt):
+    """Compute relative pose: delta = tgt ∘ (cur)^(-1).
+
+    Args:
+        cur: Current pose array of shape (T, 7) [p_cur, q_cur].
+        tgt: Target pose array of shape (T, 7) [p_tgt, q_tgt].
+
+    Returns:
+        Relative pose array of shape (T, 7) [dp, dq].
+    """
+    p_cur = cur[:, :3]
+    q_cur = cur[:, 3:]
+    p_tgt = tgt[:, :3]
+    q_tgt = tgt[:, 3:]
+    p_cur_inv, q_cur_inv = se3_inverse(p_cur, q_cur)
+    dp, dq = se3_compose(p_cur_inv, q_cur_inv, p_tgt, q_tgt)
+    return np.concatenate([dp, dq], axis=-1)
+
+
+def pose_left_multiply(a, b):
+    """Left multiply pose: T_curr = (ΔT)^(-1) ∘ T_target.
+
+    Args:
+        a: Target pose array of shape (T, 7) [p, q].
+        b: Relative pose array of shape (T, 7) [dp, dq].
+
+    Returns:
+        Current pose array of shape (T, 7) [p_curr, q_curr].
+    """
+    dp_rel = b[:, :3]
+    dq_rel = b[:, 3:]
+    p_tgt = a[:, :3]
+    q_tgt = a[:, 3:]
+    dp_rel_inv, dq_rel_inv = se3_inverse(dp_rel, dq_rel)
+    p_curr, q_curr = se3_compose(p_tgt, q_tgt, dp_rel_inv, dq_rel_inv)
+    return np.concatenate([p_curr, q_curr], axis=-1)
+
+
+def se3_compose(p1, q1, p2, q2):
+    """Compose two SE(3) transformations: (p1, q1) ∘ (p2, q2).
+
+    Args:
+        p1: First translation vector of shape (..., 3).
+        q1: First quaternion of shape (..., 4) in wxyz format.
+        p2: Second translation vector of shape (..., 3).
+        q2: Second quaternion of shape (..., 4) in wxyz format.
+
+    Returns:
+        Tuple of (composed_translation, composed_quaternion).
+    """
+    R1 = quat_to_R(q1)
+    p = p1 + np.einsum('...ij,...j->...i', R1, p2)
+    q = quat_mul(q1, q2)
+    return p, quat_normalize(q)
+
+
+def se3_inverse(p, q):
+    """Compute inverse of SE(3) transformation: (p, q)^(-1).
+
+    Args:
+        p: Translation vector of shape (..., 3).
+        q: Quaternion of shape (..., 4) in wxyz format.
+
+    Returns:
+        Tuple of (inverse_translation, inverse_quaternion).
+    """
+    R = quat_to_R(q)
+    Rt = np.swapaxes(R, -1, -2)
+    p_inv = -np.einsum('...ij,...j->...i', Rt, p)
+    q_inv = quat_conj(quat_normalize(q))
+    return p_inv, q_inv
+
+
+def quat_to_R(q):
+    """Convert quaternion to rotation matrix.
+
+    Args:
+        q: Quaternion array of shape (..., 4) in wxyz format.
+
+    Returns:
+        Rotation matrix array of shape (..., 3, 3).
+    """
+    q = quat_normalize(q)
+    w, x, y, z = np.moveaxis(q, -1, 0)
+    R = np.empty(q.shape[:-1] + (3, 3), dtype=np.float64)
+    R[..., 0, 0] = 1 - 2 * (y * y + z * z)
+    R[..., 0, 1] = 2 * (x * y - z * w)
+    R[..., 0, 2] = 2 * (x * z + y * w)
+    R[..., 1, 0] = 2 * (x * y + z * w)
+    R[..., 1, 1] = 1 - 2 * (x * x + z * z)
+    R[..., 1, 2] = 2 * (y * z - x * w)
+    R[..., 2, 0] = 2 * (x * z - y * w)
+    R[..., 2, 1] = 2 * (y * z + x * w)
+    R[..., 2, 2] = 1 - 2 * (x * x + y * y)
+    return R
+
+
+def quat_mul(q1, q2):
+    """Multiply two quaternions.
+
+    Args:
+        q1: First quaternion array of shape (..., 4) in wxyz format.
+        q2: Second quaternion array of shape (..., 4) in wxyz format.
+
+    Returns:
+        Product quaternion q1 * q2 of shape (..., 4).
+    """
+    w1, x1, y1, z1 = np.moveaxis(q1, -1, 0)
+    w2, x2, y2, z2 = np.moveaxis(q2, -1, 0)
+    w = w1 * w2 - x1 * x2 - y1 * y2 - z1 * z2
+    x = w1 * x2 + x1 * w2 + y1 * z2 - z1 * y2
+    y = w1 * y2 - x1 * z2 + y1 * w2 + z1 * x2
+    z = w1 * z2 + x1 * y2 - y1 * x2 + z1 * w2
+    return np.stack([w, x, y, z], axis=-1)
+
+
+def quat_normalize(q):
+    """Normalize quaternion to unit length.
+
+    Args:
+        q: Quaternion array of shape (..., 4) in wxyz format.
+
+    Returns:
+        Normalized quaternion of same shape.
+    """
+    q = np.asarray(q, dtype=np.float64)
+    return q / np.linalg.norm(q, axis=-1, keepdims=True)
+
+
+def quat_conj(q):
+    """Compute quaternion conjugate.
+
+    Args:
+        q: Quaternion array of shape (..., 4) in wxyz format.
+
+    Returns:
+        Conjugate quaternion [w, -x, -y, -z] of same shape.
+    """
+    w, x, y, z = np.moveaxis(q, -1, 0)
+    return np.stack([w, -x, -y, -z], axis=-1)

@@ -25,7 +25,7 @@ import tqdm
 
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
 
-from lw_benchhub.scripts.math_utils import compute_delta_pose, pose_left_multiply
+from lw_benchhub.utils.math_utils.transform_utils.numpy_impl import compute_delta_pose, pose_left_multiply
 
 
 def convert_isaaclab_to_lerobot(args, config):
