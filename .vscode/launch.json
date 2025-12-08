@@ -27,7 +27,7 @@
             "args": [
                 "--task_config=lerobot_liftobj_state_play",
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/rl/play.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/rl/play.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -60,7 +60,7 @@
             "args": [
                 "--remote_protocol=ipc",
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/env_server.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/env_server.py",
             "console": "integratedTerminal",
             "justMyCode": false,
             "env": {
@@ -80,7 +80,7 @@
                 // "--time_out_limit", "60",
                 // "--test_num", "5"
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/policy/eval_policy.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/policy/eval_policy.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -91,7 +91,7 @@
             "args": [
                 "--task_config=pandaomron",
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/teleop_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -107,7 +107,7 @@
                 "--enable_cameras",
                 "--device=cpu"
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_demos.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/replay_demos.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -124,7 +124,7 @@
                 "--enable_cameras",
                 "--device=cpu"
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_action_demo.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/replay_action_demo.py",
             "console": "integratedTerminal",
             "justMyCode": false
         },
@@ -141,7 +141,7 @@
                 "--enable_cameras",
                 "--device=cpu"
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_action_demo.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/replay_action_demo.py",
             "console": "integratedTerminal",
             "justMyCode": false
         },
@@ -158,7 +158,7 @@
                 "--enable_cameras",
                 "--device=cpu"
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_main.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/replay_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -175,7 +175,7 @@
                 "--enable_cameras",
                 "--device=cpu"
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/replay_main.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/replay_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -186,7 +186,7 @@
             "args": [
                 "--task_config=test_object" ,
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/teleop_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         },
@@ -197,7 +197,7 @@
             "args": [
                 "--task_config=test_fixture" ,
             ],
-            "program": "${workspaceFolder}/lwlab/scripts/teleop/teleop_main.py",
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/teleop_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
         }
