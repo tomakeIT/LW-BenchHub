@@ -170,9 +170,7 @@ class _PathView:
         return self._svc.instance_check(cls, self._path)
 
 
-# Semantic sugar: top-level env view
-
-
+# Semantic sugar: top-level environment view
 class RemoteEnv(_PathView):
     @classmethod
     def make(cls, address, authkey=b'lightwheel') -> "RemoteEnv":

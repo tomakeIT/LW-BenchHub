@@ -91,8 +91,3 @@ class IpcDistributedEnvWrapper(BaseDistributedEnv):
     def close(self):
         self._shutdown_event.set()
         super().close()
-
-    # def __setattr__(self, key, value):
-    #     if key in ("_env", "_manager", "_server"):
-    #         return super().__setattr__(key, value)
-    #     return setattr(self._env, key, value)

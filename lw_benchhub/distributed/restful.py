@@ -172,9 +172,17 @@ class RestfulEnvWrapper(BaseDistributedEnv):
             if self._env is None:
                 raise APIError("environment is not attached", 500)
             lang = ""
-            if hasattr(self._env, "cfg") and hasattr(self._env.cfg, "get_ep_meta"):
-                meta = self._env.cfg.get_ep_meta()
-                lang = meta.get("lang", "")
+            try:
+                # Try calling the get_task_description method (executed in the worker process)
+                if hasattr(self._env, "get_task_description"):
+                    lang = self._env.get_task_description()
+                # If the method does not exist, try to access directly (may fail)
+                elif hasattr(self._env, "cfg") and hasattr(self._env.cfg, "get_ep_meta"):
+                    meta = self._env.cfg.get_ep_meta()
+                    lang = meta.get("lang", "")
+            except Exception as e:
+                print(f"[Warning] Could not get task description: {e}")
+                lang = ""
             return {"lang": lang}
 
         @app.route("/reset", methods=["POST"])
@@ -193,9 +201,17 @@ class RestfulEnvWrapper(BaseDistributedEnv):
                 obs, info = res, {}
             images_b64 = self._extract_images(obs)
             lang = ""
-            if hasattr(self._env, "cfg") and hasattr(self._env.cfg, "get_ep_meta"):
-                meta = self._env.cfg.get_ep_meta()
-                lang = meta.get("lang", "")
+            try:
+                # Try calling the get_task_description method (executed in the worker process)
+                if hasattr(self._env, "get_task_description"):
+                    lang = self._env.get_task_description()
+                # If the method does not exist, try to access directly (may fail)
+                elif hasattr(self._env, "cfg") and hasattr(self._env.cfg, "get_ep_meta"):
+                    meta = self._env.cfg.get_ep_meta()
+                    lang = meta.get("lang", "")
+            except Exception as e:
+                print(f"[Warning] Could not get task description: {e}")
+                lang = ""
             return {
                 "obs": images_b64,
                 # "obs_tensor": self._tensor_to_jsonable(obs),
@@ -230,8 +246,18 @@ class RestfulEnvWrapper(BaseDistributedEnv):
                 action = action.unsqueeze(0)
             for _ in range(step_count):
                 step_out = self.step(action)
-            if not (isinstance(step_out, tuple) and len(step_out) >= 5):
-                raise APIError("env.step must return (obs, reward, terminated, truncated, info)", 500)
+
+            # EnvRouter may return list or tuple, handle both
+            if not isinstance(step_out, (tuple, list)):
+                error_msg = f"env.step must return (obs, reward, terminated, truncated, info), got {type(step_out)}"
+                if step_out is not None:
+                    error_msg += f": {str(step_out)[:200]}"
+                raise APIError(error_msg, 500)
+
+            if len(step_out) < 5:
+                error_msg = f"env.step must return 5 elements (obs, reward, terminated, truncated, info), got {len(step_out)} elements"
+                error_msg += f": {[type(x).__name__ for x in step_out]}"
+                raise APIError(error_msg, 500)
 
             obs, reward, terminated, truncated, info = step_out[:5]
             images_b64 = self._extract_images(obs)

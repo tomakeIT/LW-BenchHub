@@ -172,95 +172,8 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
     STOOL_EXCLUDED_LAYOUT: list = [1, 3, 5, 6, 18, 20, 36, 39, 40, 43, 47, 50, 52]
     SHELVES_INCLUDED_LAYOUT: list = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
     DOUBLE_CAB_EXCLUDED_LAYOUTS: list = [32, 41, 59]
-    FREEZER_EXCLUDED_LAYOUTS = [
-        1,
-        3,
-        4,
-        5,
-        6,
-        8,
-        10,
-        11,
-        12,
-        13,
-        14,
-        15,
-        16,
-        17,
-        19,
-        20,
-        22,
-        23,
-        25,
-        26,
-        27,
-        28,
-        30,
-        31,
-        33,
-        34,
-        35,
-        36,
-        37,
-        39,
-        40,
-        42,
-        46,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54,
-        55,
-        56,
-        58,
-        59,
-        60,
-    ]
-    FOUR_TOASTER_SLOT_EXCLUDE_STYLES = [
-        1,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        12,
-        13,
-        15,
-        16,
-        17,
-        20,
-        21,
-        23,
-        24,
-        25,
-        27,
-        28,
-        31,
-        32,
-        35,
-        36,
-        39,
-        41,
-        43,
-        44,
-        46,
-        47,
-        48,
-        49,
-        51,
-        53,
-        54,
-        56,
-        58,
-        60,
-    ]
+    FREEZER_EXCLUDED_LAYOUTS = [1, 3, 4, 5, 6, 8, 10, 11, 12, 13, 14, 15, 16, 17, 19, 20, 22, 23, 25, 26, 27, 28, 30, 31, 33, 34, 35, 36, 37, 39, 40, 42, 46, 48, 49, 50, 51, 52, 53, 54, 55, 56, 58, 59, 60]
+    FOUR_TOASTER_SLOT_EXCLUDE_STYLES = [1, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 15, 16, 17, 20, 21, 23, 24, 25, 27, 28, 31, 32, 35, 36, 39, 41, 43, 44, 46, 47, 48, 49, 51, 53, 54, 56, 58, 60]
     _start_success_check_count: int = 10
     enable_fixtures: list[str] = []
     movable_fixtures: list[str] = []
@@ -843,8 +756,6 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
             return self.fixtures[key]
         else:
             ref_fixture = self.get_fixture(ref)
-
-            # NOTE: I dont konw why error here?
             # assert isinstance(id, FixtureType)
             cand_fixtures: List[Fixture] = []
             for fxtr in self.fixtures.values():

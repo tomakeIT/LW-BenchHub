@@ -46,7 +46,6 @@ args_cli.__dict__.update(yaml_args.__dict__)
 
 app_launcher_args = vars(args_cli)
 # launch omniverse app
-# os.environ["ROBOCASA_ASSETS_ROOT"] = str(args_cli.asset_base_path)
 app_launcher = AppLauncher(app_launcher_args)
 
 simulation_app = app_launcher.app
@@ -107,7 +106,7 @@ def set_camera_follow_pose(env, pos_offset, rot_offset_wxyz):
     # Use scipy.Rotation to combine quaternions (its input format is xyzw)
     rot_offset_wxyz = np.asarray(rot_offset_wxyz, dtype=np.float32).reshape(4)
     r_robot = R.from_quat(robot_q_xyzw)                                 # xyzw
-    r_off = R.from_quat(rot_offset_wxyz[[1, 2, 3, 0]])                # wxyz -> xyzw
+    r_off = R.from_quat(rot_offset_wxyz[[1, 2, 3, 0]])                  # wxyz -> xyzw
     r_cam = r_robot * r_off
     cam_q_xyzw = r_cam.as_quat()                                        # xyzw
     cam_q_wxyz = cam_q_xyzw[[3, 0, 1, 2]]                               # back wxyz
@@ -122,7 +121,6 @@ def set_camera_follow_pose(env, pos_offset, rot_offset_wxyz):
                                orientations=orientations,
                                env_ids=[0],
                                convention="opengl")
-    # global_cam.set_world_poses_from_view(robot_pos_tensor, robot_lookat_tensor)
 
 
 def main():
@@ -353,10 +351,10 @@ def main():
         real_f = real_rgb.astype(np.float32)
         real_f = real_f / 255.0
 
-        # 2) 融合 (可调权重)
+        # 2) Blend (adjustable weight)
         alpha = 0.5
         overlay_f = alpha * sim_f + (1.0 - alpha) * real_f
-        # 3) 转回 uint8
+        # 3) Convert back to uint8
         overlay = (overlay_f * 255.0).clip(0, 255).astype(np.uint8)
 
         return overlay

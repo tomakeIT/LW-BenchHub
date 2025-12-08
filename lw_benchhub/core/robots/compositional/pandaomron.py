@@ -182,7 +182,7 @@ class PandaOmronEmbodiment(LwEmbodimentBase):
             pose_movement = base_movement + gripper_movement
 
             arm_action[:3] = pose_movement
-            arm_action[3] = combined_quat[3]  # 更新旋转四元数 xyzw 2 wxyz
+            arm_action[3] = combined_quat[3]  # xyzw2wxyz
             arm_action[4:7] = combined_quat[:3]
 
         arm_action = arm_action.repeat(num_envs, 1)

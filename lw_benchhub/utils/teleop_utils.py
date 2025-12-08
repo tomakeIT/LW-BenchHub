@@ -978,7 +978,7 @@ def replay_from_raw_input(raw_input_dict: dict, device) -> dict | None:
         # Handle base mode switching (same logic as in input2action)
         if left_controller_state.get("thumbstick", 0) == 1 and device.last_thumbstick_state == 0:
             device.base_mode_flag = 1 - device.base_mode_flag
-            print(f"base_mode_flag 切换为: {device.base_mode_flag}")
+            print(f"base_mode_flag switched to: {device.base_mode_flag}")
         device.last_thumbstick_state = left_controller_state.get("thumbstick", 0)
         state["base_mode"] = device.base_mode_flag
 

@@ -41,13 +41,6 @@ def hand_is_lifted(
     ee_tcp_pos = env.scene["ee_frame"].data.target_pos_w[..., 0, :]
     return torch.where(ee_tcp_pos[:, 2] < minimal_height, -1.0, 0.0)
 
-# def object_height(
-#     env: ManagerBasedRLEnv, object_cfg: SceneEntityCfg = SceneEntityCfg("object")
-# ) -> torch.Tensor:
-#     """Dense reward for the object being lifted"""
-#     object: RigidObject = env.scene[object_cfg.name]
-#     return object.data.root_pos_w[:, 2]
-
 
 def object_is_lifted_grasped(
     env: ManagerBasedRLEnv,
@@ -83,7 +76,6 @@ def object_is_lifted_grasped(
         height_gain,
         0.0
     )
-
     return reward
 
 
@@ -117,9 +109,7 @@ def object_ee_distance(
     ee_w = ee_frame.data.target_pos_w[..., 0, :]
     # Distance of the end-effector to the object: (num_envs,)
     object_ee_distance = torch.norm(cube_pos_w - ee_w, dim=1)
-
     return 1 - torch.tanh(object_ee_distance / std)
-    # return -torch.log(object_ee_distance**2 / std + 1)
 
 
 def grasp_handle(
@@ -143,7 +133,6 @@ def grasp_handle_fine_grained(
     distance_2 = torch.norm(object_pos - ee_thumb_pos, dim=1)
     distance_3 = torch.norm(object_pos - ee_index_pos, dim=1)
     distance_4 = torch.norm(object_pos - ee_middle_pos, dim=1)
-
     return - 2 * torch.log(distance_2 / 0.1 + 1) - torch.log(distance_3 / 0.1 + 1) - torch.log(distance_4 / 0.1 + 1)
 
 
@@ -205,10 +194,8 @@ def object_ee_distance_maniskill(
     ee_w = (gripper + jaw) / 2
     # Distance of the end-effector to the object: (num_envs,)
     object_ee_distance = torch.linalg.norm(cube_pos_w - ee_w, dim=1)
-
-    # 计算reward
+    # Compute reward
     reward = 1.0 - torch.tanh(5 * object_ee_distance)
-
     return reward
 
 
@@ -269,9 +256,6 @@ def object_is_grasped_maniskill(
     langle = compute_angle_between(ldirection, gripper_contact_force)
     rangle = compute_angle_between(rdirection, jaw_contact_force)
 
-    # print("langle:", torch.rad2deg(langle))
-    # print("rangle:", torch.rad2deg(rangle))
-    # print("-----------------------------------------")
     lflag = torch.logical_and(
         gripper_object_force >= min_force, torch.rad2deg(langle) <= max_angle
     )
@@ -314,5 +298,4 @@ def gripper_is_touching_table_maniskill(
         jaw_table_force >= 1e-2,
     )
     # print(f"touching_table:{touching_table}")
-
     return touching_table.float()

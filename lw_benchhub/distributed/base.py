@@ -151,6 +151,27 @@ class BaseDistributedEnv(abc.ABC):
             import gc
             gc.collect()
 
+    def get_task_description(self):
+        """Get task description from environment configuration.
+
+        This method is designed to be called from worker processes.
+        It accesses cfg.get_ep_meta()["lang"] and returns only the string,
+        avoiding pickle serialization issues.
+
+        Returns:
+            str: Task description string, or empty string if not available.
+        """
+        if self._env is None:
+            return ""
+        try:
+            if hasattr(self._env, "cfg") and hasattr(self._env.cfg, "get_ep_meta"):
+                meta = self._env.cfg.get_ep_meta()
+                return meta.get("lang", "")
+        except Exception as e:
+            print(f"[Warning] Could not get task description: {e}")
+            return ""
+        return ""
+
     @abc.abstractmethod
     def signal_handler(self, signum: int, frame):
         # get pid

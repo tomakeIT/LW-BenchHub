@@ -58,12 +58,15 @@ class ExecuteMode(enum.Enum):
 
 
 def str_to_execute_mode(mode_str: str) -> ExecuteMode:
+    if mode_str is None:
+        print(f"Execute mode is None. Use default mode TELEOP")
+        return ExecuteMode.TELEOP
     normalized = mode_str.upper().replace(' ', '').replace('_', '')
     for mode in ExecuteMode:
         mode_name_normalized = mode.name.upper().replace(' ', '').replace('_', '')
         if mode_name_normalized == normalized:
             return mode
-    print(f"INvalid excute mode: '{mode_str}'. Use default mode TELEOP")
+    print(f"Invalid execute mode: '{mode_str}'. Use default mode TELEOP")
     return ExecuteMode.TELEOP
 
 
