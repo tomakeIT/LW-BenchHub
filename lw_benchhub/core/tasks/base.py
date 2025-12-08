@@ -403,15 +403,6 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
                         if obj_cfg["name"] in obj_version:
                             object_version = obj_version[obj_cfg["name"]]
                             break
-                        # TODO(geng.wang): temp code for task_1w_dev data, will be deleted in the future
-                        else:
-                            if "mjcf_path" in obj_cfg.get("info", {}).keys():
-                                xml_path = obj_cfg.get("info", {})["mjcf_path"]
-                                name = xml_path.split("/")[-2]
-                                if name in obj_version:
-                                    object_version = obj_version[name]
-                                    break
-                        ##
                 model, info = EnvUtils.create_obj(self, obj_cfg, version=object_version)
                 obj_cfg["info"] = {**obj_cfg.get("info", {}), **info}
                 self.objects[model.task_name] = model
