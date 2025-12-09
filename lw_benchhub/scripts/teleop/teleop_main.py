@@ -72,8 +72,6 @@ from lw_benchhub.utils.profile_utils import DEBUG_FRAME_ANALYZER, debug_print, t
 from lw_benchhub.utils.render_utils import optimize_rendering
 from lw_benchhub.utils.teleop_utils import download_file
 
-from robocasa_upload.joylo_uploader import JoyLoUploader
-
 if multiprocessing.get_start_method(allow_none=True) != "spawn":
     multiprocessing.set_start_method("spawn", force=True)
 
@@ -554,18 +552,6 @@ def main():
         omni.usd.get_context().new_stage()
         with trace_profile("parse_env_cfg"):
             # Load replay dataset
-            if hasattr(args_cli, "project_name") and hasattr(args_cli, "batch_name"):
-                uploader = JoyLoUploader(project_name=args_cli.project_name)
-                task_info = uploader.pull_task(batch_name=args_cli.batch_name)
-                if task_info is None:
-                    raise ValueError(f"Unable to obtain task information: batch_name='{args_cli.batch_name}' May not exist or may have been completed")
-                if task_info.get("hdf5_url", None) is not None:
-                    tmp_dir = str(Path(__file__).parent.parent.parent.parent / 'tmp')
-                    download_file(task_info["hdf5_url"], tmp_dir, "input_dataset.hdf5")
-                    args_cli.input_dataset_file = str(Path(tmp_dir) / "input_dataset.hdf5")
-                else:
-                    if hasattr(args_cli, "input_dataset_file"):
-                        delattr(args_cli, 'input_dataset_file')
             if hasattr(args_cli, "input_dataset_file") and os.path.exists(args_cli.input_dataset_file):
                 dataset_file_handler = HDF5DatasetFileHandler()
                 dataset_file_handler.open(args_cli.input_dataset_file)
@@ -579,7 +565,6 @@ def main():
                 usd_simplify = env_args["usd_simplify"] if 'usd_simplify' in env_args else False
                 episode_count = dataset_file_handler.get_num_episodes()
                 episode_indices_to_replay = list(range(episode_count))
-                # prepare video writer
                 episode_names = list(dataset_file_handler.get_episode_names())
                 episode_names.sort(key=lambda x: int(x.split("_")[-1]))
 
