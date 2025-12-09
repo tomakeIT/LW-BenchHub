@@ -4,7 +4,7 @@
 
 ![LW-BenchHub Kitchens](./images/lw-benchhub-kitchens.png)
 
-**A unified simulation benchmark platform built on Isaac Lab Arena for evaluating robot performance across everyday tasks.**
+**A unified benchmark hub built on Isaac Lab–Arena for embodied AI, providing consistent interfaces, realistic environments, multi-robot support, and ready-to-run large-scale evaluation.**
 
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![CUDA](https://img.shields.io/badge/CUDA-12.8-green.svg)](https://developer.nvidia.com/cuda-toolkit)
@@ -22,7 +22,7 @@
 
 ## Overview
 
-**LW-BenchHub** is an end-to-end robotics simulation training framework developed by the **Lightwheel team**, specifically designed for training robots in kitchen manipulation and loco-manipulation tasks. Built on NVIDIA's **Isaac-Lab Arena**, LW-BenchHub provides a comprehensive platform that seamlessly integrates teleoperation data collection with reinforcement learning training workflows.
+**LW-BenchHub** is an end-to-end robotics simulation benchmark platform developed by the **Lightwheel team**, specifically designed for evaluating robots in kitchen manipulation and loco-manipulation tasks. Built on NVIDIA's **Isaac Lab-Arena**, LW-BenchHub provides a comprehensive platform that seamlessly integrates teleoperation data collection with reinforcement learning training workflows.
 
 ### Key Features
 
