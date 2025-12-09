@@ -22,7 +22,7 @@
 
 ## Overview
 
-**LW-BenchHub** is an end-to-end robotics simulation training framework developed by the **Lightwheel team**, specifically designed for training robots in kitchen manipulation and loco-manipulation tasks. Built on NVIDIA's **Isaac-Lab Arena**, LW-BenchHub provides a comprehensive platform that seamlessly integrates teleoperation data collection with reinforcement learning training workflows.
+**LW-BenchHub** is an end-to-end robotics simulation benchmark platform developed by the **Lightwheel team**, specifically designed for evaluating robots in kitchen manipulation and loco-manipulation tasks. Built on NVIDIA's **Isaac Lab-Arena**, LW-BenchHub provides a comprehensive platform that seamlessly integrates teleoperation data collection with reinforcement learning training workflows.
 
 ### Key Features
 
