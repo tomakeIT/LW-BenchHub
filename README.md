@@ -3,7 +3,8 @@
 <div align="center">
 
 ![LW-BenchHub Kitchens](./images/lw-benchhub-kitchens.png)
-**A unified simulation benchmark platform built on Isaac Lab Arena for evaluating robot performance across everyday tasks. **
+
+**A unified simulation benchmark platform built on Isaac Lab Arena for evaluating robot performance across everyday tasks.**
 
 [![Python](https://img.shields.io/badge/python-3.11-blue.svg)](https://www.python.org/downloads/)
 [![CUDA](https://img.shields.io/badge/CUDA-12.8-green.svg)](https://developer.nvidia.com/cuda-toolkit)
