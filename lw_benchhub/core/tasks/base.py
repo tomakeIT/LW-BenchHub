@@ -398,6 +398,7 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
             for obj_num, obj_cfg in enumerate(self.object_cfgs):
                 if "name" not in obj_cfg:
                     obj_cfg["name"] = "obj_{}".format(obj_num + 1)
+                object_version = None
                 if self.objects_version is not None:
                     for obj_version in self.objects_version:
                         if obj_cfg["name"] in obj_version:
