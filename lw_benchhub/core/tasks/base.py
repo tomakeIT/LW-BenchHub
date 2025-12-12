@@ -545,7 +545,8 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
             stage = usd.get_stage(obj_cfg["info"]["obj_path"])
             prims = usd.get_all_prims(stage)
             is_articulation = any(usd.is_articulation_root(p) for p in prims)
-            obj_scale = obj_cfg["object_scale"] if "object_scale" in obj_cfg else 1.0
+            obj_scale = obj_cfg.get("object_scale", (1.0, 1.0, 1.0))
+            object_scale = (obj_scale, obj_scale, obj_scale) if isinstance(obj_scale, float) else obj_scale
             if not is_articulation:
                 object_type = ObjectType.RIGID
             else:
@@ -559,7 +560,7 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
                     usd_path=obj_cfg["info"]["obj_path"],
                     prim_path=f"{{ENV_REGEX_NS}}/Scene/{obj_cfg['info']['task_name']}",
                     object_type=object_type,
-                    scale=(obj_scale, obj_scale, obj_scale),
+                    scale=object_scale,
                 )
             )
             self.add_contact_sensor_cfg(
