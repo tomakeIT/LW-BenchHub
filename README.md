@@ -33,6 +33,7 @@
 - **Complete Data Pipeline** - End-to-end workflow from teleoperation to policy deployment.
 - **Intuitive and reproducible RL configuration design** – Supports generic RL configuration for a class of robots and tasks through a decorator-based binding mechanism, enabling modular registration and effortless switching or reproduction of RL setups. Seamlessly integrates with open-source RL libraries such as rsl-rl and skrl.
 - **Large-scale Kitchen Manipulation Dataset** – Released a dataset with 219 unique tasks (89 from Lightwheel-Robocasa-Tasks, 130 from Lightwheel-LIBERO-Tasks) and 4 robots (LeRobot、ARX-X7s, Unitree G1, Agilex-Piper). The dataset contains 21,500 demonstration episodes (20,537,015 frames), with 50 episodes for each (robot, task) pair, captured in diverse, interactive kitchen environments. [👉 View and download the dataset on Hugging Face](https://huggingface.co/datasets/LightwheelAI/lightwheel_tasks/tree/main)
+- **Decoupled Policy API** – Adopts a server–client architecture that decouples policy execution from simulation-side environments and framework dependencies. Built with zero-copy data exchange, the API minimizes memory overhead and enables ultra-low-latency, high-throughput policy–simulation interactions.
 
 ## Quick Start
 
