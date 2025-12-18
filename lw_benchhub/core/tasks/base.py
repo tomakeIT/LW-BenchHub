@@ -287,7 +287,8 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
 
         assert isinstance(success_check_result, torch.Tensor), f"_check_success must be a torch.Tensor, but got {type(success_check_result)}"
         assert len(success_check_result.shape) == 1 and success_check_result.shape[0] == env.num_envs, f"_check_success must be a torch.Tensor of shape ({env.num_envs},), but got {success_check_result.shape}"
-        success_check_result &= (env.episode_length_buf >= self._start_success_check_count)
+        start_check_count = torch.tensor(self._start_success_check_count, device=env.episode_length_buf.device, dtype=env.episode_length_buf.dtype)
+        success_check_result &= (env.episode_length_buf >= start_check_count)
 
         # success delay
         self._success_flag &= (self._success_cache < self._success_count)
@@ -546,7 +547,11 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
             prims = usd.get_all_prims(stage)
             is_articulation = any(usd.is_articulation_root(p) for p in prims)
             obj_scale = obj_cfg.get("object_scale", (1.0, 1.0, 1.0))
-            object_scale = (obj_scale, obj_scale, obj_scale) if isinstance(obj_scale, float) else obj_scale
+            # Convert scalar (int or float) to tuple, keep tuple/list as is
+            if not isinstance(obj_scale, (tuple, list)):
+                object_scale = (float(obj_scale), float(obj_scale), float(obj_scale))
+            else:
+                object_scale = obj_scale
             if not is_articulation:
                 object_type = ObjectType.RIGID
             else:

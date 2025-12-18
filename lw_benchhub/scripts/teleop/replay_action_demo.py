@@ -212,16 +212,8 @@ def main():
         from lw_benchhub.utils.env import parse_env_cfg, ExecuteMode
         scene_backend = env_args["scene_backend"] if "scene_backend" in env_args else "robocasa"
         task_backend = env_args["task_backend"] if "task_backend" in env_args else "robocasa"
-        task_name = env_args["task_name"] if args_cli.task is None else args_cli.task.strip()
-        # TODO delete the hardcoded task names
-        if task_name == "PutButterInBasket":
-            if "PutButterInBasket2" in env_args["env_name"]:
-                task_name = "PutButterInBasket2"
-        if task_name == "Libero90PutBlackBowlOnPlate":
-            if "Libero90PutBlackBowlOnCabinet" in env_args["env_name"]:
-                task_name = "Libero90PutBlackBowlOnCabinet"
-        if task_name == "PickBowlOPickBowlOnCabinetPlaceOnPlatenStovePlaceOnPlate":
-            task_name = "PickBowlOnCabinetPlaceOnPlate"
+        task_name = env_args["task_name"] if args_cli.task is None else args_cli.task
+        task_name = task_name.strip() if task_name else ""
 
         robot_name = env_args["robot_name"]
         if robot_name == "double_piper_abs":
