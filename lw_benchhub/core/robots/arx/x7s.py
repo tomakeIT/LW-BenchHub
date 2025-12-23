@@ -189,7 +189,7 @@ class X7SEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": [],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             },
             "first_person_camera": {
                 "camera_cfg": TiledCameraCfg(
@@ -211,7 +211,7 @@ class X7SEnvCfg(LwEmbodimentBase):
                 ),
                 "tags": ["product"],
                 "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.REPLAY_ACTION,
-                                 ExecuteMode.REPLAY_JOINT_TARGETS]
+                                 ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.EVAL]
             },
             "right_hand_camera": {
                 "camera_cfg": TiledCameraCfg(
@@ -230,7 +230,7 @@ class X7SEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": ["product"],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             },
             "left_shoulder_camera": {
                 "camera_cfg": TiledCameraCfg(
