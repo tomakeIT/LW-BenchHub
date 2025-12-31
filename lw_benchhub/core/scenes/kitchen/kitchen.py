@@ -161,7 +161,7 @@ class LwScene(Scene, NoDeepcopyMixin):
         scene_origin = np.mean(self.scene_range, axis=0)
 
         # sphere light is only work on RL
-        if self.context.execute_mode in [ExecuteMode.TRAIN, ExecuteMode.EVAL]:
+        if self.context.execute_mode == ExecuteMode.TRAIN:
             env_cfg.scene.room_light = AssetBaseCfg(
                 prim_path="{ENV_REGEX_NS}/room_light",
                 spawn=sim_utils.SphereLightCfg(

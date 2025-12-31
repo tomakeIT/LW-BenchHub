@@ -7,6 +7,8 @@ device: cuda:0
 sensitivity: 1.0
 step_hz: 50
 enable_cameras: true
+execute_mode: eval
+episode_length_s: 20.0  # Episode length in seconds (default: 8.0). Increase if episodes timeout during eval.
 
 # =========================
 # Robot Settings

@@ -106,7 +106,7 @@ class DoublePiperEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": ["product"],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             },
             # add [-0.5, 0.5) random z offset to the camera position
             "first_person_camera": {
@@ -127,7 +127,7 @@ class DoublePiperEnvCfg(LwEmbodimentBase):
                 ),
                 "tags": ["product"],
                 "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.REPLAY_ACTION,
-                                 ExecuteMode.REPLAY_JOINT_TARGETS]
+                                 ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.EVAL]
             },
             "right_hand_camera": {
                 "camera_cfg": TiledCameraCfg(
@@ -146,7 +146,7 @@ class DoublePiperEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": ["product"],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             },
         }
         self.robot_scale = robot_scale

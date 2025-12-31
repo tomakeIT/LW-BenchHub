@@ -30,7 +30,7 @@ def _parse_config(config_path: str):
         "seed": 42,
         "sources": None,
         "object_projects": None,
-        "execute_mode": "teleop",
+        "execute_mode": "eval",
         "replay_cfgs": {"add_camera_to_observation": True},
     }
     for key, value in defaults.items():
@@ -87,6 +87,8 @@ def _make_env_cfg(cfg):
     # override configurations with non-hydra CLI arguments
     env_cfg.scene.num_envs = cfg.num_envs if cfg.num_envs is not None else env_cfg.scene.num_envs
     env_cfg.sim.device = cfg.device if cfg.device is not None else env_cfg.sim.device
+    # override episode_length_s if specified in config
+    env_cfg.episode_length_s = cfg.episode_length_s if cfg.episode_length_s is not None else env_cfg.episode_length_s
 
     # randomly sample a seed if seed = -1
     if cfg.seed == -1:

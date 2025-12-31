@@ -1,4 +1,4 @@
-pip install upgrade pip
+pip install --upgrade pip
 pip install uv
 uv pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
 conda install pinocchio -c conda-forge -y
