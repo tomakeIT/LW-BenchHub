@@ -38,3 +38,10 @@ max_object_placement_retry: 3
 
 resample_objects_placement_on_reset: true
 resample_robot_placement_on_reset: true
+
+# =========================
+# Replay Configuration Settings (camera resolution, etc.)
+# =========================
+replay_cfgs:
+  add_camera_to_observation: true
+  render_resolution: [640, 480]
