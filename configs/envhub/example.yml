@@ -11,17 +11,17 @@ enable_cameras: true
 # =========================
 # Robot Settings
 # =========================
-robot: PandaOmron-Rel
+robot: DoublePiper-Abs
 robot_scale: 1.0
 
 # =========================
 # Task & Scene Settings
 # =========================
-task: OpenDishwasher
+task: L90K1PutTheBlackBowlOnThePlate
 scene_backend: robocasa
 task_backend: robocasa
 debug_assets: null
-layout: robocasakitchen-4-2
+layout: libero-1-1
 sources:
   - objaverse
   - lightwheel

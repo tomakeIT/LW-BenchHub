@@ -9,7 +9,7 @@ class DotDict(dict):
     __delattr__ = dict.__delitem__
 
 
-def parse_config(config_path: str):
+def _parse_config(config_path: str):
     with open(config_path, "r", encoding="utf-8") as f:
         config = yaml.safe_load(f)
 
@@ -30,7 +30,7 @@ def parse_config(config_path: str):
         "seed": 42,
         "sources": None,
         "object_projects": None,
-        "execute_mode": "eval",
+        "execute_mode": "teleop",
         "replay_cfgs": {"add_camera_to_observation": True},
     }
     for key, value in defaults.items():
@@ -40,7 +40,7 @@ def parse_config(config_path: str):
     return DotDict(config)
 
 
-def make_env_cfg(cfg):
+def _make_env_cfg(cfg):
     from isaaclab_tasks.utils import parse_env_cfg
 
     if "-" in cfg.task:
@@ -94,17 +94,39 @@ def make_env_cfg(cfg):
     return task_name, env_cfg
 
 
-def export_env(config_path: str):
+def _reorg_observation_for_envhub(env_cfg):
+    """
+    Reorganize the observation for envhub.
+    Aligning with the observation format of Isaac-Arena for exporting to envhub.
+    lw_benchhub observation -> isaac-arena envhub observation:
+    - embodiment_general_obs -> policy observation
+    - policy observation -> camera_obs
+    """
+    embodiment_general_obs = env_cfg.observations.embodiment_general_obs
+    policy_obs = env_cfg.observations.policy
 
-    cfg = parse_config(config_path)
+    delattr(env_cfg.observations, "embodiment_general_obs")
+
+    setattr(env_cfg.observations, "policy", embodiment_general_obs)
+    setattr(env_cfg.observations, "camera_obs", policy_obs)
+
+
+def export_env_for_envhub(config_path: str):
+
+    cfg = _parse_config(config_path)
 
     from isaaclab.app import AppLauncher
-    _ = AppLauncher(enable_cameras=cfg.enable_cameras)
+    app_launcher = AppLauncher(enable_cameras=cfg.enable_cameras)
 
-    task_name, env_cfg = make_env_cfg(cfg)
-    gym_env = gym.make(
-        task_name,
-        cfg=env_cfg,
-        render_mode="rgb_array" if cfg.video else None
-    )
-    return gym_env
+    environment = f"{cfg.task}-{cfg.robot}"
+    task = cfg.task
+
+    env_name, env_cfg = _make_env_cfg(cfg)
+    _reorg_observation_for_envhub(env_cfg)
+
+    render_mode = "rgb_array" if cfg.video else None
+    raw_env = gym.make(env_name, cfg=env_cfg, render_mode=render_mode).unwrapped
+
+    max_episode_length = raw_env.max_episode_length
+
+    return raw_env, environment, task, render_mode, max_episode_length, app_launcher
