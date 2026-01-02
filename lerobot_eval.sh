@@ -3,7 +3,7 @@ lerobot-eval \
   --env.type=isaaclab_arena \
   --rename_map='{"observation.images.left_hand_camera_rgb": "observation.images.left_hand", "observation.images.right_hand_camera_rgb": "observation.images.right_hand", "observation.images.first_person_camera_rgb": "observation.images.first_person"}' \
   --env.hub_path=LightwheelAI/lw_benchhub_env \
-  --env_kwargs='{"config_path": "configs/envhub/example.yml"}' \
+  --env.kwargs='{"config_path": "configs/envhub/example.yml"}' \
   --trust_remote_code=true \
   --env.state_keys=joint_pos \
   --env.action_dim=12 \
