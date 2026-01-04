@@ -1,5 +1,5 @@
 lerobot-eval \
-  --policy.path=/path/to/your/lerobot/policy \
+  --policy.path=LightwheelAI/smolvla-double-piper-pnp \
   --env.type=isaaclab_arena \
   --rename_map='{"observation.images.left_hand_camera_rgb": "observation.images.left_hand", "observation.images.right_hand_camera_rgb": "observation.images.right_hand", "observation.images.first_person_camera_rgb": "observation.images.first_person"}' \
   --env.hub_path=LightwheelAI/lw_benchhub_env \

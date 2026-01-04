@@ -126,7 +126,7 @@ def export_env_for_envhub(config_path: str):
     env_name, env_cfg = _make_env_cfg(cfg)
     _reorg_observation_for_envhub(env_cfg)
 
-    render_mode = "rgb_array" if cfg.video else None
+    render_mode = "rgb_array" if cfg.enable_cameras else None
     raw_env = gym.make(env_name, cfg=env_cfg, render_mode=render_mode).unwrapped
 
     max_episode_length = raw_env.max_episode_length
