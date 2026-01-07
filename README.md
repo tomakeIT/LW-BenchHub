@@ -14,7 +14,7 @@
 
 
 
-[Documentation](https://docs.lightwheel.net/lw_benchhub) • [Dataset](https://huggingface.co/datasets/LightwheelAI/lightwheel_tasks/tree/main) • [Quick Start](#quick-start) • [Installation](#installation) • [Project Structure](#project-structure)
+[Documentation](https://docs.lightwheel.net/lw_benchhub) • [Dataset](https://huggingface.co/LightwheelAI/datasets) • [Quick Start](#quick-start) • [Installation](#installation) • [Project Structure](#project-structure)
 
 </div>
 
@@ -32,7 +32,7 @@
 - **Rich Task Suite** – 268 ready-to-use tasks (130 Lightwheel-LIBERO-Tasks, 138 Lightwheel-Robocasa-Tasks), covering kitchen manipulation, loco-manipulation, table-top actions, atomic skills, navigation, and long-horizon compositional tasks.
 - **Complete Data Pipeline** - End-to-end workflow from teleoperation to policy deployment.
 - **Intuitive and reproducible RL configuration design** – Supports generic RL configuration for a class of robots and tasks through a decorator-based binding mechanism, enabling modular registration and effortless switching or reproduction of RL setups. Seamlessly integrates with open-source RL libraries such as rsl-rl and skrl.
-- **Large-scale Kitchen Manipulation Dataset** – Released a dataset with 219 unique tasks (89 from Lightwheel-Robocasa-Tasks, 130 from Lightwheel-LIBERO-Tasks) and 4 robots (LeRobot、ARX-X7s, Unitree G1, Agilex-Piper). The dataset contains 21,500 demonstration episodes (20,537,015 frames), with 50 episodes for each (robot, task) pair, captured in diverse, interactive kitchen environments. [👉 View and download the dataset on Hugging Face](https://huggingface.co/datasets/LightwheelAI/lightwheel_tasks/tree/main)
+- **Large-scale Kitchen Manipulation Dataset** – Released a dataset with 219 unique tasks (89 from Lightwheel-Robocasa-Tasks, 130 from Lightwheel-LIBERO-Tasks) and 4 robots (LeRobot, ARX-X7s, Unitree G1, Agilex-Piper). The dataset contains 21,500 demonstration episodes (20,537,015 frames), with 50 episodes for each (robot, task) pair, captured in diverse, interactive kitchen environments. [👉 View and download the dataset on Hugging Face](https://huggingface.co/LightwheelAI/datasets)
 - **Decoupled Policy API** – Adopts a server–client architecture that decouples policy execution from simulation-side environments and framework dependencies. Built with zero-copy data exchange, the API minimizes memory overhead and enables ultra-low-latency, high-throughput policy–simulation interactions.
 
 ## Quick Start
@@ -67,14 +67,17 @@ bash ./install.sh # Refer to the Documentation for custom installation steps
 
 ### Teleoperation Data Collection
 
-Start collecting demonstration data with different robot configurations:
+Start collecting demonstration data with different data collection configurations:
 
 ```bash
-# Use G1-Controller robot configuration
-python ./lw_benchhub/scripts/teleop/teleop_main.py --task_config g1-controller
-
-# Use PandaOmron robot configuration  
+# Use PandaOmron robot configuration, `pandaomron.yml`
 python ./lw_benchhub/scripts/teleop/teleop_main.py --task_config pandaomron
+```
+
+To enable recording demonstrations, set `record` to `true` in the configuration file.
+
+```bash
+record: true
 ```
 
 ### Trajectory Replay

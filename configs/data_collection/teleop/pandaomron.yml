@@ -5,4 +5,3 @@ task: OpenDishwasher
 layout: robocasakitchen-4-2
 for_rl: false
 variant: Visual
-teleop_device: vr-controller
