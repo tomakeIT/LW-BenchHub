@@ -123,7 +123,7 @@ class BaseDistributedEnv(abc.ABC):
 
     def attach(self, *args, **kwargs):
         if self._env is not None:
-            if self._env._passthrough_attach:
+            if hasattr(self._env, "_passthrough_attach") and self._env._passthrough_attach:
                 return self._env.attach(*args, **kwargs)
             raise RuntimeError("Environment is already attached.")
         elif self._env_initializer is None:
