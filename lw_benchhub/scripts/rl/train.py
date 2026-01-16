@@ -70,7 +70,7 @@ from isaaclab.envs import (
 from isaaclab.utils.assets import retrieve_file_path
 from isaaclab.utils.dict import print_dict
 from lw_benchhub.utils.place_utils.env_utils import set_seed
-from .env_wrapper import SkrlVecEnvWrapper
+from lw_benchhub.scripts.rl.env_wrapper import SkrlVecEnvWrapper
 
 
 def main():

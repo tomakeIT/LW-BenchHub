@@ -48,7 +48,7 @@ EXPOSE 47998/udp 49100/tcp
 # Download and install Miniconda, create environment, and install packages
 WORKDIR /workspace
 RUN mkdir -p /workspace/lw_benchhub/docker && \
-    wget -O miniconda.sh https://artifactory.lightwheel.net/data/miniconda/miniconda.sh && \
+    wget -O miniconda.sh https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh && \
     bash miniconda.sh -b -p $CONDA_DIR && \
     # Initialize conda and accept terms
     $CONDA_DIR/bin/conda init bash && \

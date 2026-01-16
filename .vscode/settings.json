@@ -64,7 +64,7 @@
         "prestartup"
     ],
     // This enables python language server. Seems to work slightly better than jedi:
-    "python.languageServer": "None",
+
     // We use "black" as a formatter:
     "python.formatting.provider": "black",
     "python.formatting.blackArgs": ["--line-length", "120"],
@@ -81,7 +81,6 @@
     // Python environment path
     // note: the default interpreter is overridden when user selects a workspace interpreter
     //     in the status bar. For example, the virtual environment python interpreter
-    "python.defaultInterpreterPath": "/home/jay.yang/.virtualenvs/isaac45_newarch/bin/python",
     // ROS distribution
     "ros.distro": "noetic",
     // Language specific settings

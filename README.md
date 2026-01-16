@@ -55,8 +55,13 @@ conda activate lw_benchhub
 
 2. **Quick Install**
 ```bash
+sudo apt-get update
+sudo apt-get install git-lfs
+git lfs install
+
 git clone https://github.com/LightwheelAI/lw_benchhub
 cd lw_benchhub
+git lfs pull
 bash ./install.sh # Refer to the Documentation for custom installation steps
 ```
 

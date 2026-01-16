@@ -68,7 +68,7 @@ from isaaclab_tasks.utils import get_checkpoint_path
 from lw_benchhub.utils.place_utils.env_utils import set_seed
 from lw_benchhub.utils.render_utils import optimize_rendering
 
-from .env_wrapper import SkrlVecEnvWrapper
+from lw_benchhub.scripts.rl.env_wrapper import SkrlVecEnvWrapper
 
 # config shortcuts
 algorithm = args_cli.algorithm.lower()
