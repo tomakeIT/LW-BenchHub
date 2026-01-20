@@ -20,7 +20,7 @@ class LOPickUpTheTomatoSauceAndPlaceItInTheBasket(PutObjectInBasketBase):
 
     task_name: str = f"LOPickUpTheTomatoSauceAndPlaceItInTheBasket"
     enable_fixtures: list[str] = ["bbq_sauce"]
-    removable_fixtures = enable_fixtures
+    movable_fixtures = enable_fixtures
     EXCLUDE_LAYOUTS: list = [63, 64]
 
     def _setup_kitchen_references(self, scene):

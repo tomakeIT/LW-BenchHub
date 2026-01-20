@@ -20,7 +20,7 @@ from lw_benchhub.core.tasks.base import LwTaskBase
 class L90L2PickUpTheMilkAndPutItInTheBasket(LwTaskBase):
     task_name: str = f"L90L2PickUpTheMilkAndPutItInTheBasket"
     enable_fixtures: list[str] = ["ketchup"]
-    removable_fixtures = enable_fixtures
+    movable_fixtures = enable_fixtures
     EXCLUDE_LAYOUTS: list = [63, 64]
 
     def _setup_kitchen_references(self, scene):

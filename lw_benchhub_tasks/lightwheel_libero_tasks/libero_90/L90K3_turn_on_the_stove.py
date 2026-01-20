@@ -23,7 +23,7 @@ class L90K3TurnOnTheStove(LwTaskBase):
     task_name: str = "L90K3TurnOnTheStove"
 
     enable_fixtures = ["stove", "mokapot_1"]
-    removable_fixtures = ["mokapot_1"]
+    movable_fixtures = ["mokapot_1"]
 
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)

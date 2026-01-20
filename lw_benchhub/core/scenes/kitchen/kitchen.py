@@ -36,7 +36,7 @@ What second stage need to do:
 
 1. Scene USD Change:
     - enable_fixtures (in KitchenArena)
-    - removable_fixtures (in KitchenArena)
+    - movable_fixtures (in KitchenArena)
     - usd_simplify (in KitchenArena)
 2. Placement:
     - object placement

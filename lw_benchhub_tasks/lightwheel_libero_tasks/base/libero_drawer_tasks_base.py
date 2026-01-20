@@ -26,7 +26,7 @@ class LiberoDrawerTasksBase(LwTaskBase):
 
     task_name: str = "LiberoDrawerTasksBase"
     enable_fixtures = ["storage_furniture", "winerack"]
-    removable_fixtures = ["winerack"]
+    movable_fixtures = ["winerack"]
 
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)

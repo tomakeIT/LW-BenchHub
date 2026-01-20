@@ -27,7 +27,7 @@ class LiberoGoalTasksBase(LwTaskBase):
 
     task_name: str = "LiberoGoalTasksBase"
     enable_fixtures = ["storage_furniture", "stovetop", "winerack"]
-    # removable_fixtures = ["winerack"]
+    # movable_fixtures = ["winerack"]
 
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)

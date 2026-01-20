@@ -21,7 +21,7 @@ class L10K8PutBothMokaPotsOnTheStove(LwTaskBase):
     task_name: str = 'L10K8PutBothMokaPotsOnTheStove'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["stovetop", "mokapot_1", "mokapot_2"]
-    removable_fixtures: list[str] = ["mokapot_1", "mokapot_2"]
+    movable_fixtures: list[str] = ["mokapot_1", "mokapot_2"]
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()

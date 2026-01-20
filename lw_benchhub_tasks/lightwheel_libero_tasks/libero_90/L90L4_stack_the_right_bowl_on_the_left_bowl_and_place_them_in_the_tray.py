@@ -21,7 +21,7 @@ class L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray(LwTaskBase):
     task_name: str = 'L90L4StackTheRightBowlOnTheLeftBowlAndPlaceThemInTheTray'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["saladdressing"]
-    removable_fixtures: list[str] = ["saladdressing"]
+    movable_fixtures: list[str] = ["saladdressing"]
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()

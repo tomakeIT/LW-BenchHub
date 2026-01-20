@@ -31,7 +31,7 @@ class KitchenArena:
         cache_usd_version (dict, optional): Dictionary with USD file versioning information, e.g. {"floorplan_version": ...}.
         exclude_layouts (list, optional): List of layout IDs or types to exclude from selection.
         enable_fixtures (list, optional): List of fixture names to explicitly enable in the floorplan.
-        removable_fixtures (list, optional): List of fixture names to make removable (i.e., deactivate joints).
+        movable_fixtures (list, optional): List of fixture names to make removable (i.e., deactivate joints).
         scene_type (str, optional): Type of the scene, e.g. "kitchen" or "usd".
         local_scene_path (str, optional): Path to the local USD file to load.
     """

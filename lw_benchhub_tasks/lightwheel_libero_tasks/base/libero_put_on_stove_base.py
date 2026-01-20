@@ -23,14 +23,14 @@ class PutOnStoveBase(LwTaskBase):
     task_name: str = "PutOnStoveBase"
 
     enable_fixtures = ['mokapot_1', 'stovetop']
-    removable_fixtures = ['mokapot_1']
+    movable_fixtures = ['mokapot_1']
 
 
 class PutMokaPotOnStoveBase(LwTaskBase):
     task_name: str = "PutMokaPotOnStoveBase"
 
     enable_fixtures = ['mokapot_1', 'mokapot_2', 'stovetop']
-    removable_fixtures = ['mokapot_1', 'mokapot_2']
+    movable_fixtures = ['mokapot_1', 'mokapot_2']
 
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)

@@ -22,7 +22,7 @@ class L90L4PickUpTheBlackBowlOnTheLeftAndPutItInTheTray(LwTaskBase):
     task_name: str = "L90L4PickUpTheBlackBowlOnTheLeftAndPutItInTheTray"
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures = ["salad_dressing"]
-    removable_fixtures = enable_fixtures
+    movable_fixtures = enable_fixtures
 
     def _setup_kitchen_references(self, scene):
         super()._setup_kitchen_references(scene)

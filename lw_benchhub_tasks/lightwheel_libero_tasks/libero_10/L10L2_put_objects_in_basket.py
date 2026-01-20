@@ -25,7 +25,7 @@ class Libero10PutInBasket(LwTaskBase):
     task_name: str = "Libero10PutInBasket"
 
     enable_fixtures = ['ketchup']
-    removable_fixtures = enable_fixtures
+    movable_fixtures = enable_fixtures
 
     def __post_init__(self):
         self.activate_contact_sensors = False

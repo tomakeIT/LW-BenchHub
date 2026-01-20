@@ -21,7 +21,7 @@ class L90L3PickUpTheButterAndPutItInTheTray(LwTaskBase):
     task_name: str = 'L90L3PickUpTheButterAndPutItInTheTray'
     EXCLUDE_LAYOUTS: list = [63, 64]
     enable_fixtures: list[str] = ["ketchup"]
-    removable_fixtures = enable_fixtures
+    movable_fixtures = enable_fixtures
 
     def get_ep_meta(self):
         ep_meta = super().get_ep_meta()
