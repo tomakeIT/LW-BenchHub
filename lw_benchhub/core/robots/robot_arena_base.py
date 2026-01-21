@@ -138,8 +138,10 @@ class EmbodimentBaseSceneCfg:
 @configclass
 class EmbodimentGeneralObsCfg(ObsGroup):
     actions: ObsTerm = ObsTerm(func=lw_benchhub_mdp.last_action)
-    joint_pos: ObsTerm = ObsTerm(func=lw_benchhub_mdp.joint_pos_rel)
-    joint_vel: ObsTerm = ObsTerm(func=lw_benchhub_mdp.joint_vel_rel)
+    joint_pos: ObsTerm = ObsTerm(func=lw_benchhub_mdp.joint_pos)
+    joint_vel: ObsTerm = ObsTerm(func=lw_benchhub_mdp.joint_vel)
+    joint_pos_rel: ObsTerm = ObsTerm(func=lw_benchhub_mdp.joint_pos_rel)
+    joint_vel_rel: ObsTerm = ObsTerm(func=lw_benchhub_mdp.joint_vel_rel)
     eef_pos: ObsTerm = ObsTerm(func=lw_benchhub_mdp.ee_frame_pos)
     eef_quat: ObsTerm = ObsTerm(func=lw_benchhub_mdp.ee_frame_quat)
 
