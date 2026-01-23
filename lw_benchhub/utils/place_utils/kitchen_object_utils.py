@@ -196,7 +196,7 @@ def sample_kitchen_object(
             for key, value in metadata.items():
                 if key in obj_res["metadata"][obj_info.source]:
                     metadata[key] = obj_res["metadata"][obj_info.source][key]
-        obj_info.scale = metadata["scale"]
+        obj_info.scale = metadata["scale"] if "ep_meta_scale" not in object_cfgs else object_cfgs["ep_meta_scale"]
         obj_info.exclude = metadata["exclude"]
 
         # TODO: exclude issue

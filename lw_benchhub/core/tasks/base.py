@@ -405,6 +405,7 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
                         if obj_cfg["name"] in obj_version:
                             object_version = obj_version[obj_cfg["name"]]
                             break
+                obj_cfg["ep_meta_scale"] = obj_cfg["info"]["scale"]
                 model, info = EnvUtils.create_obj(self, obj_cfg, version=object_version)
                 obj_cfg["info"] = {**obj_cfg.get("info", {}), **info}
                 self.objects[model.task_name] = model
@@ -546,8 +547,10 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
             stage = usd.get_stage(obj_cfg["info"]["obj_path"])
             prims = usd.get_all_prims(stage)
             is_articulation = any(usd.is_articulation_root(p) for p in prims)
-            obj_scale = obj_cfg.get("object_scale", (1.0, 1.0, 1.0))
-            # Convert scalar (int or float) to tuple, keep tuple/list as is
+            # Get the final scale from model (includes cloud scale * object_scale from sample_kitchen_object)
+            model = self.objects.get(obj_cfg["info"]["task_name"])
+            obj_scale = model.object_scale.tolist()
+            # Convert model.object_scale to tuple format
             if not isinstance(obj_scale, (tuple, list)):
                 object_scale = (float(obj_scale), float(obj_scale), float(obj_scale))
             else:
