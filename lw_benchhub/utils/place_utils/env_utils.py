@@ -86,6 +86,7 @@ VALID_CFG_KEYS = set(
         "merged_obj",
         "load_from_local",
         "asset_name",
+        "ep_meta_scale",
         *VALID_PROPERTY_KEYS,
     }
 )

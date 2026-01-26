@@ -83,7 +83,7 @@ class BeverageOrganization(LwTaskBase):
 
     def get_beverage_num(self, env):
         nums = 0
-        for object in env.cfg.object_cfgs:
+        for object in env.cfg.isaaclab_arena_env.task.object_cfgs:
             if object.get("obj_groups") == "drink":
                 nums += 1
         return nums
