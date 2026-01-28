@@ -14,12 +14,12 @@ instruction: 'Grab the block and lift it up.'
 
 observation_config:
   custom_mapping:
-    video.front: global_camera
-    video.wrist: hand_camera
+    video.front: global_camera_rgb
+    video.wrist: hand_camera_rgb
     state.single_arm: {joint_pos:[0,1,2,3,4]}
     state.gripper: {joint_pos:[5]}
 
-record_camera: ["global_camera"]
+record_camera: ["global_camera_rgb"]
 time_out_limit: 50
 
 height: 480
@@ -47,3 +47,4 @@ env_cfg:
 
   concatenate_terms: false
   distributed: false
+  add_camera_to_observation: true

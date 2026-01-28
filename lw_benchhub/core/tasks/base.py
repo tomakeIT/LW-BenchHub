@@ -18,6 +18,7 @@ from copy import deepcopy
 from dataclasses import MISSING
 from typing import Any, Dict, List
 
+import lazy_import
 import numpy as np
 import torch
 
@@ -40,7 +41,8 @@ import lw_benchhub.core.mdp as mdp
 import lw_benchhub.utils.fixture_utils as FixtureUtils
 import lw_benchhub.utils.math_utils.transform_utils.numpy_impl as Tn
 import lw_benchhub.utils.object_utils as OU
-import lw_benchhub.utils.place_utils.env_utils as EnvUtils
+EnvUtils = lazy_import.lazy_module("lw_benchhub.utils.place_utils.env_utils")
+
 from lw_benchhub.core.checks.checker_factory import get_checkers_from_cfg, form_checker_result
 from lw_benchhub.core.context import get_context
 from lw_benchhub.core.models.assets.LwObject import LwObject

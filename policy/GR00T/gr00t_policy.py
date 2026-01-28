@@ -76,19 +76,68 @@ class GR00TPolicy(BasePolicy):
                 obs_window[key] = obs_window[key][None, ...]  # N, env, ...
             elif key == "joint_pos" or key == "eef_base":
                 joint_order = [i for i in range(len(self.data_config.state_keys))] if not mapping else mapping
-                for idx, key in enumerate(self.data_config.state_keys):
-                    obs_window[key] = obs[key][0][joint_order[idx]]
-                    obs_window[key] = obs_window[key][None, ...]  # N, env, ...
-                    obs_window[key] = obs_window[key][None, ...]  # N, env, ...
-                    obs_window[key] = obs_window[key][None, ...]  # N, env, ...
+                for idx, state_key in enumerate(self.data_config.state_keys):
+                    obs_window[state_key] = obs[state_key][0][joint_order[idx]]
+                    obs_window[state_key] = obs_window[state_key][None, ...]  # N, env, ...
+                    obs_window[state_key] = obs_window[state_key][None, ...]  # N, env, ...
+                    obs_window[state_key] = obs_window[state_key][None, ...]  # N, env, ...
             else:
-                mapping_key = next(iter([key for key in obs.keys() if key.startswith(mapping)]), None)
+                # For video keys, mapping is the direct camera name (e.g., "global_camera")
+                # For other keys, try to find a key that starts with mapping
+                if key.startswith("video."):
+                    # Direct match for video keys
+                    mapping_key = mapping
+                else:
+                    # Try to find a key that starts with mapping
+                    mapping_key = next(iter([obs_key for obs_key in obs.keys() if obs_key.startswith(mapping)]), None)
+
+                if mapping_key is None:
+                    # Provide helpful error message
+                    if key.startswith("video."):
+                        error_msg = (
+                            f"Camera '{mapping}' not found in observation for video key '{key}'. "
+                            f"Available keys: {list(obs.keys())}. "
+                            f"Make sure cameras are enabled in the environment configuration (enable_cameras: true)."
+                        )
+                    else:
+                        error_msg = (
+                            f"Could not find observation key matching '{mapping}' for '{key}'. "
+                            f"Available keys: {list(obs.keys())}"
+                        )
+                    raise ValueError(error_msg)
+
+                if mapping_key not in obs:
+                    raise ValueError(
+                        f"Observation key '{mapping_key}' not found. Available keys: {list(obs.keys())}. "
+                        f"This might indicate that the camera '{mapping}' is not enabled or not in the observation space."
+                    )
+
                 obs_window[key] = obs[mapping_key][None, ...]  # N, env, H,W,C
 
         return obs_window
 
     def encode_obs(self, observation):
+        # Save original observation for camera data access
+        original_obs = observation.copy()
         observation = super().encode_obs(observation, transpose=False, keep_dim_env=True)
+
+        # Debug: print available keys in original and processed observation
+        custom_mapping = self.observation_config.get("custom_mapping", {})
+        camera_keys_needed = {mapping: k for k, mapping in custom_mapping.items() if k.startswith("video.")}
+
+        # Merge camera data from original observation if not present in processed observation
+        if 'policy' in original_obs:
+            for camera_name, video_key in camera_keys_needed.items():
+                if camera_name in original_obs['policy'] and camera_name not in observation:
+                    camera_data = original_obs['policy'][camera_name]
+                    if torch.is_tensor(camera_data):
+                        camera_data = camera_data.cpu().numpy()
+                    # Keep dimension if keep_dim_env is True
+                    # After encode_obs, we expect (H, W, C) or (C, H, W) format
+                    if len(camera_data.shape) == 4:  # (1, H, W, C) or (1, C, H, W)
+                        camera_data = camera_data[0]  # Remove env dimension
+                    observation[camera_name] = camera_data
+
         observation = self._build_observation_window(observation)
         return observation
 

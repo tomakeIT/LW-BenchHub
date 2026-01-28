@@ -576,6 +576,75 @@ def patch_create_teleop_device():
     teleop_device_factory.create_teleop_device = create_teleop_device
 
 
+def patch_isaaclab_tasks_mdp():
+    """Patch isaaclab_tasks.manager_based.manipulation.pick_place.mdp to include functions from lw_benchhub.
+
+    This ensures that functions like get_eef_pos, get_eef_quat, and get_robot_joint_state
+    are available in the isaaclab_tasks.mdp module even though they were moved to lw_benchhub.
+
+    Uses a module loader wrapper to patch the module immediately after it's loaded.
+    """
+    import sys
+    import importlib.util
+    import importlib.machinery
+
+    module_name = "isaaclab_tasks.manager_based.manipulation.pick_place.mdp"
+
+    def _patch_module(module):
+        """Patch the module with our functions."""
+        try:
+            from lw_benchhub.core.mdp.observations import (
+                get_eef_pos,
+                get_eef_quat,
+                get_robot_joint_state,
+            )
+
+            # Inject our functions into the isaaclab_tasks.mdp module
+            # These functions were removed from isaaclab_tasks but are still needed by gr1t2.py
+            module.get_eef_pos = get_eef_pos
+            module.get_eef_quat = get_eef_quat
+            module.get_robot_joint_state = get_robot_joint_state
+        except (ImportError, AttributeError):
+            # Silently fail if we can't patch
+            pass
+
+    # Patch immediately if module is already loaded
+    if module_name in sys.modules:
+        _patch_module(sys.modules[module_name])
+
+    # Set up a meta path finder to intercept and patch the module
+    class MdpPatcher:
+        """Meta path finder that patches the mdp module after import."""
+
+        def find_spec(self, name, path, target=None):
+            if name != module_name:
+                return None
+
+            # Find the spec using other finders
+            for finder in sys.meta_path:
+                if finder is self:
+                    continue
+                spec = finder.find_spec(name, path)
+                if spec is not None and spec.loader is not None:
+                    # Wrap the loader to patch after module execution
+                    original_exec_module = spec.loader.exec_module
+
+                    def patched_exec_module(module):
+                        original_exec_module(module)
+                        # Patch after module is loaded
+                        _patch_module(module)
+
+                    spec.loader.exec_module = patched_exec_module
+                    return spec
+            return None
+
+    # Only register the finder once
+    if not hasattr(sys, '_lw_benchhub_mdp_patcher_registered'):
+        patcher = MdpPatcher()
+        sys.meta_path.insert(0, patcher)
+        sys._lw_benchhub_mdp_patcher_registered = True
+
+
 patch_reset()
 patch_configclass()
 patch_recorder_manager_ep_meta()
@@ -584,3 +653,4 @@ patch_step()
 patch_yaml_load()
 patch_reward_manager()
 patch_create_teleop_device()
+patch_isaaclab_tasks_mdp()
