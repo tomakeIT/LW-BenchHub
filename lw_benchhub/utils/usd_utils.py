@@ -170,7 +170,7 @@ class OpenUsd:
         """Get prim position, rotation and scale in world coordinates"""
         xformable = UsdGeom.Xformable(prim)
         if not xformable:
-            return None, None
+            return None, None, None
         matrix = xformable.ComputeLocalToWorldTransform(Usd.TimeCode.Default())
         try:
             pos, rot, scale = UsdSkel.DecomposeTransform(matrix)
@@ -182,7 +182,7 @@ class OpenUsd:
             return pos_list, quat_list, scale_list
         except Exception as e:
             print(f"Error decomposing transform for {prim.GetName()}: {e}")
-            return None, None
+            return None, None, None
 
     @staticmethod
     def get_prim_size(prim):

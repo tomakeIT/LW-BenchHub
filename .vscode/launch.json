@@ -200,6 +200,17 @@
             "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/teleop_main.py",
             "console": "integratedTerminal",
             "justMyCode": false,
+        },
+        {
+            "name": "local_teleop",
+            "type": "debugpy",
+            "request": "launch",
+            "args": [
+                "--task_config=local_teleop" ,
+            ],
+            "program": "${workspaceFolder}/lw_benchhub/scripts/teleop/teleop_main.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
         }
     ]
 }

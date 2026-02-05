@@ -173,12 +173,12 @@ def _match_joint_indices(joint_names: Iterable[str], patterns: Iterable[str], de
     """Return indices of joints whose names match any of the provided patterns.
 
     Patterns can be exact names or regexes (e.g. ``\"R_.*\"``).
-    
+
     Args:
         joint_names: List of joint names to search in.
         patterns: Patterns to match against joint names.
         device: The device to create the tensor on.
-    
+
     Returns:
         Tensor of indices matching the patterns.
     """

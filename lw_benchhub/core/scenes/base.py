@@ -24,7 +24,9 @@ class LocalScene(Scene, NoDeepcopyMixin):
     def __init__(self, **kwargs):
         super().__init__()
         self.context = get_context()
+        self.scene_name = self.context.scene_name
         self.scene_usd_path = self.context.scene_name
+        self.scene_backend = self.context.scene_backend
         self.scene_type = "local"
         self.fixtures = {}
         self.fxtr_placements = {}
@@ -47,5 +49,6 @@ class LocalScene(Scene, NoDeepcopyMixin):
         }
 
     def modify_env_cfg(self, env_cfg: IsaacLabArenaManagerBasedRLEnvCfg):
+        env_cfg.scene_backend = self.scene_backend
         env_cfg.sim.render.enable_translucency = True
         return env_cfg
