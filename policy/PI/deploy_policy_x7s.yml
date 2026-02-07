@@ -1,0 +1,50 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: PIPolicy
+checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_libero/10000' 
+
+# Add Parameters You Need
+train_config_name: pi0_libero
+action_chunk_size: 50
+
+instruction: 'Pick the mug from under the coffee machine dispenser and place it on the counter.'
+
+observation_config:
+  custom_mapping:
+    observation.images.left_hand: left_hand_camera_rgb
+    observation.images.right_hand: right_hand_camera_rgb
+    observation.images.first_person: first_person_camera_rgb
+    observation.state: joint_pos
+    
+record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera"]
+time_out_limit: 30
+
+height: 224
+width: 398
+
+test_num: 1
+
+env_cfg:
+  task: CoffeeServeMug
+  robot: X7S-Abs
+  layout: robocasakitchen-5-4
+  scene_backend: robocasa
+  task_backend: robocasa
+  device: cuda:0
+  num_envs: 1
+  usd_simplify: false
+  enable_cameras: true
+  video: false
+  disable_fabric: false
+  robot_scale: 1.0
+  seed: 42
+  sources: null
+  object_projects: null
+  for_rl: false
+  variant: Visual 
+
+  concatenate_terms: false
+  distributed: false
+
+  replay_cfgs:
+    add_camera_to_observation: true
+    render_resolution: [398,224]

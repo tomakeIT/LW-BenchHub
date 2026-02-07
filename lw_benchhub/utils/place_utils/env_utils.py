@@ -86,7 +86,11 @@ VALID_CFG_KEYS = set(
         "merged_obj",
         "load_from_local",
         "asset_name",
+<<<<<<< Updated upstream
         "ep_meta_scale",
+=======
+        "ep_meta_scale", # added mannually to solve potential errors
+>>>>>>> Stashed changes
         *VALID_PROPERTY_KEYS,
     }
 )
@@ -635,6 +639,7 @@ def _get_placement_initializer(orchestrator, cfg_list, seed, z_offset=0.01) -> S
     placement_initializer = SequentialCompositeSampler(name="SceneSampler", seed=seed)
 
     for (obj_i, cfg) in enumerate(cfg_list):
+        # breakpoint()
         _check_cfg_is_valid(cfg)
 
         if cfg["type"] == "fixture":
@@ -1208,7 +1213,7 @@ def sample_robot_base_helper(
 
     found_valid = False
 
-    if execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_TELEOP, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL):
+    if execute_mode in (ExecuteMode.REPLAY_ACTION, ExecuteMode.REPLAY_TELEOP, ExecuteMode.REPLAY_JOINT_TARGETS, ExecuteMode.REPLAY_STATE):
         return anchor_pos
 
     cur_dev_pos_x = pos_dev_x

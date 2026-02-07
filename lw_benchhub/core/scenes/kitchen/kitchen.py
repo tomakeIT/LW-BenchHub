@@ -176,7 +176,7 @@ class LwScene(Scene, NoDeepcopyMixin):
                 prim_path="/World/global_light",
                 spawn=sim_utils.DomeLightCfg(
                     color=(0.75, 0.75, 0.75),
-                    intensity=500.0,
+                    intensity=5000.0,
                     visible_in_primary_ray=True,
                 ),
             )
@@ -185,7 +185,7 @@ class LwScene(Scene, NoDeepcopyMixin):
                 prim_path="/World/global_light",
                 spawn=sim_utils.DomeLightCfg(
                     color=(0.75, 0.75, 0.75),
-                    intensity=950.0,
+                    intensity=9000.0,
                     visible_in_primary_ray=True,
                 ),
             )

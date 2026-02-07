@@ -1,12 +1,13 @@
 pip install --upgrade pip
 pip install uv
-uv pip install torch==2.7.0 torchvision==0.22.0 --index-url https://download.pytorch.org/whl/cu128
+# uv pip install torch torchvision --index-url https://download.pytorch.org/whl/cu130
 conda install pinocchio -c conda-forge -y
 
 # install isaacsim
-uv pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
+# uv pip install "isaacsim[all,extscache]==5.0.0" --extra-index-url https://pypi.nvidia.com
+source /home/jialeng/Desktop/lw_benchhub/third_party/IsaacLab-Arena/submodules/IsaacLab/_isaac_sim/setup_conda_env.sh
 
-git submodule update --init --recursive
+# git submodule update --init --recursive
 
 # install isaaclab
 cd third_party/IsaacLab-Arena/submodules/IsaacLab
