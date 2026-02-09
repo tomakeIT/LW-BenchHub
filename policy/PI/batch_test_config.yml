@@ -1,0 +1,72 @@
+# 批量测试配置文件
+# 定义多个测试场景和参数
+
+# 基础配置（与单个测试相同）
+policy_name: PIPolicy
+checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_libero/4000' 
+train_config_name: pi0_libero
+action_chunk_size: 50
+
+# 观测配置
+observation_config:
+  custom_mapping:
+    observation.images.left_hand: left_hand_camera_rgb
+    observation.images.right_hand: right_hand_camera_rgb
+    observation.images.first_person: first_person_camera_rgb
+    observation.state: joint_pos
+    
+record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera"]
+time_out_limit: 30
+
+# 视频配置
+height: 224
+width: 398
+
+# 测试配置
+test_num_per_scene: 5  # 每个场景测试次数
+
+# 场景列表
+scenes:
+  - name: "CoffeeServeMug-Kitchen5-3"
+    task: CoffeeServeMug
+    robot: X7S-Abs
+    layout: robocasakitchen-5-3
+    instruction: 'Pick the mug from under the coffee machine dispenser and place it on the counter.'
+    
+  - name: "CoffeeServeMug-Kitchen3-1"
+    task: CoffeeServeMug
+    robot: X7S-Abs
+    layout: robocasakitchen-3-1
+    instruction: 'Pick the mug from under the coffee machine dispenser and place it on the counter.'
+    
+  - name: "CoffeeServeMug-Kitchen7-2"
+    task: CoffeeServeMug
+    robot: X7S-Abs
+    layout: robocasakitchen-7-2
+    instruction: 'Pick the mug from under the coffee machine dispenser and place it on the counter.'
+
+# 环境配置模板
+env_cfg_template:
+  scene_backend: robocasa
+  task_backend: robocasa
+  device: cuda:0
+  num_envs: 1
+  usd_simplify: false
+  enable_cameras: true
+  video: false
+  disable_fabric: false
+  robot_scale: 1.0
+  seed: 42
+  sources: null
+  object_projects: null
+  for_rl: false
+  variant: Visual 
+  concatenate_terms: false
+  distributed: false
+  replay_cfgs:
+    add_camera_to_observation: true
+    render_resolution: [398,224]
+
+# 输出配置
+output_dir: "./eval_result/batch_test"
+results_file: "batch_results.json"

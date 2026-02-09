@@ -43,7 +43,7 @@ parser.add_argument("--episode_index", type=int, default=0, help="Index of episo
 AppLauncher.add_app_launcher_args(parser)
 # parse the arguments
 args_cli = parser.parse_args()
-args_cli.headless = False
+args_cli.headless = True
 
 if args_cli.remote_protocol == "restful":
     from lw_benchhub.distributed.restful import RestfulEnvWrapper

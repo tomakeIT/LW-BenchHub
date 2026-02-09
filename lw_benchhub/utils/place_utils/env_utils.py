@@ -86,11 +86,7 @@ VALID_CFG_KEYS = set(
         "merged_obj",
         "load_from_local",
         "asset_name",
-<<<<<<< Updated upstream
         "ep_meta_scale",
-=======
-        "ep_meta_scale", # added mannually to solve potential errors
->>>>>>> Stashed changes
         *VALID_PROPERTY_KEYS,
     }
 )

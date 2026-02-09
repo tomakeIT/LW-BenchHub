@@ -16,10 +16,14 @@
 PI Policy Implementation
 """
 
-import torch
-import sys
+import dataclasses
 import os
-from typing import Dict, Any
+import sys
+from typing import Any, Dict
+
+import cv2
+import numpy as np
+import torch
 
 # Add current directory to path
 current_file_path = os.path.abspath(__file__)
@@ -44,13 +48,26 @@ class PIPolicy(BasePolicy):
 
         train_config_name = usr_args["train_config_name"]
         checkpoint = usr_args["checkpoint"]
+        jax_params_dtype = usr_args.get("jax_params_dtype")
         observation_config = usr_args.get("observation_config", None)
         config = _config.get_config(train_config_name)
+        jax_model_dtype = usr_args.get("jax_model_dtype")
+        if jax_model_dtype is not None:
+            config = dataclasses.replace(
+                config,
+                model=dataclasses.replace(config.model, dtype=jax_model_dtype),
+            )
         self.action_chunk_size = usr_args["action_chunk_size"]
-        self.model = _policy_config.create_trained_policy(config, checkpoint)
+        self.model = _policy_config.create_trained_policy(
+            config,
+            checkpoint,
+            jax_params_dtype=jax_params_dtype,
+        )
         print("loading PI0.5 model success!")
         self.observation_window = None
         self.observation_config = observation_config or {}
+        # Match dataset preprocessing (stretch resize to square).
+        self.model_image_size = 224
 
     def get_action(self):
         assert self.observation_window is not None, "update observation_window first!"
@@ -68,10 +85,25 @@ class PIPolicy(BasePolicy):
         obs_window = {"prompt": self.instruction}
         for key, mapping in custom_mapping.items():
             if isinstance(mapping, dict):
-                obs_window[key] = {k: obs[v] for k, v in mapping.items()}
+                obs_window[key] = {k: self._resize_image_stretch(obs[v]) for k, v in mapping.items()}
             else:
-                obs_window[key] = obs[mapping]
+                obs_window[key] = self._resize_image_stretch(obs[mapping])
         return obs_window
+
+    def _resize_image_stretch(self, image):
+        """Resize image to model_image_size with stretch (no padding)."""
+        if not isinstance(image, np.ndarray):
+            return image
+        if image.ndim == 4 and image.shape[0] == 1:
+            image = image[0]
+        if image.ndim != 3:
+            return image
+        if image.shape[0] == 3:
+            image = np.transpose(image, (1, 2, 0))
+        height, width = image.shape[:2]
+        if height == self.model_image_size and width == self.model_image_size:
+            return image
+        return cv2.resize(image, (self.model_image_size, self.model_image_size), interpolation=cv2.INTER_AREA)
 
     def custom_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
         # define your own action mapping here
@@ -84,23 +116,68 @@ class PIPolicy(BasePolicy):
     def eval(self, task_env: Any, observation: Dict[str, Any],
              usr_args: Dict[str, Any], video_writer: Any) -> bool:
         """Evaluate PI policy"""
+        num_envs = self._infer_num_envs(observation)
+        done = np.zeros(num_envs, dtype=bool)
         for _ in range(usr_args['time_out_limit']):
-            self.observation_window = self.encode_obs(observation)
-
-            self.observation_window = self.custom_obs_mapping(self.observation_window)
-            actions = self.get_action()
-            actions = self.custom_action_mapping(actions)
+            actions_per_env = []
+            action_dim = None
+            for env_idx in range(num_envs):
+                if done[env_idx]:
+                    actions_per_env.append(None)
+                    continue
+                obs_env = self._slice_observation(observation, env_idx)
+                self.observation_window = self.encode_obs(obs_env)
+                self.observation_window = self.custom_obs_mapping(self.observation_window)
+                actions = self.get_action()
+                actions = self.custom_action_mapping(actions)
+                actions_per_env.append(actions)
+                if action_dim is None:
+                    action_dim = actions.shape[-1]
+            if action_dim is None:
+                return done
 
             chunk = self.action_chunk_size
-            actions = torch.from_numpy(actions).float().cuda()
-
             for i in range(chunk):
-                action = actions[i]
-                observation, terminated = self.step_environment(task_env, action.unsqueeze(0), usr_args)
-                self.add_video_frame(video_writer, observation, usr_args['record_camera'])
-                if terminated:
-                    return terminated
-        return terminated
+                action_batch = []
+                for env_idx in range(num_envs):
+                    if done[env_idx]:
+                        action_batch.append(np.zeros(action_dim, dtype=np.float32))
+                    else:
+                        action_batch.append(actions_per_env[env_idx][i])
+                actions_tensor = torch.from_numpy(np.stack(action_batch, axis=0)).float().cuda()
+                observation, terminated = self.step_environment(task_env, actions_tensor, usr_args)
+                for env_idx in range(num_envs):
+                    writer = video_writer[env_idx] if isinstance(video_writer, (list, tuple)) else video_writer
+                    self.add_video_frame(writer, observation, usr_args['record_camera'], env_idx=env_idx)
+                terminated = self._normalize_terminated(terminated, num_envs)
+                done = np.logical_or(done, terminated)
+                if done.all():
+                    return done
+        return done
+
+    def _infer_num_envs(self, observation: Dict[str, Any]) -> int:
+        for key, value in observation.get("policy", {}).items():
+            if torch.is_tensor(value):
+                return int(value.shape[0])
+        return 1
+
+    def _slice_observation(self, observation: Dict[str, Any], env_idx: int) -> Dict[str, Any]:
+        obs_env = {"policy": {}, "embodiment_general_obs": {}}
+        for group in obs_env.keys():
+            for key, value in observation.get(group, {}).items():
+                if torch.is_tensor(value):
+                    obs_env[group][key] = value[env_idx:env_idx + 1]
+                else:
+                    obs_env[group][key] = value
+        return obs_env
+
+    def _normalize_terminated(self, terminated, num_envs: int) -> np.ndarray:
+        if torch.is_tensor(terminated):
+            terminated = terminated.cpu().numpy()
+        terminated = np.asarray(terminated)
+        if terminated.shape == ():
+            terminated = np.full((num_envs,), bool(terminated), dtype=bool)
+        return terminated.astype(bool)
 
     def reset_model(self) -> None:
         """Reset PI model state"""

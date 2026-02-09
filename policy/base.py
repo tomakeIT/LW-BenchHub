@@ -56,11 +56,13 @@ class BasePolicy(ABC):
         self.instruction = self.usr_args.get('instruction', '')
 
     def add_video_frame(self, video_writer: Any, obs: Dict[str, Any],
-                        camera_key: str) -> None:
+                        camera_key: str, env_idx: int = 0) -> None:
         """Add video frame"""
         if video_writer is not None:
             camera_images = [
-                obs['policy'][[key for key in obs['policy'].keys() if key.startswith(cam)][0]].cpu().numpy()[0]
+                obs['policy'][[key for key in obs['policy'].keys() if key.startswith(cam)][0]]
+                .cpu()
+                .numpy()[env_idx]
                 for cam in camera_key if any(key.startswith(cam) for key in obs['policy'].keys())
             ]
             combined_image = np.concatenate(camera_images, axis=1)
