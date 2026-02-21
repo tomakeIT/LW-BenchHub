@@ -66,8 +66,8 @@ class PIPolicy(BasePolicy):
         print("loading PI0.5 model success!")
         self.observation_window = None
         self.observation_config = observation_config or {}
-        # Match dataset preprocessing (stretch resize to square).
-        self.model_image_size = 224
+        # breakpoint()
+        print("Config:", config)
 
     def get_action(self):
         assert self.observation_window is not None, "update observation_window first!"
@@ -85,25 +85,11 @@ class PIPolicy(BasePolicy):
         obs_window = {"prompt": self.instruction}
         for key, mapping in custom_mapping.items():
             if isinstance(mapping, dict):
-                obs_window[key] = {k: self._resize_image_stretch(obs[v]) for k, v in mapping.items()}
+                obs_window[key] = {k: obs[v] for k, v in mapping.items()}
             else:
-                obs_window[key] = self._resize_image_stretch(obs[mapping])
+                obs_window[key] = obs[mapping]
         return obs_window
 
-    def _resize_image_stretch(self, image):
-        """Resize image to model_image_size with stretch (no padding)."""
-        if not isinstance(image, np.ndarray):
-            return image
-        if image.ndim == 4 and image.shape[0] == 1:
-            image = image[0]
-        if image.ndim != 3:
-            return image
-        if image.shape[0] == 3:
-            image = np.transpose(image, (1, 2, 0))
-        height, width = image.shape[:2]
-        if height == self.model_image_size and width == self.model_image_size:
-            return image
-        return cv2.resize(image, (self.model_image_size, self.model_image_size), interpolation=cv2.INTER_AREA)
 
     def custom_action_mapping(self, action: torch.Tensor) -> torch.Tensor:
         # define your own action mapping here

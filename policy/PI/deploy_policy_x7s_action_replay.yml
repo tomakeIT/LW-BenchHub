@@ -16,6 +16,9 @@ observation_config:
     observation.images.left_hand: left_hand_camera_rgb
     observation.images.right_hand: right_hand_camera_rgb
     observation.images.first_person: first_person_camera_rgb
+    observation.images.left_shoulder: left_shoulder_camera_rgb
+    observation.images.right_shoulder: right_shoulder_camera_rgb
+    observation.images.top: first_person_camera_rgb
     observation.state: joint_pos
     
 record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera"]

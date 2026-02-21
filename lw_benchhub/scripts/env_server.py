@@ -192,23 +192,38 @@ def make_env(cfg, launcher_args, args_override: dict = None):
     initial_state = None
     env_args = {}
     
+    # 支持从配置文件或命令行参数读取episode_data和episode_index
+    # 优先使用命令行参数,如果没有则从cfg读取
+    episode_data_path = args_cli.episode_data
+    episode_data_index = args_cli.episode_index
+    
+    if episode_data_path is None and hasattr(cfg, 'episode_data') and cfg.episode_data:
+        episode_data_path = cfg.episode_data
+        print(f"[INFO] Using episode_data from config: {episode_data_path}")
+    
+    if episode_data_path and hasattr(cfg, 'episode_index') and cfg.episode_index is not None:
+        episode_data_index = cfg.episode_index
+        print(f"[INFO] Using episode_index from config: {episode_data_index}")
+    
     # Initialize from HDF5 if episode_data is provided (before creating env_cfg)
     # This allows us to override cfg values from HDF5 before calling make_env_cfg
-    if args_cli.episode_data:
+    if episode_data_path:
         
         # Load environment arguments from HDF5
         episode_data_handler_temp = HDF5DatasetFileHandler()
-        episode_data_handler_temp.open(args_cli.episode_data)
+        episode_data_handler_temp.open(episode_data_path)
         env_args = json.loads(episode_data_handler_temp._hdf5_data_group.attrs["env_args"])
         
         # Get episode name for replay_cfgs
         episode_names = list(episode_data_handler_temp.get_episode_names())
         episode_names.sort(key=lambda x: int(x.split("_")[-1]))
-        episode_name = episode_names[args_cli.episode_index]
+        episode_name = episode_names[episode_data_index]
         device = torch.device(getattr(cfg, "device", "cuda:0"))
         initial_state = episode_data_handler_temp.load_episode(episode_name, device).get_initial_state()
         # Load initial state early so it can be passed into parse_env_cfg
         episode_data_handler_temp.close()
+        
+        print(f"[INFO] Loaded episode '{episode_name}' (index {episode_data_index}) from {episode_data_path}")
         
         # Override cfg with values from HDF5
         cfg.task = env_args.get("task_name", getattr(cfg, 'task', None))
@@ -233,7 +248,7 @@ def make_env(cfg, launcher_args, args_override: dict = None):
         # Set replay_cfgs (render_resolution will be updated later if width/height available)
 
         cfg.replay_cfgs.update({
-            "hdf5_path": args_cli.episode_data,
+            "hdf5_path": episode_data_path,
             "ep_meta": env_args,
             "ep_names": episode_name,
             "add_camera_to_observation": True
@@ -271,24 +286,204 @@ def make_env(cfg, launcher_args, args_override: dict = None):
     
     env: ManagerBasedEnv = gym_env.unwrapped
     warmup_rendering(env)
+    
     if initial_state is not None:
-        from lw_benchhub.utils.place_utils.env_utils import reset_physx
+        from lw_benchhub.utils.place_utils.env_utils import reset_physx, sample_object_placements
+        import copy
         is_relative = False
         if hasattr(args_cli, 'episode_data') and args_cli.episode_data:
             if "robot_name" in env_args:
                 is_relative = env_args["robot_name"].endswith("Rel")
-        def _reset_to_initial_state(seed=None, env_ids=None):
+        
+        # 配置需要随机化的物体列表
+        # 支持从cfg中读取,或使用默认列表
+        randomize_objects = getattr(cfg, 'randomize_objects_on_reset', None)
+        if randomize_objects is None:
+            # 默认情况下,对task中的主要交互物体进行随机化
+            # 例如: 对于PickCoffeeMug任务,随机化'obj'(咖啡杯)
+            randomize_objects = []  # 空列表表示完全固定场景
+        
+        # 配置随机化参数
+        randomize_pos_offset = getattr(cfg, 'randomize_pos_offset', 0.05)  # 默认±5cm
+        randomize_rot_offset = getattr(cfg, 'randomize_rot_offset', 0.3)   # 默认±17度(0.3 rad)
+        
+        # 机器人随机化参数
+        randomize_robot = getattr(cfg, 'randomize_robot', False)
+        randomize_robot_pos_offset = getattr(cfg, 'randomize_robot_pos_offset', 0.10)  # 默认±10cm
+        randomize_robot_rot_offset = getattr(cfg, 'randomize_robot_rot_offset', 0.2)   # 默认±11.5度
+        
+        # 确保base_seed不是None
+        base_seed = cfg.seed if hasattr(cfg, 'seed') and cfg.seed is not None else 42
+        
+        # 打印配置信息
+        if randomize_objects and len(randomize_objects) > 0:
+            print("="*60)
+            print("[INFO] Object randomization enabled for eval:")
+            print(f"  Objects to randomize: {randomize_objects}")
+            print(f"  Position offset: ±{randomize_pos_offset*100:.1f}cm")
+            print(f"  Rotation offset: ±{randomize_rot_offset*180/3.14159:.1f}°")
+            print(f"  Base seed: {base_seed}")
+            if randomize_robot:
+                print(f"\n[INFO] Robot randomization enabled:")
+                print(f"  Position offset: ±{randomize_robot_pos_offset*100:.1f}cm")
+                print(f"  Rotation offset: ±{randomize_robot_rot_offset*180/3.14159:.1f}°")
+            print("\n  Reproducibility guarantee:")
+            print(f"    - Same session: Each rollout has different randomization")
+            print(f"    - Different sessions: Same rollout sequence if seed={base_seed}")
+            print("="*60)
+        else:
+            print("[INFO] Object randomization disabled - scene will be completely fixed")
+        
+        # 用于跟踪reset次数,确保每次随机化都不同但可重复
+        # 同一session内: reset_counter递增,每次rollout不同
+        # 不同session间: reset_counter重置为0,相同seed产生相同序列
+        reset_counter = [0]
+        
+        def _reset_to_initial_state_with_randomization(seed=None, env_ids=None):
+            """
+            Reset to initial state, but with randomization for specified objects.
+            """
             reset_physx(env)
+            # 使用base_seed作为后备,确保seed永远不是None
             if seed is None:
-                seed = env.cfg.seed
-            return env.reset_to(initial_state, env_ids, seed=seed, is_relative=is_relative)
+                seed = env.cfg.seed if hasattr(env.cfg, 'seed') and env.cfg.seed is not None else base_seed
+            
+            # 深拷贝initial_state以避免修改原始数据
+            state_to_use = copy.deepcopy(initial_state)
+            
+            # 先完整reset到initial_state
+            result = env.reset_to(state_to_use, env_ids, seed=seed, is_relative=is_relative)
+            
+            # 如果指定了需要随机化的物体,在reset后修改它们的位置
+            if randomize_objects and len(randomize_objects) > 0:
+                # 设置随机种子以获得可重复但不同的随机化结果
+                # seed + reset_counter 确保:
+                #   - 同一session内递增: rollout 1, 2, 3... 使用不同种子
+                #   - 不同session间一致: 相同的base seed产生相同的序列
+                reset_counter[0] += 1
+                current_seed = seed + reset_counter[0]
+                torch.manual_seed(current_seed)
+                
+                # 打印随机化信息
+                if reset_counter[0] <= 3:  # 只打印前3次,避免刷屏
+                    print(f"\n[RESET #{reset_counter[0]}] Seed: {current_seed} (base={seed} + counter={reset_counter[0]})")
+                elif reset_counter[0] == 4:
+                    print(f"\n[INFO] Subsequent resets will use seed={seed}+4, {seed}+5, ... (output suppressed)")
+                
+                # 收集需要随机化的物体及其原始位置
+                objects_to_randomize = []
+                
+                for obj_name in randomize_objects:
+                    # 检查物体在哪个类别中 (articulation 或 rigid_object)
+                    if 'rigid_object' in state_to_use and obj_name in state_to_use['rigid_object']:
+                        original_pose = state_to_use['rigid_object'][obj_name]['root_pose'].clone()
+                        objects_to_randomize.append((obj_name, 'rigid_object', original_pose))
+                    elif 'articulation' in state_to_use and obj_name in state_to_use['articulation']:
+                        original_pose = state_to_use['articulation'][obj_name]['root_pose'].clone()
+                        objects_to_randomize.append((obj_name, 'articulation', original_pose))
+                    else:
+                        print(f"[WARNING] Object '{obj_name}' not found in initial_state. Available objects:")
+                        if 'rigid_object' in state_to_use:
+                            print(f"  rigid_object: {list(state_to_use['rigid_object'].keys())}")
+                        if 'articulation' in state_to_use:
+                            print(f"  articulation: {list(state_to_use['articulation'].keys())}")
+                
+                # 对需要随机化的物体添加offset
+                for obj_name, obj_type, original_pose in objects_to_randomize:
+                    # 解析原始pose (format: [x, y, z, qw, qx, qy, qz])
+                    original_pos = original_pose[0, :3]
+                    original_quat = original_pose[0, 3:]  # wxyz format
+                    
+                    # 添加位置随机offset
+                    pos_offset = torch.rand(3, device=env.device) * 2 * randomize_pos_offset - randomize_pos_offset
+                    new_pos = original_pos + pos_offset
+                    
+                    # 添加旋转随机offset (绕z轴)
+                    rot_offset = (torch.rand(1, device=env.device) * 2 - 1) * randomize_rot_offset
+                    # 将原始四元数转换为欧拉角
+                    from scipy.spatial.transform import Rotation as R
+                    r = R.from_quat(original_quat[[1,2,3,0]].cpu().numpy())  # wxyz -> xyzw for scipy
+                    euler = r.as_euler('xyz')
+                    euler[2] += rot_offset.cpu().numpy()[0]  # 只修改yaw
+                    new_quat_xyzw = R.from_euler('xyz', euler).as_quat()
+                    new_quat = torch.tensor([new_quat_xyzw[3], new_quat_xyzw[0], new_quat_xyzw[1], new_quat_xyzw[2]], 
+                                           device=env.device)  # xyzw -> wxyz
+                    
+                    # 组合新的pose (确保dtype与原始pose一致)
+                    new_pose = torch.cat([new_pos, new_quat]).unsqueeze(0).to(dtype=original_pose.dtype)
+                    
+                    # 打印随机化信息(便于调试)
+                    if reset_counter[0] <= 3:  # 只打印前3次
+                        print(f"[INFO] Randomized object '{obj_name}':")
+                        print(f"  Original pos: {original_pos.cpu().numpy()}")
+                        print(f"  New pos: {new_pos.cpu().numpy()}")
+                        print(f"  Position offset: {pos_offset.cpu().numpy()}")
+                        print(f"  Rotation offset (deg): {rot_offset.cpu().item() * 180 / 3.14159:.2f}")
+                    
+                    # 写入simulation
+                    if obj_type == 'rigid_object':
+                        env.scene.rigid_objects[obj_name].write_root_pose_to_sim(new_pose, env_ids=env_ids)
+                    else:
+                        env.scene.articulations[obj_name].write_root_pose_to_sim(new_pose, env_ids=env_ids)
+                
+                # 随机化机器人位置 (如果启用)
+                if randomize_robot and 'robot' in state_to_use.get('articulation', {}):
+                    original_robot_pose = state_to_use['articulation']['robot']['root_pose'].clone()
+                    original_robot_pos = original_robot_pose[0, :3]
+                    original_robot_quat = original_robot_pose[0, 3:]  # wxyz format
+                    
+                    # 添加位置随机offset
+                    robot_pos_offset = torch.rand(3, device=env.device) * 2 * randomize_robot_pos_offset - randomize_robot_pos_offset
+                    new_robot_pos = original_robot_pos + robot_pos_offset
+                    
+                    # 添加旋转随机offset (只绕z轴)
+                    robot_rot_offset = (torch.rand(1, device=env.device) * 2 - 1) * randomize_robot_rot_offset
+                    from scipy.spatial.transform import Rotation as R
+                    r = R.from_quat(original_robot_quat[[1,2,3,0]].cpu().numpy())
+                    euler = r.as_euler('xyz')
+                    euler[2] += robot_rot_offset.cpu().numpy()[0]  # 只修改yaw
+                    new_robot_quat_xyzw = R.from_euler('xyz', euler).as_quat()
+                    new_robot_quat = torch.tensor([new_robot_quat_xyzw[3], new_robot_quat_xyzw[0], 
+                                                   new_robot_quat_xyzw[1], new_robot_quat_xyzw[2]], 
+                                                  device=env.device)
+                    
+                    # 组合新的pose
+                    new_robot_pose = torch.cat([new_robot_pos, new_robot_quat]).unsqueeze(0).to(dtype=original_robot_pose.dtype)
+                    
+                    # 打印随机化信息
+                    if reset_counter[0] <= 3:
+                        print(f"[INFO] Randomized robot:")
+                        print(f"  Original pos: {original_robot_pos.cpu().numpy()}")
+                        print(f"  New pos: {new_robot_pos.cpu().numpy()}")
+                        print(f"  Position offset: {robot_pos_offset.cpu().numpy()}")
+                        print(f"  Rotation offset (deg): {robot_rot_offset.cpu().item() * 180 / 3.14159:.2f}")
+                    
+                    # 写入simulation
+                    env.scene.articulations['robot'].write_root_pose_to_sim(new_robot_pose, env_ids=env_ids)
+                
+                # 更新物理引擎
+                env.sim.forward()
+                if env.sim.has_rtx_sensors() and env.cfg.rerender_on_reset:
+                    env.sim.render()
+                
+                # 重新计算observations
+                obs_buf = env.observation_manager.compute(update_history=True)
+                return obs_buf, env.extras
+            else:
+                # 如果没有指定随机化物体,直接返回reset结果
+                return result
 
         print("resetting environment to initial state")
-        _reset_to_initial_state(env_ids=torch.tensor([0], device=env.device))
+        # 初始化reset不消耗counter，确保第一个rollout从seed+1开始
+        _reset_to_initial_state_with_randomization(env_ids=torch.tensor([0], device=env.device))
+        # 重置counter，因为初始化reset不应该算作rollout
+        if randomize_objects and len(randomize_objects) > 0:
+            reset_counter[0] = 0
+            print("[INFO] Environment initialized. Next reset will be rollout #1 with seed={base_seed}+1")
 
-        # Override reset to keep the scene identical on eval resets.
+        # Override reset to keep the scene with controlled randomization
         def _reset_override(seed=None, env_ids=None, options=None):
-            return _reset_to_initial_state(seed=seed, env_ids=env_ids)
+            return _reset_to_initial_state_with_randomization(seed=seed, env_ids=env_ids)
 
         env.reset = _reset_override
     return env

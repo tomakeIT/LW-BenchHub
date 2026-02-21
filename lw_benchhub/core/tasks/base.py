@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import glob
+import json
 import os
 from copy import deepcopy
 from dataclasses import MISSING
@@ -389,11 +390,28 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
 
         return []
 
+    def _get_object_cfgs_cache_path(self):
+        replay_cfgs = self.context.replay_cfgs or {}
+        cache_path = replay_cfgs.get("object_cfgs_path")
+        if not cache_path:
+            return None
+        return os.path.expanduser(cache_path)
+
     def _create_objects(self):
         """
         Creates and places objects in the kitchen environment.
         Helper function called by _create_objects()
         """
+        cache_path = self._get_object_cfgs_cache_path()
+        object_cfgs_override = {}
+        if cache_path and os.path.exists(cache_path):
+            with open(cache_path, "r", encoding="utf-8") as f:
+                override_cfgs = json.load(f)
+            for cfg in override_cfgs:
+                name = cfg.get("name")
+                if name:
+                    object_cfgs_override[name] = cfg
+
         # add objects
         self.objects: Dict[str, USDObject] = {}
         if "object_cfgs" in self.context.ep_meta:
@@ -419,7 +437,23 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
                 obj_cfg["type"] = "object"
                 if "name" not in obj_cfg:
                     obj_cfg["name"] = "obj_{}".format(obj_num + 1)
-                model, info = EnvUtils.create_obj(self, obj_cfg)
+                override_cfg = object_cfgs_override.get(obj_cfg["name"])
+                object_version = None
+                if override_cfg is not None:
+                    override_info = override_cfg.get("info")
+                    override_asset_name = override_cfg.get("asset_name")
+                    override_source = override_cfg.get("source")
+                    if override_info and override_info.get("obj_path"):
+                        obj_cfg["info"] = override_info
+                        if "scale" in override_info:
+                            obj_cfg["ep_meta_scale"] = override_info["scale"]
+                        object_version = override_info.get("obj_version")
+                    elif override_asset_name:
+                        obj_cfg["asset_name"] = override_asset_name
+                        if override_source is not None:
+                            obj_cfg["source"] = override_source
+                        object_version = override_cfg.get("obj_version")
+                model, info = EnvUtils.create_obj(self, obj_cfg, version=object_version)
                 obj_cfg["info"] = {**obj_cfg.get("info", {}), **info}
                 self.objects[model.task_name] = model
 
@@ -544,6 +578,13 @@ class LwTaskBase(TaskBase, NoDeepcopyMixin):
         for obj_cfg in self.object_cfgs:
             objects_version.append({obj_cfg["name"]: obj_cfg["info"]["obj_version"]})
         self.objects_version = objects_version
+
+        if cache_path and not os.path.exists(cache_path):
+            cache_dir = os.path.dirname(cache_path)
+            if cache_dir:
+                os.makedirs(cache_dir, exist_ok=True)
+            with open(cache_path, "w", encoding="utf-8") as f:
+                json.dump(self.get_ep_meta()["object_cfgs"], f, indent=2, ensure_ascii=False)
 
         for obj_cfg in self.object_cfgs:
             stage = usd.get_stage(obj_cfg["info"]["obj_path"])

@@ -1,125 +1,48 @@
 # Basic experiment configuration (keep unchanged)
 policy_name: PIPolicy
+
 # NOTE: 使用 JAX 参数时可显式指定恢复 dtype，避免 bf16->f16 转换崩溃。
-checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_libero/jax'
-jax_params_dtype: 'float32'
-jax_model_dtype: 'float32'
+checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_base_torch'
+# jax_params_dtype: 'float32'
+# jax_model_dtype: 'float32'
 
 # Add Parameters You Need
 train_config_name: pi0_libero
 action_chunk_size: 30
 
-instruction: 'Pick the mug from under the coffee machine dispenser and place it on the counter.'
+instruction: "Put the coffee mug to the countertop"
 
 observation_config:
   custom_mapping:
     observation.images.left_hand: left_hand_camera_rgb
     observation.images.right_hand: right_hand_camera_rgb
     observation.images.first_person: first_person_camera_rgb
+    observation.images.left_shoulder: left_shoulder_camera_rgb
+    observation.images.right_shoulder: right_shoulder_camera_rgb
+    observation.images.top: eye_in_hand_camera_rgb
     observation.state: joint_pos
     
-record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera"]
-time_out_limit: 30
+record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera", "left_shoulder_camera", "right_shoulder_camera", "eye_in_hand_camera"]
+time_out_limit: 5
 
 height: 224
 width: 398
 
-test_num: 2
+test_num: 10
 
 env_cfg:
-  task: CoffeeServeMug
+  task: BreadSetupSlicing
   robot: X7S-Abs
   # Single scene (legacy)
   # layout: robocasakitchen-5-3
   # Multi-scene list (preferred)
   layouts:
-    - robocasakitchen-1-10
-    - robocasakitchen-1-18
-    - robocasakitchen-1-3
-    - robocasakitchen-1-7
-    - robocasakitchen-10-4
-    - robocasakitchen-10-8
-    - robocasakitchen-10-9
-    - robocasakitchen-12-37
-    - robocasakitchen-13-15
-    - robocasakitchen-14-49
-    - robocasakitchen-15-54
-    - robocasakitchen-19-50
-    - robocasakitchen-19-57
-    - robocasakitchen-19-7
-    - robocasakitchen-2-28
-    - robocasakitchen-2-40
-    - robocasakitchen-2-50
-    - robocasakitchen-20-21
-    - robocasakitchen-20-41
-    - robocasakitchen-27-24
-    - robocasakitchen-28-43
-    - robocasakitchen-3-10
-    - robocasakitchen-3-2
-    - robocasakitchen-3-26
-    - robocasakitchen-3-4
-    - robocasakitchen-3-5
-    - robocasakitchen-3-6
-    - robocasakitchen-3-8
-    - robocasakitchen-32-38
-    - robocasakitchen-33-38
-    - robocasakitchen-36-32
-    - robocasakitchen-37-15
-    - robocasakitchen-38-56
-    - robocasakitchen-39-5
-    - robocasakitchen-4-10
-    - robocasakitchen-4-2
-    - robocasakitchen-4-3
-    - robocasakitchen-4-4
-    - robocasakitchen-4-6
-    - robocasakitchen-4-7
-    - robocasakitchen-40-37
-    - robocasakitchen-41-43
-    - robocasakitchen-41-57
-    - robocasakitchen-42-25
-    - robocasakitchen-43-44
-    - robocasakitchen-43-47
-    - robocasakitchen-43-55
-    - robocasakitchen-43-59
-    - robocasakitchen-44-33
-    - robocasakitchen-46-48
-    - robocasakitchen-46-53
-    - robocasakitchen-46-57
-    - robocasakitchen-47-60
-    - robocasakitchen-48-38
-    - robocasakitchen-49-30
-    - robocasakitchen-49-42
-    - robocasakitchen-5-1
-    - robocasakitchen-5-31
-    - robocasakitchen-5-4
-    - robocasakitchen-5-7
-    - robocasakitchen-5-8
-    - robocasakitchen-50-2
-    - robocasakitchen-50-37
-    - robocasakitchen-51-59
-    - robocasakitchen-54-21
-    - robocasakitchen-54-8
-    - robocasakitchen-55-12
-    - robocasakitchen-56-6
-    - robocasakitchen-58-26
-    - robocasakitchen-59-28
-    - robocasakitchen-6-2
-    - robocasakitchen-6-3
-    - robocasakitchen-6-44
-    - robocasakitchen-6-8
-    - robocasakitchen-60-56
-    - robocasakitchen-7-1
-    - robocasakitchen-7-7
-    - robocasakitchen-7-9
-    - robocasakitchen-8-1
-    - robocasakitchen-8-10
-    - robocasakitchen-8-8
+    - robocasakitchen-6-10
+    - robocasakitchen-5-3
+    - robocasakitchen-4-9
     - robocasakitchen-8-9
-    - robocasakitchen-9-10
-    - robocasakitchen-9-4
-    - robocasakitchen-9-5
-    - robocasakitchen-9-6
-    - robocasakitchen-9-9
+    - robocasakitchen-9-3
+    - robocasakitchen-3-1
   
   scene_backend: robocasa
   task_backend: robocasa
@@ -141,4 +64,5 @@ env_cfg:
 
   replay_cfgs:
     add_camera_to_observation: true
+    # object_cfgs_path: "/home/jialeng/Desktop/lw_benchhub/.cache/objcfgs_coffee_x7s_seed42.json"
     render_resolution: [398,224]

@@ -159,5 +159,6 @@ SOURCE_MAPPING = {
     "objaverse": "objaverse",
     "aigen_objs": "aigen",
     "lightwheel": "lightwheel",
+    "lightwheel_aigc": "lightwheel",
     "local": "local",
 }

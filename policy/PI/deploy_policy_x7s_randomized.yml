@@ -1,0 +1,87 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: PIPolicy
+
+# NOTE: 使用 JAX 参数时可显式指定恢复 dtype,避免 bf16->f16 转换崩溃。
+checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_libero/jax/29999'
+jax_params_dtype: 'float32'
+jax_model_dtype: 'float32'
+
+# Add Parameters You Need
+train_config_name: pi0_libero
+action_chunk_size: 30
+
+instruction: "Put the coffee mug to the countertop"
+
+observation_config:
+  custom_mapping:
+    observation.images.left_hand: left_hand_camera_rgb
+    observation.images.right_hand: right_hand_camera_rgb
+    observation.images.first_person: first_person_camera_rgb
+    observation.images.left_shoulder: left_shoulder_camera_rgb
+    observation.images.right_shoulder: right_shoulder_camera_rgb
+    observation.images.top: first_person_camera_rgb
+    observation.state: joint_pos
+    
+record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera", "left_shoulder_camera", "right_shoulder_camera"]
+time_out_limit: 30
+
+height: 224
+width: 398
+
+test_num: 10
+
+# ========== HDF5 Episode配置 ==========
+# 指定要加载的HDF5文件和episode索引
+# 如果不指定,可以通过命令行参数传入: --episode_data /path/to/file.hdf5 --episode_index 0
+episode_data: "/home/jialeng/Desktop/LightwheelData/Tasks/CoffeeServeMug_v2/CoffeeServeMug_1760083958515863/dataset_success.hdf5"
+episode_index: 0
+# =====================================
+
+env_cfg:
+  # ========== 注意 ==========
+  # 本配置用于从HDF5文件replay时使用
+  # HDF5文件路径在上面的 episode_data 字段指定
+  # 以下配置会被HDF5文件中的ep_meta覆盖，实际值从HDF5读取：
+  #   - task, robot, layout, scene_backend, task_backend
+  #   - seed, sources, object_projects
+  # ========================
+  
+  task: CoffeeServeMug  # 会被HDF5覆盖
+  robot: X7S-Abs  # 会被HDF5覆盖
+  
+  scene_backend: robocasa  # 会被HDF5覆盖
+  task_backend: robocasa  # 会被HDF5覆盖
+  device: cuda:0
+  num_envs: 1
+  usd_simplify: false
+  enable_cameras: true
+  video: false
+  disable_fabric: false
+  robot_scale: 1.0
+  for_rl: false
+  variant: Visual 
+
+  concatenate_terms: false
+  distributed: false
+  
+  # ========== 随机化配置 (生效) ==========
+  # 物体随机化
+  randomize_objects_on_reset:
+    - obj  # 咖啡杯
+  
+  # 物体位置随机化范围 (米) - 每次reset时在原始位置±5cm范围内随机偏移
+  randomize_pos_offset: 0.05
+  
+  # 物体旋转随机化范围 (弧度) - 每次reset时在原始朝向±17度范围内随机旋转(绕z轴)
+  randomize_rot_offset: 0.3
+  
+  # 机器人位置随机化 (可选)
+  randomize_robot: false  # 是否随机化机器人启动位置
+  randomize_robot_pos_offset: 0.10  # 机器人位置偏移范围 (米) ±10cm
+  randomize_robot_rot_offset: 0.2   # 机器人朝向偏移范围 (弧度) ±11.5度
+  # ========================================
+
+  replay_cfgs:
+    add_camera_to_observation: true
+    object_cfgs_path: "/home/jialeng/Desktop/lw_benchhub/.cache/objcfgs_coffee_x7s_seed42.json"
+    render_resolution: [398,224]
