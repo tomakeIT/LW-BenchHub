@@ -249,7 +249,7 @@ class X7SEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": [],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             },
             "eye_in_hand_camera": {
                 "camera_cfg": TiledCameraCfg(
@@ -268,7 +268,7 @@ class X7SEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": [],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             },
             "right_shoulder_camera": {
                 "camera_cfg": TiledCameraCfg(
@@ -287,7 +287,7 @@ class X7SEnvCfg(LwEmbodimentBase):
                     update_period=0.05,
                 ),
                 "tags": [],
-                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE]
+                "execute_mode": [ExecuteMode.TELEOP, ExecuteMode.REPLAY_STATE, ExecuteMode.EVAL]
             }
         }
 
