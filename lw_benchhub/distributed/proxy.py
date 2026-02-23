@@ -16,6 +16,8 @@ import atexit
 import traceback
 from multiprocessing.managers import BaseManager, RemoteError
 
+import numpy as np
+
 try:
     import torch
 except Exception:  # pragma: no cover
@@ -23,9 +25,9 @@ except Exception:  # pragma: no cover
 
 
 def _cpuify_tensors(obj):
-    """Recursively move tensors to CPU for IPC transport."""
+    """Recursively convert tensors to numpy for IPC transport."""
     if torch is not None and torch.is_tensor(obj):
-        return obj.detach().cpu()
+        return obj.detach().cpu().numpy()
     if isinstance(obj, dict):
         return {k: _cpuify_tensors(v) for k, v in obj.items()}
     if isinstance(obj, list):
@@ -36,20 +38,37 @@ def _cpuify_tensors(obj):
 
 
 def _move_step_action_to_env_device(args, kwargs, env):
-    """Move step action tensor to env.device on server side."""
+    """Convert step action to torch tensor on env.device on server side."""
     if torch is None:
         return args, kwargs
     target_env = getattr(env, "_env", None)
     device = getattr(target_env, "device", None) or getattr(env, "device", None)
-    if device is None:
-        return args, kwargs
 
     args = list(args)
-    if len(args) > 0 and torch.is_tensor(args[0]):
-        args[0] = args[0].to(device)
-    if isinstance(kwargs, dict) and "action" in kwargs and torch.is_tensor(kwargs["action"]):
+    if len(args) > 0:
+        action = args[0]
+        if isinstance(action, np.ndarray):
+            action = torch.from_numpy(action)
+        elif isinstance(action, (list, tuple)):
+            action = torch.as_tensor(np.asarray(action))
+        if torch.is_tensor(action):
+            action = action.float()
+            if device is not None:
+                action = action.to(device)
+            args[0] = action
+
+    if isinstance(kwargs, dict) and "action" in kwargs:
         kwargs = dict(kwargs)
-        kwargs["action"] = kwargs["action"].to(device)
+        action = kwargs["action"]
+        if isinstance(action, np.ndarray):
+            action = torch.from_numpy(action)
+        elif isinstance(action, (list, tuple)):
+            action = torch.as_tensor(np.asarray(action))
+        if torch.is_tensor(action):
+            action = action.float()
+            if device is not None:
+                action = action.to(device)
+            kwargs["action"] = action
     return tuple(args), kwargs
 
 
