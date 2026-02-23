@@ -16,6 +16,42 @@ import atexit
 import traceback
 from multiprocessing.managers import BaseManager, RemoteError
 
+try:
+    import torch
+except Exception:  # pragma: no cover
+    torch = None
+
+
+def _cpuify_tensors(obj):
+    """Recursively move tensors to CPU for IPC transport."""
+    if torch is not None and torch.is_tensor(obj):
+        return obj.detach().cpu()
+    if isinstance(obj, dict):
+        return {k: _cpuify_tensors(v) for k, v in obj.items()}
+    if isinstance(obj, list):
+        return [_cpuify_tensors(v) for v in obj]
+    if isinstance(obj, tuple):
+        return tuple(_cpuify_tensors(v) for v in obj)
+    return obj
+
+
+def _move_step_action_to_env_device(args, kwargs, env):
+    """Move step action tensor to env.device on server side."""
+    if torch is None:
+        return args, kwargs
+    target_env = getattr(env, "_env", None)
+    device = getattr(target_env, "device", None) or getattr(env, "device", None)
+    if device is None:
+        return args, kwargs
+
+    args = list(args)
+    if len(args) > 0 and torch.is_tensor(args[0]):
+        args[0] = args[0].to(device)
+    if isinstance(kwargs, dict) and "action" in kwargs and torch.is_tensor(kwargs["action"]):
+        kwargs = dict(kwargs)
+        kwargs["action"] = kwargs["action"].to(device)
+    return tuple(args), kwargs
+
 
 class EnvManager(BaseManager):
     def register_for_server(self, env):
@@ -61,6 +97,8 @@ class EnvService:
     def call(self, path: str, args=(), kwargs=None):
         if kwargs is None:
             kwargs = {}
+        if path.endswith("step"):
+            args, kwargs = _move_step_action_to_env_device(args, kwargs, self._env)
         target = self._resolve(path)
         # print(f"call {path}")
         try:
@@ -135,6 +173,9 @@ class _PathView:
             # Return a callable object (call via RPC)
             # @tictoc(name)
             def _remote_call(*args, **kwargs):
+                if name == "step":
+                    args = _cpuify_tensors(args)
+                    kwargs = _cpuify_tensors(kwargs)
                 try:
                     return self._svc.call(full, args, kwargs)
                 except EOFError:
