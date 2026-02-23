@@ -40,6 +40,7 @@ class BasePolicy(ABC):
         self.model = None
         self.instruction = None
         self._is_initialized = False
+        self._step_debug_counter = 0
         self.initialize()
 
     def initialize(self) -> None:
@@ -80,6 +81,15 @@ class BasePolicy(ABC):
             action = action[..., usr_args['joint_mapping']]
 
         obs, _, terminated, _, _ = task_env.step(action)
+        debug_interval = int(usr_args.get("debug_step_interval", 0) or 0)
+        if debug_interval > 0:
+            self._step_debug_counter += 1
+            if self._step_debug_counter <= 5 or self._step_debug_counter % debug_interval == 0:
+                shape = tuple(action.shape) if torch.is_tensor(action) else np.asarray(action).shape
+                print(
+                    f"[POLICY-DEBUG] env.step#{self._step_debug_counter} "
+                    f"action_shape={shape} terminated={terminated}"
+                )
         return obs, terminated
 
     def encode_obs(self, observation: Dict[str, Any], transpose: bool = True, keep_dim_env: bool = False) -> Dict[str, Any]:

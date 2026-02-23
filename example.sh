@@ -20,3 +20,40 @@ python ./lw_benchhub/scripts/teleop/replay_action_demo.py \
 
 
 python3 lw_benchhub/scripts/env_server.py --enable_camera
+
+
+
+########################################################
+# run with restful protocol
+LW_REST_CLIENT_DEBUG=1 XLA_PYTHON_CLIENT_PREALLOCATE=false python3 lw_benchhub/scripts/policy/eval_policy.py \
+  --config policy/PI/deploy_policy_x7s.yml \
+  --remote_protocol restful \
+  --server_host 127.0.0.1 \
+  --server_port 8001 \
+  --debug_step_interval 1 \
+  --debug_client_flow
+
+LW_REST_DEBUG=1 python3 lw_benchhub/scripts/env_server.py \
+  --remote_protocol restful \
+  --restful_host 0.0.0.0 \
+  --restful_port 8001 \
+  --enable_camera
+
+########################################################
+# run with ipc protocol
+LW_IPC_CLIENT_DEBUG=1 XLA_PYTHON_CLIENT_PREALLOCATE=false python3 lw_benchhub/scripts/policy/eval_policy.py \
+  --config policy/PI/deploy_policy_x7s.yml \
+  --remote_protocol ipc \
+  --server_host 127.0.0.1 \
+  --server_port 50000 \
+  --ipc_authkey lightwheel \
+  --debug_step_interval 1 \
+  --debug_client_flow
+
+LW_IPC_DEBUG=1 python3 lw_benchhub/scripts/env_server.py \
+  --remote_protocol ipc \
+  --ipc_host 127.0.0.1 \
+  --ipc_port 50000 \
+  --ipc_authkey lightwheel \
+  --enable_camera
+

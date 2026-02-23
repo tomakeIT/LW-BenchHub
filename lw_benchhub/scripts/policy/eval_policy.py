@@ -41,6 +41,12 @@ default_config_path = project_root / "policy" / "PI" / "deploy_policy_lerobot.ym
 parser = argparse.ArgumentParser(description="Eval policy in Isaac Lab environments.")
 parser.add_argument("--config", type=str, default=str(default_config_path))
 parser.add_argument("--overrides", nargs=argparse.REMAINDER)
+parser.add_argument("--remote_protocol", type=str, choices=["ipc", "restful"], default=None)
+parser.add_argument("--server_host", type=str, default=None)
+parser.add_argument("--server_port", type=int, default=None)
+parser.add_argument("--ipc_authkey", type=str, default=None)
+parser.add_argument("--debug_step_interval", type=int, default=None)
+parser.add_argument("--debug_client_flow", action="store_true")
 
 # parse the arguments
 args_cli = parser.parse_args()
@@ -91,6 +97,19 @@ def parse_args_and_config():
         overrides = parse_override_pairs(args_cli.overrides)
         config = deep_merge(config, overrides)
 
+    if args_cli.remote_protocol is not None:
+        config["remote_protocol"] = args_cli.remote_protocol
+    if args_cli.server_host is not None:
+        config["server_host"] = args_cli.server_host
+    if args_cli.server_port is not None:
+        config["server_port"] = args_cli.server_port
+    if args_cli.ipc_authkey is not None:
+        config["ipc_authkey"] = args_cli.ipc_authkey
+    if args_cli.debug_step_interval is not None:
+        config["debug_step_interval"] = args_cli.debug_step_interval
+    if args_cli.debug_client_flow:
+        config["debug_client_flow"] = True
+
     return config
 
 
@@ -137,16 +156,41 @@ def _normalize_layouts(env_cfg):
 
 
 def main(usr_args):
+    debug_client_flow = bool(usr_args.get("debug_client_flow", False))
+    if debug_client_flow:
+        print(f"[CLIENT-DEBUG] loaded config keys: {sorted(list(usr_args.keys()))}")
 
-    from lw_benchhub.distributed.proxy import RemoteEnv
-    env = RemoteEnv.make(address=('127.0.0.1', 50000), authkey=b'lightwheel')
+    remote_protocol = usr_args.get("remote_protocol", "ipc")
+    server_host = usr_args.get("server_host")
+    server_port = usr_args.get("server_port")
+    ipc_authkey = usr_args.get("ipc_authkey", "lightwheel")
+    if remote_protocol == "restful":
+        from lw_benchhub.distributed.restful_proxy import RestfulRemoteEnv
+        host = server_host or usr_args.get("restful_host", "127.0.0.1")
+        port = int(server_port or usr_args.get("restful_port", 8000))
+        print(f"Connecting to RESTful environment server at {host}:{port}...")
+        env = RestfulRemoteEnv.make(address=(host, port))
+    else:
+        from lw_benchhub.distributed.proxy import RemoteEnv
+        host = server_host or usr_args.get("ipc_host", "127.0.0.1")
+        port = int(server_port or usr_args.get("ipc_port", 50000))
+        print(f"Connecting to IPC environment server at {host}:{port}...")
+        env = RemoteEnv.make(address=(host, port), authkey=ipc_authkey.encode())
+    if debug_client_flow:
+        print(f"[CLIENT-DEBUG] remote_protocol={remote_protocol}, address={host}:{port}")
     env_cfg = _build_env_cfg(usr_args)
     layouts = _normalize_layouts(env_cfg)
+    if debug_client_flow:
+        print(f"[CLIENT-DEBUG] normalized layouts={layouts}")
 
     policy_name = usr_args["policy_name"]
     policy_module = importlib.import_module("policy")
     policy_class = getattr(policy_module, policy_name)
+    if debug_client_flow:
+        print(f"[CLIENT-DEBUG] initializing policy={policy_name}")
     policy = policy_class(usr_args)
+    if debug_client_flow:
+        print("[CLIENT-DEBUG] policy initialized")
 
     test_num = usr_args.get("test_num", 10)  # default 10
     total_success = 0
@@ -159,11 +203,17 @@ def main(usr_args):
             if layout is not None:
                 env_cfg["layout"] = layout
             scene_env_cfg = copy.deepcopy(env_cfg)
+            if debug_client_flow:
+                print(f"[CLIENT-DEBUG] attach begin layout={layout}, env_cfg_keys={list(scene_env_cfg.keys())}")
             env.attach(scene_env_cfg)
+            if debug_client_flow:
+                print(f"[CLIENT-DEBUG] attach done layout={layout}")
             if "actions_dim" not in usr_args:
                 usr_args["actions_dim"] = env.action_space.shape[1]
             if "decimation" not in usr_args:
                 usr_args["decimation"] = env.unwrapped.cfg.decimation
+            if debug_client_flow:
+                print(f"[CLIENT-DEBUG] actions_dim={usr_args.get('actions_dim')} decimation={usr_args.get('decimation')}")
             num_envs = int(scene_env_cfg.get("num_envs", 1))
             scene_success = 0
             for idx in tqdm.tqdm(range(test_num), desc=f"scene={layout}"):
@@ -171,6 +221,8 @@ def main(usr_args):
                 eval_root.mkdir(parents=True, exist_ok=True)
                 writers = []
                 try:
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} writer init begin num_envs={num_envs} root={eval_root}")
                     for env_idx in range(num_envs):
                         eval_video_path = eval_root / f"episode{idx}_env{env_idx}.mp4"
                         writers.append(
@@ -181,12 +233,26 @@ def main(usr_args):
                             )
                         )
                         writers[-1].__enter__()
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} reset begin")
                     obs, _ = env.reset()
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} reset done")
+                        if isinstance(obs, dict):
+                            print(f"[CLIENT-DEBUG] episode={idx} obs groups={list(obs.keys())}")
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} policy.reset_model begin")
                     policy.reset_model()
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} policy.reset_model done; eval begin")
                     has_success = policy.eval(env, obs, usr_args, writers if num_envs > 1 else writers[0])
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} eval end has_success={has_success}")
                 finally:
                     for writer in writers:
                         writer.__exit__(None, None, None)
+                    if debug_client_flow:
+                        print(f"[CLIENT-DEBUG] episode={idx} writers closed")
                 if isinstance(has_success, (list, tuple, np.ndarray)):
                     scene_success += int(np.sum(has_success))
                 else:
@@ -203,7 +269,11 @@ def main(usr_args):
             )
             total_success += scene_success
             total_tests += test_num * num_envs
+            if debug_client_flow:
+                print(f"[CLIENT-DEBUG] detach begin layout={layout}")
             env.detach()
+            if debug_client_flow:
+                print(f"[CLIENT-DEBUG] detach done layout={layout}")
     overall_rate = total_success / total_tests if total_tests else 0.0
     print(f"Overall success rate: {overall_rate}")
 
@@ -216,8 +286,12 @@ def main(usr_args):
     with open("./eval_result/eval_results.json", "w", encoding="utf-8") as f:
         json.dump(results, f, indent=4, ensure_ascii=False)
 
+    if debug_client_flow:
+        print("[CLIENT-DEBUG] closing env")
     env.close()
     env.close_connection()
+    if debug_client_flow:
+        print("[CLIENT-DEBUG] env closed")
 
 
 if __name__ == "__main__":

@@ -2,15 +2,15 @@
 policy_name: PIPolicy
 
 # NOTE: 使用 JAX 参数时可显式指定恢复 dtype，避免 bf16->f16 转换崩溃。
-checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_base_torch'
-# jax_params_dtype: 'float32'
-# jax_model_dtype: 'float32'
+checkpoint: '/home/jialeng/Desktop/openpi/checkpoints/pi0_base'
+jax_params_dtype: 'float32'
+jax_model_dtype: 'float32'
 
 # Add Parameters You Need
 train_config_name: pi0_libero
-action_chunk_size: 30
+action_chunk_size: 50
 
-instruction: "Put the coffee mug to the countertop"
+instruction: "Put both breads on the cutting board"
 
 observation_config:
   custom_mapping:
@@ -22,8 +22,8 @@ observation_config:
     observation.images.top: eye_in_hand_camera_rgb
     observation.state: joint_pos
     
-record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera", "left_shoulder_camera", "right_shoulder_camera", "eye_in_hand_camera"]
-time_out_limit: 5
+record_camera: ["left_shoulder_camera", "right_shoulder_camera", "eye_in_hand_camera"]
+time_out_limit: 50
 
 height: 224
 width: 398
@@ -31,7 +31,7 @@ width: 398
 test_num: 10
 
 env_cfg:
-  task: BreadSetupSlicing
+  task: CloseDrawer
   robot: X7S-Abs
   # Single scene (legacy)
   # layout: robocasakitchen-5-3

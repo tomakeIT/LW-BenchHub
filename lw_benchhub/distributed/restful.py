@@ -13,6 +13,7 @@
 # limitations under the License.
 
 import base64
+import os
 import sys
 import threading
 import traceback
@@ -91,8 +92,8 @@ class RestfulEnvWrapper(BaseDistributedEnv):
     - All handlers run on the main thread (asserted).
     - Endpoints:
         POST /attach   -> { "session_id": str }
-        POST /reset    -> { "obs": [base64_img,...], "info": {...} }
-        POST /step     -> { "obs": [...], "reward": float, "done": bool, "truncated": bool, "info": {...} }
+        POST /reset    -> { "obs_tensor": {...}, "info": {...} }
+        POST /step     -> { "obs_tensor": {...}, "reward": float, "done": bool, "truncated": bool, "info": {...} }
         POST /detach   -> { "ok": true }
         POST /shutdown -> { "ok": true, "message": "Server shutting down..." }
 
@@ -108,6 +109,8 @@ class RestfulEnvWrapper(BaseDistributedEnv):
     def __init__(self, env=None, env_initializer=None, address=('0.0.0.0', 8000)):
         super().__init__(env=env, env_initializer=env_initializer, address=address)
         self._shutdown_requested = False
+        self._debug = os.getenv("LW_REST_DEBUG", "0") == "1"
+        self._step_counter = 0
         # In-memory session store; we support multiple session IDs but share one env instance.
         # Since processing is strictly serialized, concurrent sessions are still safe.
         self._sessions: Dict[str, Dict[str, Any]] = {}
@@ -158,7 +161,23 @@ class RestfulEnvWrapper(BaseDistributedEnv):
             sid = str(uuid.uuid4())
             self._sessions[sid] = {"env_id": env_id, "env_config": env_config}
             self.attach(env_config)
-            return {"session_id": sid}
+            if self._debug:
+                print(f"[REST-DEBUG][attach] sid={sid} env_keys={list(env_config.keys())}")
+            action_shape = None
+            decimation = None
+            try:
+                action_shape = tuple(self.action_space.shape)
+            except Exception:
+                action_shape = None
+            try:
+                decimation = self.unwrapped.cfg.decimation
+            except Exception:
+                decimation = None
+            return {
+                "session_id": sid,
+                "action_space_shape": action_shape,
+                "decimation": decimation,
+            }
 
         @app.route("/asd", methods=["GET"])
         @flask_handle_error(self)
@@ -193,7 +212,8 @@ class RestfulEnvWrapper(BaseDistributedEnv):
                 obs, info = res
             else:
                 obs, info = res, {}
-            images_b64 = self._extract_images(obs)
+            if self._debug:
+                print(f"[REST-DEBUG][reset] sid={sid} obs_summary={self._summarize_obs(obs)}")
             lang = ""
             try:
                 lang = self.get_task_description()
@@ -201,8 +221,7 @@ class RestfulEnvWrapper(BaseDistributedEnv):
                 print(f"[Warning] Could not get task description: {e}")
                 lang = ""
             return {
-                "obs": images_b64,
-                # "obs_tensor": self._tensor_to_jsonable(obs),
+                "obs_tensor": self._tensor_to_jsonable(obs),
                 "info": {"task_str": 'Task:' + lang}
             }
 
@@ -211,7 +230,7 @@ class RestfulEnvWrapper(BaseDistributedEnv):
         def step():
             data = request.get_json(force=True, silent=True) or {}
             sid = data.get("session_id")
-            action_str = data.get("action")
+            action_payload = data.get("action")
             step_count = data.get("step_count", 1)
             if step_count < 1:
                 raise APIError(f"step_count must be >= 1, got {step_count}", 400)
@@ -219,19 +238,27 @@ class RestfulEnvWrapper(BaseDistributedEnv):
 
             if not self._valid_session(sid):
                 raise APIError(f"invalid session_id {sid}", 404)
-            if not isinstance(action_str, str):
-                raise APIError(f"action must be a space-separated string: {action_str}", 400)
+            if action_payload is None:
+                raise APIError("action is required", 400)
 
             try:
-                action = self._parse_action_string(action_str)
+                action = self._parse_action(action_payload)
             except Exception as e:
-                raise APIError(f"failed to parse action string into float list: {e}", 400)
+                raise APIError(f"failed to parse action: {e}", 400)
 
             # Gymnasium step API: (obs, reward, terminated, truncated, info)
             if isinstance(action, np.ndarray):
                 action = torch.from_numpy(action).float()
             if action.ndim == 1:
                 action = action.unsqueeze(0)
+            if self._env is not None and hasattr(self._env, "device"):
+                action = action.to(self._env.device)
+            self._step_counter += 1
+            if self._debug and (self._step_counter <= 5 or self._step_counter % 20 == 0):
+                print(
+                    f"[REST-DEBUG][step.req] sid={sid} idx={self._step_counter} "
+                    f"action_shape={tuple(action.shape)} action_dtype={action.dtype} action_device={action.device}"
+                )
             for _ in range(step_count):
                 step_out = self.step(action)
 
@@ -248,10 +275,15 @@ class RestfulEnvWrapper(BaseDistributedEnv):
                 raise APIError(error_msg, 500)
 
             obs, reward, terminated, truncated, info = step_out[:5]
-            images_b64 = self._extract_images(obs)
+            if self._debug and (self._step_counter <= 5 or self._step_counter % 20 == 0):
+                print(
+                    f"[REST-DEBUG][step.res] sid={sid} idx={self._step_counter} "
+                    f"terminated={self._summarize_scalarish(terminated)} "
+                    f"truncated={self._summarize_scalarish(truncated)} "
+                    f"obs_summary={self._summarize_obs(obs)}"
+                )
             return {
-                "obs": images_b64,
-                # "obs_tensor": self._tensor_to_jsonable(obs),
+                "obs_tensor": self._tensor_to_jsonable(obs),
                 "reward": reward.detach().cpu().numpy().tolist() if torch.is_tensor(reward) else reward,
                 "done": terminated.detach().cpu().numpy().tolist() if torch.is_tensor(terminated) else terminated,
                 "truncated": truncated.detach().cpu().numpy().tolist() if torch.is_tensor(truncated) else truncated,
@@ -380,13 +412,19 @@ class RestfulEnvWrapper(BaseDistributedEnv):
     # ---- Action parsing ----
 
     @staticmethod
-    def _parse_action_string(action_str: str) -> np.ndarray:
+    def _parse_action(action_input: Any) -> np.ndarray:
         """
-        Parse a space-separated float string into np.ndarray (N,).
-        Example: 'dx dy dz rdx rdy rdz o' -> shape (7,)
+        Parse action payload into np.ndarray.
+        Supports:
+        - space-separated float string, e.g. 'dx dy dz rdx rdy rdz o'
+        - list/tuple/ndarray of numbers with shape (N,) or (B, N)
         """
-        parts = [float(x) for x in action_str.strip().split()]
-        return np.asarray(parts, dtype=np.float32)
+        if isinstance(action_input, str):
+            parts = [float(x) for x in action_input.strip().split()]
+            return np.asarray(parts, dtype=np.float32)
+        if isinstance(action_input, (list, tuple, np.ndarray)):
+            return np.asarray(action_input, dtype=np.float32)
+        raise TypeError(f"unsupported action type: {type(action_input)}")
 
     # ---- Tensor Translation ----
 
@@ -409,6 +447,32 @@ class RestfulEnvWrapper(BaseDistributedEnv):
         else:
             # Fallback: convert to string
             return str(obs)
+
+    def _summarize_obs(self, obs: Any):
+        if isinstance(obs, dict):
+            parts = []
+            for key, val in obs.items():
+                if isinstance(val, dict):
+                    parts.append(f"{key}:dict({len(val)})")
+                elif torch.is_tensor(val):
+                    parts.append(f"{key}:tensor{tuple(val.shape)}/{val.dtype}")
+                elif isinstance(val, np.ndarray):
+                    parts.append(f"{key}:ndarray{val.shape}/{val.dtype}")
+                else:
+                    parts.append(f"{key}:{type(val).__name__}")
+            return ", ".join(parts)
+        return type(obs).__name__
+
+    def _summarize_scalarish(self, value: Any):
+        if torch.is_tensor(value):
+            if value.numel() == 1:
+                return value.item()
+            return f"tensor{tuple(value.shape)}"
+        if isinstance(value, np.ndarray):
+            if value.size == 1:
+                return value.item()
+            return f"ndarray{value.shape}"
+        return value
 
     def get_task_description(self):
         """Get task description, handling both EnvRouter and ManagerBasedEnv cases."""
