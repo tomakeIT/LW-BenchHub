@@ -288,8 +288,10 @@ def main(usr_args):
 
     if debug_client_flow:
         print("[CLIENT-DEBUG] closing env")
-    env.close()
-    env.close_connection()
+    with contextlib.suppress(Exception, KeyboardInterrupt):
+        env.close()
+    with contextlib.suppress(Exception, KeyboardInterrupt):
+        env.close_connection()
     if debug_client_flow:
         print("[CLIENT-DEBUG] env closed")
 

@@ -232,6 +232,17 @@ class _PathView:
 
 # Semantic sugar: top-level environment view
 class RemoteEnv(_PathView):
+    def close_connection(self):
+        """Close local manager socket without issuing remote RPC."""
+        try:
+            conn = self._svc._tls.connection
+            conn.close()
+            del self._svc._tls.connection
+        except AttributeError:
+            pass
+        except Exception:
+            pass
+
     @classmethod
     def make(cls, address, authkey=b'lightwheel') -> "RemoteEnv":
         mgr = EnvManager(address=address, authkey=authkey)
@@ -251,6 +262,8 @@ class RemoteEnv(_PathView):
             # print("at exit close connection")
             try:
                 env.close_connection()
+            except KeyboardInterrupt:
+                pass
             except ConnectionRefusedError as e:
                 pass
             except Exception as e:
