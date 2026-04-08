@@ -20,6 +20,7 @@ import argparse
 import contextlib
 import copy
 import importlib
+import shutil
 import sys
 from pathlib import Path
 
@@ -179,8 +180,28 @@ def _get_scene_eval_status(eval_root: Path, test_num: int, num_envs: int):
     return False, 0
 
 
+try:
+    from lw_benchhub.scripts.policy.utils import (
+        as_bool,
+        create_episode_dir,
+        export_episode_rollout_data,
+        remote_force_export_current_episode,
+        remote_get_recorded_episode_count,
+        switch_remote_recorder_output,
+    )
+except ImportError:
+    from utils import (  # type: ignore
+        as_bool,
+        create_episode_dir,
+        export_episode_rollout_data,
+        remote_force_export_current_episode,
+        remote_get_recorded_episode_count,
+        switch_remote_recorder_output,
+    )
+
+
 def main(usr_args):
-    debug_client_flow = bool(usr_args.get("debug_client_flow", False))
+    debug_client_flow = as_bool(usr_args.get("debug_client_flow", False))
     if debug_client_flow:
         print(f"[CLIENT-DEBUG] loaded config keys: {sorted(list(usr_args.keys()))}")
 
@@ -220,6 +241,21 @@ def main(usr_args):
     total_success = 0
     total_tests = 0
     eval_result_dir = Path(usr_args.get("eval_result_dir", "./eval_result"))
+    save_data = as_bool(usr_args.get("save_data", False))
+    save_data_only_success = as_bool(usr_args.get("save_data_only_success", True), default=True)
+    save_data_dir = Path(usr_args.get("save_data_dir", eval_result_dir / "episode_data"))
+    save_data_video_name = str(usr_args.get("save_data_video_name", "isaac_replay_state.mp4"))
+    save_data_hdf5_success_name = str(usr_args.get("save_data_hdf5_success_name", "dataset_success.hdf5"))
+    save_data_hdf5_failed_name = str(usr_args.get("save_data_hdf5_failed_name", "dataset_failed.hdf5"))
+    save_data_task_name = usr_args.get("save_data_task_name")
+    if save_data_task_name is not None:
+        save_data_task_name = str(save_data_task_name)
+    if save_data:
+        save_data_dir.mkdir(parents=True, exist_ok=True)
+        print(f"[SAVE-DATA] Enabled. Output root: {save_data_dir}")
+        if save_data_task_name:
+            print(f"[SAVE-DATA] Task folder override: {save_data_task_name}")
+
     with (
         contextlib.suppress(KeyboardInterrupt),  # and torch.inference_mode(),
     ):
@@ -228,6 +264,7 @@ def main(usr_args):
                 env_cfg["layout"] = layout
             scene_env_cfg = copy.deepcopy(env_cfg)
             task_name = scene_env_cfg.get("task", "unknown_task")
+            export_task_name = save_data_task_name or task_name
             num_envs = int(scene_env_cfg.get("num_envs", 1))
             if layout is not None:
                 eval_root = eval_result_dir / "video" / task_name / str(layout)
@@ -259,9 +296,24 @@ def main(usr_args):
             if debug_client_flow:
                 print(f"[CLIENT-DEBUG] actions_dim={usr_args.get('actions_dim')} decimation={usr_args.get('decimation')}")
             scene_success = 0
+            save_data_for_scene = bool(save_data)
+            if save_data and num_envs != 1:
+                print(
+                    "[SAVE-DATA] Reusing recorder export currently supports num_envs=1. "
+                    f"Skip exporting scene={layout} with num_envs={num_envs}."
+                )
+                save_data_for_scene = False
             eval_root.mkdir(parents=True, exist_ok=True)
             for idx in tqdm.tqdm(range(test_num), desc=f"scene={layout}"):
                 writers = []
+                has_success = False
+                episode_export_dir = None
+                if save_data_for_scene:
+                    episode_export_dir = create_episode_dir(save_data_dir, export_task_name)
+                    dataset_success_path = episode_export_dir / save_data_hdf5_success_name
+                    if not switch_remote_recorder_output(env, dataset_success_path):
+                        shutil.rmtree(episode_export_dir, ignore_errors=True)
+                        episode_export_dir = None
                 try:
                     if debug_client_flow:
                         print(f"[CLIENT-DEBUG] episode={idx} writer init begin num_envs={num_envs} root={eval_root}")
@@ -297,17 +349,43 @@ def main(usr_args):
                         print(f"[CLIENT-DEBUG] episode={idx} writers closed")
                 if isinstance(has_success, (list, tuple, np.ndarray)):
                     success_list = [bool(x) for x in has_success]
-                    scene_success += int(np.sum(has_success))
+                    if len(success_list) < num_envs:
+                        success_list.extend([False] * (num_envs - len(success_list)))
+                    elif len(success_list) > num_envs:
+                        success_list = success_list[:num_envs]
+                    scene_success += int(np.sum(success_list))
                 else:
-                    success_list = [bool(has_success)]
-                    scene_success += int(bool(has_success))
+                    success_list = [bool(has_success) for _ in range(num_envs)]
+                    scene_success += int(np.sum(success_list))
                 for env_idx, succeeded in enumerate(success_list):
+                    run_id = f"episode{idx}_env{env_idx}"
                     if succeeded:
-                        run_id = f"episode{idx}_env{env_idx}"
                         old_path = eval_root / f"{run_id}.mp4"
                         new_path = eval_root / f"{run_id}_success.mp4"
                         if old_path.exists():
                             old_path.rename(new_path)
+                    if save_data_for_scene and env_idx == 0 and episode_export_dir is not None:
+                        recorded_demo_count = remote_get_recorded_episode_count(env)
+                        if (
+                            not succeeded
+                            and not save_data_only_success
+                            and recorded_demo_count <= 0
+                        ):
+                            # Reuse recorder_manager export path so failed rollouts are also persisted.
+                            remote_force_export_current_episode(env)
+                            recorded_demo_count = remote_get_recorded_episode_count(env)
+                        export_episode_rollout_data(
+                            save_data_only_success=save_data_only_success,
+                            save_data_video_name=save_data_video_name,
+                            save_data_hdf5_success_name=save_data_hdf5_success_name,
+                            save_data_hdf5_failed_name=save_data_hdf5_failed_name,
+                            episode_dir=episode_export_dir,
+                            run_id=run_id,
+                            succeeded=succeeded,
+                            recorded_demo_count=recorded_demo_count,
+                            eval_root=eval_root,
+                            record_camera=usr_args.get("record_camera", []),
+                        )
                 total_done = (idx + 1) * num_envs
                 print(f"[{layout}] Current test result: {has_success}. Success/total tested: {scene_success}/{total_done}")
             total_success += scene_success

@@ -1,0 +1,38 @@
+# lw_benchhub 并行评测+数据导出改造摘要
+
+## 目标
+- 在 `parallel_eval` 并行评测流程中，增加可选数据导出能力。
+- 导出格式对齐后续链路：`isaac_replay_state.mp4` + `dataset_success.hdf5 / dataset_failed.hdf5`。
+- 导出目录按任务划分：`<save_data_dir>/<Task>/<Task>_<timestamp>/...`。
+
+## 关键改动
+- `parallel_eval.py`
+  - 新增 task 名解析：优先 `tasks[].task_name`，否则从 task config 的 `env_cfg.task` 推断。
+  - 新增 overrides 透传：`save_data*`、`eval_result_dir` 等传给 `eval_policy.py`。
+- `parallel_eval.yml`
+  - 增加 `save_data` 相关配置示例。
+  - `tasks` 示例支持显式 `task_name`。
+- `lw_benchhub/scripts/policy/eval_policy.py`
+  - 主流程保留在本文件，导出细节通过 helper 调用。
+  - 新增 save_data 主流程：
+    - 每个 episode 创建独立输出目录。
+    - 切换远端 `recorder_manager` 输出到当前 episode 的 hdf5。
+    - 评测结束后按成功/失败处理视频与 hdf5 命名。
+- `lw_benchhub/scripts/policy/utils.py`（新增）
+  - 导出辅助函数、视频重排/拷贝、远端 recorder 操作封装。
+
+## 当前导出行为
+- 成功轨迹：保留 `dataset_success.hdf5`。
+- 失败轨迹（`save_data_only_success: false`）：尝试强制导出，并输出 `dataset_failed.hdf5`。
+- 视频：输出 `isaac_replay_state.mp4`。
+  - 若 `record_camera` 能匹配 6 视角，自动重排为 2x3。
+  - 否则原样拷贝并打印 warning。
+
+## 重要前提/限制
+- `save_data` 分支目前按 `num_envs == 1` 设计（多 env 会跳过导出，仅保留 eval）。
+- 依赖远端环境的 `recorder_manager` 私有字段（如 `_dataset_file_handler`）。
+
+## 推荐运行配置
+- `save_data: true`
+- `save_data_only_success: false`（同时保留成功和失败）
+- `tasks[].task_name` 显式填写（例如 `ArrangeVegetables`）

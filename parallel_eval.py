@@ -30,6 +30,86 @@ def resolve_checkpoint(task, cfg, base_dir):
     return resolve_path(checkpoint, base_dir)
 
 
+def _derive_task_name_from_config(config_path):
+    try:
+        with open(config_path, encoding="utf-8") as f:
+            task_cfg = yaml.safe_load(f) or {}
+        env_cfg = task_cfg.get("env_cfg") or {}
+        task_name = env_cfg.get("task")
+        if task_name:
+            return str(task_name)
+    except Exception:
+        return None
+    return None
+
+
+def resolve_task_name(task, base_dir):
+    explicit_name = task.get("task_name") or task.get("name")
+    if explicit_name:
+        return str(explicit_name)
+
+    config_path = task.get("config")
+    if not config_path:
+        return None
+
+    resolved_config_path = resolve_path(config_path, base_dir)
+    inferred_from_config = _derive_task_name_from_config(resolved_config_path)
+    if inferred_from_config:
+        return inferred_from_config
+
+    stem = Path(resolved_config_path).stem
+    if "_" in stem:
+        return stem.split("_", 1)[1]
+    return stem
+
+
+def get_task_or_global(task, cfg, key, default=None):
+    if key in task:
+        return task.get(key)
+    return cfg.get(key, default)
+
+
+def format_override_value(value):
+    if isinstance(value, bool):
+        return "True" if value else "False"
+    return str(value)
+
+
+def build_client_overrides(task, cfg, base_dir):
+    overrides = []
+
+    checkpoint = resolve_checkpoint(task, cfg, base_dir)
+    if checkpoint is not None:
+        overrides += ["--checkpoint", checkpoint]
+
+    override_keys = [
+        "eval_result_dir",
+        "save_data",
+        "save_data_dir",
+        "save_data_only_success",
+        "save_data_video_name",
+        "save_data_hdf5_success_name",
+        "save_data_hdf5_failed_name",
+    ]
+    path_keys = {"eval_result_dir", "save_data_dir"}
+
+    for key in override_keys:
+        value = get_task_or_global(task, cfg, key, default=None)
+        if value is None:
+            continue
+        if key in path_keys:
+            value = resolve_path(value, base_dir)
+        overrides += [f"--{key}", format_override_value(value)]
+
+    save_data_task_name = get_task_or_global(task, cfg, "save_data_task_name", default=None)
+    if save_data_task_name is None:
+        save_data_task_name = resolve_task_name(task, base_dir)
+    if save_data_task_name:
+        overrides += ["--save_data_task_name", str(save_data_task_name)]
+
+    return overrides
+
+
 def wait_port(host, port, timeout=20):
     t0 = time.time()
     while time.time() - t0 < timeout:
@@ -148,9 +228,9 @@ def main(cfg_path):
         if cfg.get("debug_step_interval", 0) > 0:
             client_cmd += ["--debug_step_interval", str(cfg["debug_step_interval"])]
 
-        checkpoint = resolve_checkpoint(task, cfg, repo_root)
-        if checkpoint is not None:
-            client_cmd += ["--overrides", "--checkpoint", checkpoint]
+        client_overrides = build_client_overrides(task, cfg, repo_root)
+        if client_overrides:
+            client_cmd += ["--overrides", *client_overrides]
 
         server_cmd = wrap(cfg.get("server_prefix", ""), server_cmd)
         client_cmd = wrap(cfg.get("client_prefix", ""), client_cmd)

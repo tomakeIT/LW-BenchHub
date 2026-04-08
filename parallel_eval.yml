@@ -18,6 +18,22 @@ debug_step_interval: 1
 
 xla_preallocate_false: true
 
+# Optional: override eval result root from task config.
+# eval_result_dir: ./eval_result
+
+# Optional: export rollout data for iterative training.
+# When enabled, each rollout will be saved as:
+#   <save_data_dir>/<task>/<task>_<timestamp>/
+#       - isaac_replay_state.mp4
+#       - dataset_success.hdf5 (or dataset_failed.hdf5)
+save_data: false
+save_data_dir: ./generated_episode_data
+# 设为 false 可同时保留成功与失败轨迹（失败会输出 dataset_failed.hdf5）
+save_data_only_success: false
+save_data_video_name: isaac_replay_state.mp4
+save_data_hdf5_success_name: dataset_success.hdf5
+save_data_hdf5_failed_name: dataset_failed.hdf5
+
 server_prefix: >
   source ~/miniconda3/etc/profile.d/conda.sh &&
   conda activate lw_benchhub &&
@@ -31,14 +47,21 @@ client_prefix: >
 
 # ===== 任务列表 =====
 tasks:
-  - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_ArrangeVegetables.yml
+  # task_name 可选；不填时会自动从 config 里的 env_cfg.task 推断。
+  - task_name: ArrangeVegetables
+    config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_ArrangeVegetables.yml
 
-  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CheesyBread.yml
+  # - task_name: CheesyBread
+  #   config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CheesyBread.yml
 
-  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CloseDishwasher.yml
+  # - task_name: CloseDishwasher
+  #   config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CloseDishwasher.yml
 
-  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CloseDrawer.yml
+  # - task_name: CloseDrawer
+  #   config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CloseDrawer.yml
 
-  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CoffeeSetupMug.yml
+  # - task_name: CoffeeSetupMug
+  #   config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CoffeeSetupMug.yml
 
-  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_OpenDishwasher.yml
+  # - task_name: OpenDishwasher
+  #   config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_OpenDishwasher.yml
