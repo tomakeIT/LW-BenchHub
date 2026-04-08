@@ -1,0 +1,44 @@
+# ===== 全局配置 =====
+repo_root: /home/jialeng/LW-BenchHub
+
+gpus: [7]        # 默认 GPU 分配顺序
+port_base: 50000
+host: 127.0.0.1
+authkey: lightwheel
+
+log_dir: multi_eval_logs
+
+# Global model checkpoint for all parallel eval tasks.
+# This overrides the `checkpoint` inside each task config when provided.
+checkpoint: /home/jialeng/openpi/checkpoints/pi0_libero/pi0_6tasks_finetune/29999
+
+enable_camera: true
+debug_client_flow: true
+debug_step_interval: 1
+
+xla_preallocate_false: true
+
+server_prefix: >
+  source ~/miniconda3/etc/profile.d/conda.sh &&
+  conda activate lw_benchhub &&
+  export LoaderUserName="shaoze.yang" &&
+  export LoaderToken="abcASD123!!" &&
+
+client_prefix: >
+  source ~/miniconda3/etc/profile.d/conda.sh &&
+  conda activate openpi &&
+
+
+# ===== 任务列表 =====
+tasks:
+  - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_ArrangeVegetables.yml
+
+  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CheesyBread.yml
+
+  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CloseDishwasher.yml
+
+  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CloseDrawer.yml
+
+  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_CoffeeSetupMug.yml
+
+  # - config: /home/jialeng/LW-BenchHub/policy/PI/eval_config/x7s_OpenDishwasher.yml

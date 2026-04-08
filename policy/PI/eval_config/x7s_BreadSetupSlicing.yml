@@ -1,0 +1,212 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: PIPolicy
+
+# NOTE: 使用 JAX 参数时可显式指定恢复 dtype，避免 bf16->f16 转换崩溃。
+# checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_6_tasks_jax_RTX6000D/69999'
+# jax_params_dtype: 'float32'
+# jax_model_dtype: 'float32'
+
+# Add Parameters You Need
+train_config_name: pi0_libero
+action_chunk_size: 50
+
+instruction: "Put both breads on the cutting board"
+
+observation_config:
+  custom_mapping:
+    observation.images.left_hand: left_hand_camera_rgb
+    observation.images.right_hand: right_hand_camera_rgb
+    observation.images.first_person: first_person_camera_rgb
+    observation.images.left_shoulder: left_shoulder_camera_rgb
+    observation.images.right_shoulder: right_shoulder_camera_rgb
+    observation.images.top: eye_in_hand_camera_rgb
+    observation.state: joint_pos
+    
+record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera", "left_shoulder_camera", "right_shoulder_camera", "eye_in_hand_camera"]
+time_out_limit: 50
+
+height: 224
+width: 398
+
+test_num: 5
+
+env_cfg:
+  task: BreadSetupSlicing
+  robot: X7S-Abs
+  # Single scene (legacy)
+  # layout: robocasakitchen-5-3
+  # Multi-scene list (preferred)
+  layouts:
+    # - robocasakitchen-2-1
+    # - robocasakitchen-2-2
+    # - robocasakitchen-2-3
+    # - robocasakitchen-3-2
+    # - robocasakitchen-3-4
+    # - robocasakitchen-3-9
+    # - robocasakitchen-3-13
+    # - robocasakitchen-3-16
+    # - robocasakitchen-3-30
+    # - robocasakitchen-3-36
+    # - robocasakitchen-3-40
+    # - robocasakitchen-4-1
+    # - robocasakitchen-4-2
+    # - robocasakitchen-4-3
+    # - robocasakitchen-4-4
+    # - robocasakitchen-4-6
+    # - robocasakitchen-4-7
+    # - robocasakitchen-4-9
+    # - robocasakitchen-4-10
+    # - robocasakitchen-4-26
+    # - robocasakitchen-4-33
+    # - robocasakitchen-4-37
+    # - robocasakitchen-4-54
+    # - robocasakitchen-5-46
+    # - robocasakitchen-5-57
+    # - robocasakitchen-6-3
+    # - robocasakitchen-6-5
+    # - robocasakitchen-6-9
+    # - robocasakitchen-6-27
+    # - robocasakitchen-6-53
+    # - robocasakitchen-6-54
+    # - robocasakitchen-7-5
+    # - robocasakitchen-7-7
+    # - robocasakitchen-7-17
+    # - robocasakitchen-7-51
+    # - robocasakitchen-7-54
+    # - robocasakitchen-8-1
+    # - robocasakitchen-8-2
+    # - robocasakitchen-8-5
+    # - robocasakitchen-8-7
+    # - robocasakitchen-8-9
+    # - robocasakitchen-8-10
+    # - robocasakitchen-8-45
+    # - robocasakitchen-9-2
+    # - robocasakitchen-9-5
+    # - robocasakitchen-9-6
+    # - robocasakitchen-9-9
+    # - robocasakitchen-9-27
+    # - robocasakitchen-9-33
+    # - robocasakitchen-10-1
+    # - robocasakitchen-10-2
+    # - robocasakitchen-10-6
+    # - robocasakitchen-10-7
+    # - robocasakitchen-10-9
+    # - robocasakitchen-10-49
+    # - robocasakitchen-11-17
+    # - robocasakitchen-11-29
+    # - robocasakitchen-11-39
+    # - robocasakitchen-16-5
+    # - robocasakitchen-16-18
+    # - robocasakitchen-17-22
+    # - robocasakitchen-17-31
+    # - robocasakitchen-18-9
+    # - robocasakitchen-18-12
+    # - robocasakitchen-19-2
+    # - robocasakitchen-19-28
+    # - robocasakitchen-20-33
+    # - robocasakitchen-21-7
+    # - robocasakitchen-21-32
+    # - robocasakitchen-21-57
+    # - robocasakitchen-23-20
+    # - robocasakitchen-23-35
+    # - robocasakitchen-23-59
+    # - robocasakitchen-24-36
+    # - robocasakitchen-24-52
+    # - robocasakitchen-26-56
+    # - robocasakitchen-27-19
+    # - robocasakitchen-28-38
+    # - robocasakitchen-28-49
+    # - robocasakitchen-30-2
+    # - robocasakitchen-31-14
+    # - robocasakitchen-34-11
+    # - robocasakitchen-34-20
+    # - robocasakitchen-34-29
+    # - robocasakitchen-35-3
+    # - robocasakitchen-35-17
+    # - robocasakitchen-35-21
+    # - robocasakitchen-35-30
+    # - robocasakitchen-35-35
+    # - robocasakitchen-35-52
+    # - robocasakitchen-36-17
+    # - robocasakitchen-36-46
+    # - robocasakitchen-37-13
+    # - robocasakitchen-39-56
+    # - robocasakitchen-42-6
+    # - robocasakitchen-43-14
+    # - robocasakitchen-43-19
+    # - robocasakitchen-43-37
+    # - robocasakitchen-43-40
+    # - robocasakitchen-43-41
+    # - robocasakitchen-43-44
+    # - robocasakitchen-43-51
+    # - robocasakitchen-43-56
+    # - robocasakitchen-44-3
+    # - robocasakitchen-45-14
+    # - robocasakitchen-46-6
+    # - robocasakitchen-46-12
+    # - robocasakitchen-46-26
+    # - robocasakitchen-46-38
+    # - robocasakitchen-46-42
+    # - robocasakitchen-47-6
+    # - robocasakitchen-47-14
+    # - robocasakitchen-47-32
+    # - robocasakitchen-47-46
+    # - robocasakitchen-48-31
+    # - robocasakitchen-48-32
+    # - robocasakitchen-48-55
+    # - robocasakitchen-48-57
+    # - robocasakitchen-50-7
+    # - robocasakitchen-50-10
+    # - robocasakitchen-50-35
+    # - robocasakitchen-50-51
+    # - robocasakitchen-50-53
+    # - robocasakitchen-50-54
+    # - robocasakitchen-51-5
+    # - robocasakitchen-51-7
+    # - robocasakitchen-51-9
+    # - robocasakitchen-51-29
+    # - robocasakitchen-51-37
+    # - robocasakitchen-51-44
+    # - robocasakitchen-51-53
+    # - robocasakitchen-52-17
+    # - robocasakitchen-52-44
+    # - robocasakitchen-53-48
+    # - robocasakitchen-54-5
+    # - robocasakitchen-54-8
+    # - robocasakitchen-54-37
+    # - robocasakitchen-54-58
+    # - robocasakitchen-55-13
+    # - robocasakitchen-55-26
+    # - robocasakitchen-55-49
+    # - robocasakitchen-55-58
+    # - robocasakitchen-56-20
+    # - robocasakitchen-56-25
+    # - robocasakitchen-56-29
+    # - robocasakitchen-59-21
+    # - robocasakitchen-60-13
+    # - robocasakitchen-60-15
+    # - robocasakitchen-60-42
+    - robocasakitchen-60-46
+  
+  scene_backend: robocasa
+  task_backend: robocasa
+  device: cuda:0
+  num_envs: 1
+  usd_simplify: false
+  enable_cameras: true
+  video: false
+  disable_fabric: false
+  robot_scale: 1.0
+  seed: 42
+  sources: null
+  object_projects: null
+  for_rl: false
+  variant: Visual 
+
+  concatenate_terms: false
+  distributed: false
+
+  replay_cfgs:
+    add_camera_to_observation: true
+    # object_cfgs_path: "/home/jialeng/Desktop/lw_benchhub/.cache/objcfgs_coffee_x7s_seed42.json"
+    render_resolution: [398,224]

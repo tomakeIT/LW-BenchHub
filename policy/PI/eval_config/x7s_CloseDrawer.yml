@@ -1,0 +1,268 @@
+# Basic experiment configuration (keep unchanged)
+policy_name: PIPolicy
+
+# NOTE: 使用 JAX 参数时可显式指定恢复 dtype，避免 bf16->f16 转换崩溃。
+# checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_6_tasks_jax_RTX6000D/69999'
+# jax_params_dtype: 'float32'
+# jax_model_dtype: 'float32'
+
+# Add Parameters You Need
+train_config_name: pi0_libero
+action_chunk_size: 50
+
+instruction: "Close the drawer"
+
+observation_config:
+  custom_mapping:
+    observation.images.left_hand: left_hand_camera_rgb
+    observation.images.right_hand: right_hand_camera_rgb
+    observation.images.first_person: first_person_camera_rgb
+    observation.images.left_shoulder: left_shoulder_camera_rgb
+    observation.images.right_shoulder: right_shoulder_camera_rgb
+    observation.images.top: eye_in_hand_camera_rgb
+    observation.state: joint_pos
+    
+record_camera: ["first_person_camera", "left_hand_camera", "right_hand_camera", "left_shoulder_camera", "right_shoulder_camera", "eye_in_hand_camera"]
+time_out_limit: 50
+
+height: 224
+width: 398
+
+test_num: 5
+
+env_cfg:
+  task: CloseDrawer
+  robot: X7S-Abs
+  # Single scene (legacy)
+  # layout: robocasakitchen-5-3
+  # Multi-scene list (preferred)
+  layouts:
+    - robocasakitchen-1-1
+    - robocasakitchen-1-2
+    - robocasakitchen-1-6
+    - robocasakitchen-1-40
+    - robocasakitchen-1-51
+    - robocasakitchen-2-7
+    - robocasakitchen-2-25
+    - robocasakitchen-2-57
+    - robocasakitchen-3-2
+    - robocasakitchen-3-6
+    - robocasakitchen-3-54
+    - robocasakitchen-3-56
+    - robocasakitchen-4-19
+    - robocasakitchen-4-32
+    - robocasakitchen-4-55
+    - robocasakitchen-5-18
+    - robocasakitchen-6-33
+    - robocasakitchen-6-34
+    - robocasakitchen-6-44
+    - robocasakitchen-6-47
+    - robocasakitchen-7-10
+    - robocasakitchen-7-25
+    - robocasakitchen-7-36
+    - robocasakitchen-7-50
+    - robocasakitchen-7-55
+    - robocasakitchen-8-8
+    - robocasakitchen-8-10
+    - robocasakitchen-8-18
+    - robocasakitchen-8-35
+    - robocasakitchen-8-37
+    - robocasakitchen-8-42
+    - robocasakitchen-9-10
+    - robocasakitchen-9-11
+    - robocasakitchen-9-33
+    - robocasakitchen-10-8
+    - robocasakitchen-10-11
+    - robocasakitchen-10-23
+    - robocasakitchen-10-57
+    - robocasakitchen-11-42
+    - robocasakitchen-12-31
+    - robocasakitchen-13-32
+    - robocasakitchen-13-46
+    - robocasakitchen-13-51
+    - robocasakitchen-14-35
+    - robocasakitchen-14-44
+    - robocasakitchen-15-41
+    - robocasakitchen-15-51
+    - robocasakitchen-16-7
+    - robocasakitchen-16-42
+    - robocasakitchen-17-2
+    - robocasakitchen-18-17
+    - robocasakitchen-18-29
+    - robocasakitchen-18-33
+    - robocasakitchen-19-54
+    - robocasakitchen-20-13
+    - robocasakitchen-20-21
+    - robocasakitchen-20-24
+    - robocasakitchen-20-30
+    - robocasakitchen-20-52
+    - robocasakitchen-20-59
+    - robocasakitchen-21-14
+    - robocasakitchen-21-15
+    - robocasakitchen-21-17
+    - robocasakitchen-21-22
+    - robocasakitchen-21-53
+    - robocasakitchen-22-16
+    - robocasakitchen-22-19
+    - robocasakitchen-22-33
+    - robocasakitchen-22-34
+    - robocasakitchen-22-35
+    - robocasakitchen-22-50
+    - robocasakitchen-23-2
+    - robocasakitchen-23-11
+    - robocasakitchen-23-46
+    - robocasakitchen-23-57
+    - robocasakitchen-24-4
+    - robocasakitchen-24-5
+    - robocasakitchen-24-36
+    - robocasakitchen-24-47
+    - robocasakitchen-24-59
+    - robocasakitchen-26-15
+    - robocasakitchen-26-22
+    - robocasakitchen-26-30
+    - robocasakitchen-27-5
+    - robocasakitchen-27-20
+    - robocasakitchen-27-21
+    - robocasakitchen-27-34
+    - robocasakitchen-27-57
+    - robocasakitchen-28-24
+    - robocasakitchen-29-52
+    - robocasakitchen-29-54
+    - robocasakitchen-30-1
+    - robocasakitchen-30-11
+    - robocasakitchen-30-24
+    - robocasakitchen-30-41
+    - robocasakitchen-30-44
+    - robocasakitchen-30-52
+    - robocasakitchen-31-9
+    - robocasakitchen-31-17
+    - robocasakitchen-31-42
+    - robocasakitchen-32-8
+    - robocasakitchen-32-26
+    - robocasakitchen-32-28
+    - robocasakitchen-32-29
+    - robocasakitchen-32-40
+    - robocasakitchen-32-47
+    - robocasakitchen-33-17
+    - robocasakitchen-33-20
+    - robocasakitchen-33-44
+    - robocasakitchen-33-49
+    - robocasakitchen-34-7
+    - robocasakitchen-34-8
+    - robocasakitchen-34-28
+    - robocasakitchen-34-53
+    - robocasakitchen-35-23
+    - robocasakitchen-36-16
+    - robocasakitchen-36-22
+    - robocasakitchen-36-31
+    - robocasakitchen-36-44
+    - robocasakitchen-37-2
+    - robocasakitchen-37-5
+    - robocasakitchen-37-13
+    - robocasakitchen-37-41
+    - robocasakitchen-37-48
+    - robocasakitchen-37-54
+    - robocasakitchen-38-26
+    - robocasakitchen-38-37
+    - robocasakitchen-38-39
+    - robocasakitchen-38-45
+    - robocasakitchen-39-23
+    - robocasakitchen-39-36
+    - robocasakitchen-39-44
+    - robocasakitchen-39-59
+    - robocasakitchen-40-15
+    - robocasakitchen-40-19
+    - robocasakitchen-40-51
+    - robocasakitchen-41-7
+    - robocasakitchen-41-17
+    - robocasakitchen-41-36
+    - robocasakitchen-41-40
+    - robocasakitchen-41-46
+    - robocasakitchen-42-14
+    - robocasakitchen-42-23
+    - robocasakitchen-42-39
+    - robocasakitchen-43-25
+    - robocasakitchen-43-30
+    - robocasakitchen-43-38
+    - robocasakitchen-43-44
+    - robocasakitchen-43-56
+    - robocasakitchen-44-34
+    - robocasakitchen-44-44
+    - robocasakitchen-45-17
+    - robocasakitchen-45-43
+    - robocasakitchen-45-45
+    - robocasakitchen-45-47
+    - robocasakitchen-45-48
+    - robocasakitchen-46-12
+    - robocasakitchen-46-19
+    - robocasakitchen-46-21
+    - robocasakitchen-46-22
+    - robocasakitchen-46-42
+    - robocasakitchen-46-57
+    - robocasakitchen-47-1
+    - robocasakitchen-47-4
+    - robocasakitchen-47-13
+    - robocasakitchen-47-33
+    - robocasakitchen-47-47
+    - robocasakitchen-47-50
+    - robocasakitchen-47-53
+    - robocasakitchen-48-53
+    - robocasakitchen-48-56
+    - robocasakitchen-49-12
+    - robocasakitchen-49-21
+    - robocasakitchen-49-25
+    - robocasakitchen-49-27
+    - robocasakitchen-49-41
+    - robocasakitchen-51-7
+    - robocasakitchen-51-36
+    - robocasakitchen-51-40
+    - robocasakitchen-51-41
+    - robocasakitchen-51-52
+    - robocasakitchen-51-58
+    - robocasakitchen-53-11
+    - robocasakitchen-53-13
+    - robocasakitchen-53-28
+    - robocasakitchen-53-35
+    - robocasakitchen-54-17
+    - robocasakitchen-54-38
+    - robocasakitchen-55-15
+    - robocasakitchen-55-17
+    - robocasakitchen-55-20
+    - robocasakitchen-55-29
+    - robocasakitchen-55-44
+    - robocasakitchen-56-21
+    - robocasakitchen-57-5
+    - robocasakitchen-57-12
+    - robocasakitchen-57-21
+    - robocasakitchen-57-50
+    - robocasakitchen-57-53
+    - robocasakitchen-57-57
+    - robocasakitchen-58-48
+    - robocasakitchen-59-7
+    - robocasakitchen-59-14
+    - robocasakitchen-59-53
+    - robocasakitchen-60-17
+    - robocasakitchen-60-46
+  
+  scene_backend: robocasa
+  task_backend: robocasa
+  device: cuda:0
+  num_envs: 1
+  usd_simplify: false
+  enable_cameras: true
+  video: false
+  disable_fabric: false
+  robot_scale: 1.0
+  seed: 42
+  sources: null
+  object_projects: null
+  for_rl: false
+  variant: Visual 
+
+  concatenate_terms: false
+  distributed: false
+
+  replay_cfgs:
+    add_camera_to_observation: true
+    # object_cfgs_path: "/home/jialeng/Desktop/lw_benchhub/.cache/objcfgs_coffee_x7s_seed42.json"
+    render_resolution: [398,224]

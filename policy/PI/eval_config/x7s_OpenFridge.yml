@@ -2,7 +2,7 @@
 policy_name: PIPolicy
 
 # NOTE: 使用 JAX 参数时可显式指定恢复 dtype，避免 bf16->f16 转换崩溃。
-checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_all_jax/60000'
+# checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_6_tasks_jax_RTX6000D/69999'
 # jax_params_dtype: 'float32'
 # jax_model_dtype: 'float32'
 
@@ -28,7 +28,7 @@ time_out_limit: 50
 height: 224
 width: 398
 
-test_num: 10
+test_num: 5
 
 env_cfg:
   task: OpenFridge

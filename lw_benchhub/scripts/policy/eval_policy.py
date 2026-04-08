@@ -20,7 +20,6 @@ import argparse
 import contextlib
 import copy
 import importlib
-import json
 import sys
 from pathlib import Path
 
@@ -155,6 +154,31 @@ def _normalize_layouts(env_cfg):
     return [layouts]
 
 
+def _get_scene_eval_status(eval_root: Path, test_num: int, num_envs: int):
+    """
+    Check if scene has been fully evaluated by counting episode files.
+    Returns (is_complete, success_count) for skip decision and overall rate.
+    """
+    if not eval_root.exists():
+        return False, 0
+    required_count = test_num * num_envs
+    success_count = 0
+    completed_count = 0
+    for idx in range(test_num):
+        for env_idx in range(num_envs):
+            run_id = f"episode{idx}_env{env_idx}"
+            normal_path = eval_root / f"{run_id}.mp4"
+            success_path = eval_root / f"{run_id}_success.mp4"
+            if success_path.exists():
+                completed_count += 1
+                success_count += 1
+            elif normal_path.exists():
+                completed_count += 1
+    if completed_count >= required_count:
+        return True, success_count
+    return False, 0
+
+
 def main(usr_args):
     debug_client_flow = bool(usr_args.get("debug_client_flow", False))
     if debug_client_flow:
@@ -195,7 +219,7 @@ def main(usr_args):
     test_num = usr_args.get("test_num", 10)  # default 10
     total_success = 0
     total_tests = 0
-    per_scene_results = []
+    eval_result_dir = Path(usr_args.get("eval_result_dir", "./eval_result"))
     with (
         contextlib.suppress(KeyboardInterrupt),  # and torch.inference_mode(),
     ):
@@ -203,9 +227,29 @@ def main(usr_args):
             if layout is not None:
                 env_cfg["layout"] = layout
             scene_env_cfg = copy.deepcopy(env_cfg)
+            task_name = scene_env_cfg.get("task", "unknown_task")
+            num_envs = int(scene_env_cfg.get("num_envs", 1))
+            if layout is not None:
+                eval_root = eval_result_dir / "video" / task_name / str(layout)
+            else:
+                eval_root = eval_result_dir / "video" / task_name
+
+            # Skip if scene already fully evaluated
+            is_complete, prev_success = _get_scene_eval_status(eval_root, test_num, num_envs)
+            if is_complete:
+                print(f"[SKIP] Scene {layout} already evaluated ({prev_success}/{test_num * num_envs} success).")
+                total_success += prev_success
+                total_tests += test_num * num_envs
+                continue
+
+            # Attach environment - on any error, skip and continue to next scene
             if debug_client_flow:
                 print(f"[CLIENT-DEBUG] attach begin layout={layout}, env_cfg_keys={list(scene_env_cfg.keys())}")
-            env.attach(scene_env_cfg)
+            try:
+                env.attach(scene_env_cfg)
+            except Exception as e:
+                print(f"[SKIP] Scene {layout} failed to load, continuing: {e}")
+                continue
             if debug_client_flow:
                 print(f"[CLIENT-DEBUG] attach done layout={layout}")
             if "actions_dim" not in usr_args:
@@ -214,11 +258,9 @@ def main(usr_args):
                 usr_args["decimation"] = env.unwrapped.cfg.decimation
             if debug_client_flow:
                 print(f"[CLIENT-DEBUG] actions_dim={usr_args.get('actions_dim')} decimation={usr_args.get('decimation')}")
-            num_envs = int(scene_env_cfg.get("num_envs", 1))
             scene_success = 0
+            eval_root.mkdir(parents=True, exist_ok=True)
             for idx in tqdm.tqdm(range(test_num), desc=f"scene={layout}"):
-                eval_root = Path(f"./eval_result/video/{layout}") if layout else Path("./eval_result/video")
-                eval_root.mkdir(parents=True, exist_ok=True)
                 writers = []
                 try:
                     if debug_client_flow:
@@ -254,19 +296,20 @@ def main(usr_args):
                     if debug_client_flow:
                         print(f"[CLIENT-DEBUG] episode={idx} writers closed")
                 if isinstance(has_success, (list, tuple, np.ndarray)):
+                    success_list = [bool(x) for x in has_success]
                     scene_success += int(np.sum(has_success))
                 else:
+                    success_list = [bool(has_success)]
                     scene_success += int(bool(has_success))
+                for env_idx, succeeded in enumerate(success_list):
+                    if succeeded:
+                        run_id = f"episode{idx}_env{env_idx}"
+                        old_path = eval_root / f"{run_id}.mp4"
+                        new_path = eval_root / f"{run_id}_success.mp4"
+                        if old_path.exists():
+                            old_path.rename(new_path)
                 total_done = (idx + 1) * num_envs
                 print(f"[{layout}] Current test result: {has_success}. Success/total tested: {scene_success}/{total_done}")
-            per_scene_results.append(
-                {
-                    "layout": layout,
-                    "test_count": test_num * num_envs,
-                    "success_count": scene_success,
-                    "success_rate": scene_success / (test_num * num_envs) if test_num else 0.0,
-                }
-            )
             total_success += scene_success
             total_tests += test_num * num_envs
             if debug_client_flow:
@@ -276,15 +319,6 @@ def main(usr_args):
                 print(f"[CLIENT-DEBUG] detach done layout={layout}")
     overall_rate = total_success / total_tests if total_tests else 0.0
     print(f"Overall success rate: {overall_rate}")
-
-    results = {
-        "test_count": total_tests,
-        "success_count": total_success,
-        "success_rate": overall_rate,
-        "per_scene": per_scene_results,
-    }
-    with open("./eval_result/eval_results.json", "w", encoding="utf-8") as f:
-        json.dump(results, f, indent=4, ensure_ascii=False)
 
     if debug_client_flow:
         print("[CLIENT-DEBUG] closing env")

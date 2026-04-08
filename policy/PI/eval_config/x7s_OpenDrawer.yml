@@ -2,7 +2,7 @@
 policy_name: PIPolicy
 
 # NOTE: 使用 JAX 参数时可显式指定恢复 dtype，避免 bf16->f16 转换崩溃。
-checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_all_jax/60000'
+# checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_6_tasks_jax_RTX6000D/69999'
 # jax_params_dtype: 'float32'
 # jax_model_dtype: 'float32'
 
@@ -10,7 +10,7 @@ checkpoint: '/home/jialeng/openpi/checkpoints/pi0_libero/pi0_all_jax/60000'
 train_config_name: pi0_libero
 action_chunk_size: 50
 
-instruction: "Open the fridge"
+instruction: "Open the drawer"
 
 observation_config:
   custom_mapping:
@@ -28,10 +28,10 @@ time_out_limit: 50
 height: 224
 width: 398
 
-test_num: 10
+test_num: 5
 
 env_cfg:
-  task: OpenFridge
+  task: OpenDrawer
   robot: X7S-Abs
   # Single scene (legacy)
   # layout: robocasakitchen-5-3
@@ -58,8 +58,6 @@ env_cfg:
     - robocasakitchen-4-23
     - robocasakitchen-4-33
     - robocasakitchen-4-47
-    - robocasakitchen-5-8
-    - robocasakitchen-5-35
     - robocasakitchen-5-37
     - robocasakitchen-6-8
     - robocasakitchen-6-19
