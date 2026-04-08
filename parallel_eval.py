@@ -83,6 +83,8 @@ def build_client_overrides(task, cfg, base_dir):
         overrides += ["--checkpoint", checkpoint]
 
     override_keys = [
+        "train_config_name",
+        "action_chunk_size",
         "eval_result_dir",
         "save_data",
         "save_data_dir",

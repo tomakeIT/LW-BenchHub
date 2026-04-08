@@ -12,6 +12,10 @@ log_dir: multi_eval_logs
 # This overrides the `checkpoint` inside each task config when provided.
 checkpoint: /home/jialeng/openpi/checkpoints/pi0_libero/pi0_6tasks_finetune/29999
 
+# PI0 policy parameters (override task-level config when provided)
+train_config_name: pi0_libero
+action_chunk_size: 50
+
 enable_camera: true
 debug_client_flow: true
 debug_step_interval: 1
